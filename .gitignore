@@ -205,3 +205,9 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# project spec
+config.yaml
+memory.db
+checkpoints.db
+example/

@@ -1,0 +1,43 @@
+organization: The Company
+dialect: presto
+bi_config_file: example/bi.yaml
+
+# Catalog store configuration
+catalog_store:
+  store_type: file_system
+  data_path: ./example
+
+# Data warehouse configuration
+data_warehouse_config2:
+  uri: "presto://{user_name}@domain:8080/db/default"
+  include_tables:
+    - null  # null means include all tables, or specify yaml list
+  database_name: "db.default"  # database name to use in catalog
+  token_service: "https://tokens-domain:8080/v1"
+  user_name: TOKEN_SERVICE_USER_NAME
+  password: TOKEN_SERVICE_PASSWORD
+
+# LLM configurations
+default_llm:
+  class: langchain_openai.ChatOpenAI
+  params:
+    api_key: YOUR_API_KEY_HERE
+    model: gpt-4.1
+    temperature: 0.02
+    max_tokens: 8192
+
+embedding_model:
+  class: langchain_openai.OpenAIEmbeddings
+  params:
+    api_key: YOUR_API_KEY_HERE
+    model: text-embedding-3-large
+    chunk_size: 1024
+
+# Optional
+text2sql_llm:
+  class: langchain_openai.ChatOpenAI
+  params:
+    api_key: YOUR_API_KEY_HERE
+    model: gpt-4.1
+    temperature: 0.02
+    max_tokens: 8192

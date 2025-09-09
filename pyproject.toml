@@ -1,0 +1,234 @@
+[project]
+name = "openchatbi"
+version = "0.0.1"
+description = "OpenChatBI - Natural language business intelligence powered by LLMs for intuitive data analysis and SQL generation"
+authors = [
+    { name = "Yu Zhong", email = "zhongyu8@gmail.com" },
+]
+license = { text = "MIT" }
+readme = "README.md"
+keywords = [
+    "business intelligence",
+    "bi",
+    "analytics",
+    "llm",
+    "gpt",
+    "ai",
+    "machine learning",
+    "nlp",
+    "text2sql",
+    "agent",
+    "query data",
+    "talk to data",
+    "analyze data",
+    "data agent",
+    "database",
+    "langchain",
+    "langgraph",
+    "natural language",
+    "conversational ai",
+    ]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: End Users/Desktop",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Database",
+    "Topic :: Scientific/Engineering :: Information Analysis",
+    "Topic :: Office/Business",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Operating System :: OS Independent",
+    "License :: OSI Approved :: MIT License",
+]
+requires-python = ">=3.11,<4.0"
+
+dependencies = [
+    "langgraph>=0.4.7,<1.0.0",
+    "langchain-openai>=0.3.18,<1.0.0",
+    "langchain-anthropic>=0.3.13,<1.0.0",
+    "langchain-community>=0.3.27,<1.0.0",
+    "langmem==0.0.29",
+    "sqlalchemy>=2.0.41,<3.0.0",
+    "requests>=2.31.0,<3.0.0",
+    "rank-bm25>=0.2.2,<1.0.0",
+    "sqlalchemy-trino>=0.5.0",
+    "langgraph-checkpoint-sqlite>=2.0.11",
+    "aiosqlite>=0.21.0",
+    "pyhive[presto]>=0.7.0",
+    "langchain-chroma>=0.2.5",
+    "python-levenshtein>=0.27.1",
+    "jieba>=0.42.1",
+    "gradio>=5.43.1,<6.0.0",
+    "pysqlite3>=0.5.4",
+]
+
+[project.urls]
+Homepage = "https://github.com/zhongyu09/openchatbi"
+Repository = "https://github.com/zhongyu09/openchatbi"
+Documentation = "https://github.com/zhongyu09/openchatbi/tree/main"
+"Bug Tracker" = "https://github.com/zhongyu09/openchatbi/issues"
+
+[project.optional-dependencies]
+docs = [
+    "sphinx>=7.0.0,<8.0.0",
+    "furo>=2024.5.6,<2025.0.0",
+    "sphinx-autodoc-typehints>=2.0.0,<3.0.0",
+]
+test = [
+    "pytest>=7.4.0,<9.0.0",
+    "pytest-mock>=3.14.0,<4.0.0",
+    "pytest-asyncio>=0.23.8,<1.0.0",
+    "pytest-sugar>=1.0.0,<2.0.0",
+    "pytest-cov>=6.0.0,<7.0.0",
+    "aioresponses>=0.7.7,<1.0.0",
+    "responses>=0.25.3,<1.0.0",
+    "langsmith[pytest]>=0.4.8,<1.0.0",
+    "openevals>=0.1.0,<1.0.0",
+]
+dev = [
+    "openchatbi[test,docs]",
+    "black>=24.10.0,<25.0.0",
+    "mypy>=1.13.0,<2.0.0",
+    "ruff>=0.8.0,<1.0.0",
+    "pre-commit>=4.0.1,<5.0.0",
+    "bandit>=1.8.6,<2.0.0",
+    "types-setuptools>=75.6.0.20241126",
+]
+
+[tool.uv]
+managed = true
+dev-dependencies = [
+    "openchatbi[dev]",
+]
+
+[build-system]
+requires = ["hatchling>=1.26.0"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["openchatbi"]
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.black]
+line-length = 120
+target-version = ["py311"]
+include = '\.pyi?$'
+exclude = '''
+/(
+    \.git
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | _build
+  | buck-out
+  | build
+  | dist
+)/
+'''
+skip-string-normalization = false
+skip-magic-trailing-comma = false
+preview = false
+
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+exclude = [
+    ".git",
+    ".mypy_cache",
+    ".tox",
+    ".venv",
+    "_build",
+    "buck-out",
+    "build",
+    "dist",
+]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "C",   # flake8-comprehensions
+    "B",   # flake8-bugbear
+    "UP",  # pyupgrade
+]
+ignore = [
+    "E501",  # line too long, handled by black
+    "B008",  # do not perform function calls in argument defaults
+    "C901",  # too complex
+]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]
+"tests/**/*" = ["B011"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+ignore_missing_imports = true
+show_error_codes = true
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+addopts = [
+    "--strict-markers",
+    "--strict-config",
+    "--cov=openchatbi",
+    "--cov-report=term-missing",
+    "--cov-report=html",
+    "--cov-report=xml",
+]
+testpaths = ["tests"]
+markers = [
+    "unit: Unit tests",
+    "integration: Integration tests", 
+    "slow: Slow tests that may take several seconds",
+    "requires_db: Tests that require database connection",
+    "requires_llm: Tests that require LLM service"
+]
+filterwarnings = [
+    "error",
+    "ignore::UserWarning",
+    "ignore::DeprecationWarning",
+]
+
+[tool.coverage.run]
+source = ["openchatbi"]
+omit = [
+    "*/tests/*",
+    "*/test_*.py",
+    "setup.py",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "if settings.DEBUG",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if 0:",
+    "if __name__ == .__main__.:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
+]
+

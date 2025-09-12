@@ -2,6 +2,7 @@
 
 from typing import Any
 
+from langgraph.types import Send
 from langgraph.graph import MessagesState
 
 
@@ -12,6 +13,7 @@ class AgentState(MessagesState):
     """
 
     agent_next_node: str
+    sends: list[Send]
     sql: str
     final_answer: str
 

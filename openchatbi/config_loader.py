@@ -44,7 +44,7 @@ class Config(BaseModel):
     # MCP Servers Configuration
     mcp_servers: list[dict[str, Any]] = []
 
-    # Report Configuration  
+    # Report Configuration
     report_directory: str = "./data"
 
     @classmethod

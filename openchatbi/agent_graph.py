@@ -15,9 +15,7 @@ from langgraph.graph import END, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.prebuilt import ToolNode
 from langgraph.store.base import BaseStore
-from langgraph.types import Checkpointer, interrupt
-from pydantic import BaseModel, Field
-
+from langgraph.types import Checkpointer, interrupt, Send
 from openchatbi import config
 from openchatbi.catalog import CatalogStore
 from openchatbi.constants import datetime_format
@@ -32,6 +30,7 @@ from openchatbi.tool.run_python_code import run_python_code
 from openchatbi.tool.save_report import save_report
 from openchatbi.tool.search_knowledge import search_knowledge, show_schema
 from openchatbi.utils import log
+from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 
@@ -140,29 +139,33 @@ def agent_router(llm: BaseChatModel, tools: list) -> Callable:
         )
 
         response = call_llm_chat_model_with_retry(
-            llm_with_tools, ([SystemMessage(system_prompt)] + messages), bound_tools=tools
+            llm_with_tools, ([SystemMessage(system_prompt)] + messages), bound_tools=tools, parallel_tool_call=True
         )
         agent_next_node = ""
         if isinstance(response, AIMessage):
             tool_calls = response.tool_calls
+            print("Tool Call:", ", ".join(tool["name"] for tool in tool_calls))
             if tool_calls:
-                if tool_calls[0]["name"] == "AskHuman":
-                    agent_next_node = "ask_human"
-                elif tool_calls[0]["name"] in (
-                    "search_knowledge",
-                    "show_schema",
-                    "text2sql",
-                    "run_python_code",
-                    "manage_memory",
-                    "search_memory",
-                    "save_report",
-                ) or tool_calls[0]["name"].startswith("mcp_"):
-                    agent_next_node = "use_tool"
-                else:
-                    raise ValueError(f"Unknown tool call: {tool_calls[0]['name']}")
+                # Group tool calls by type for parallel routing
+                ask_human_calls = [call for call in tool_calls if call["name"] == "AskHuman"]
+                normal_tool_calls = [call for call in tool_calls if call["name"] != "AskHuman"]
+
+                # Create Send objects for parallel routing
+                sends = []
+                if ask_human_calls:
+                    # Create message with only AskHuman calls
+                    ask_human_msg = AIMessage(content=response.content, tool_calls=ask_human_calls)
+                    sends.append(Send("ask_human", {"messages": [ask_human_msg]}))
+
+                if normal_tool_calls:
+                    # Create message with only normal tool calls
+                    tool_msg = AIMessage(content=response.content, tool_calls=normal_tool_calls)
+                    sends.append(Send("use_tool", {"messages": [tool_msg]}))
+
+                return {"messages": [response], "sends": sends}
             else:
                 return {"messages": [response], "final_answer": response.content, "agent_next_node": END}
-        return {"messages": [response], "agent_next_node": agent_next_node}
+        return {"messages": [response], "sends": []}
 
     return _call_model
 
@@ -209,12 +212,6 @@ def _build_graph_core(
     ] + mcp_tools
     tool_node = ToolNode(normal_tools)
 
-    def ask_human(state: AgentState) -> dict:
-        interrupt(state)
-        question = state["messages"][-1].content
-        human_response = state["user_feedback"]
-        return {"messages": [AIMessage(content=f"The user responded to '{question}' with: '{human_response}'")]}
-
     # Define the agent graph
     graph = StateGraph(AgentState, input_schema=InputState, output_schema=OutputState)
 
@@ -229,10 +226,26 @@ def _build_graph_core(
     graph.add_edge("use_tool", "router")
 
     # Add conditional routing from router node
+    def route_tools(state: AgentState):
+        # Only use sends if the last message came from the router (has tool_calls)
+        last_message = state["messages"][-1] if state["messages"] else None
+        if (
+            last_message
+            and isinstance(last_message, AIMessage)
+            and last_message.tool_calls
+            and "sends" in state
+            and state["sends"]
+        ):
+            return state["sends"]  # Return Send objects for parallel execution
+        elif "agent_next_node" in state:
+            return state["agent_next_node"]  # Return single node name
+        else:
+            return END
+
     graph.add_conditional_edges(
         "router",
-        lambda state: state["agent_next_node"],
-        # mapping of paths to node names
+        route_tools,
+        # mapping of paths to node names (for single routing)
         {
             "ask_human": "ask_human",
             "use_tool": "use_tool",

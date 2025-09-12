@@ -11,7 +11,7 @@ from langgraph.types import Command
 from openchatbi.catalog.entry import catalog_store
 from openchatbi.agent_graph import build_agent_graph_sync
 from openchatbi.tool.memory import get_sync_memory_store
-from openchatbi.utils import log
+from openchatbi.utils import log, get_report_download_response
 from sample_ui.style import custom_css
 
 # Session state storage: session_id -> state
@@ -81,6 +81,12 @@ with gr.Blocks(css=custom_css, theme=gr.themes.Soft()) as demo:
         return "", chat_history
 
     msg.submit(respond, [msg, chatbot, user_box, session_box], [msg, chatbot])
+
+# ---------- API Endpoints ----------
+@app.get("/api/download/report/{filename}")
+def download_report(filename: str):
+    """Download a saved report file."""
+    return get_report_download_response(filename)
 
 # ---------- Application Startup ----------
 # Mount Gradio app to FastAPI

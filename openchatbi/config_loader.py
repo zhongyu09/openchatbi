@@ -44,6 +44,9 @@ class Config(BaseModel):
     # MCP Servers Configuration
     mcp_servers: list[dict[str, Any]] = []
 
+    # Report Configuration  
+    report_directory: str = "./data"
+
     @classmethod
     def from_dict(cls, config: dict[str, Any]) -> "Config":
         """Creates a Config instance from a dictionary.

@@ -29,6 +29,7 @@ from openchatbi.tool.ask_human import AskHuman
 from openchatbi.tool.mcp_tools import create_mcp_tools_sync, get_mcp_tools_async
 from openchatbi.tool.memory import get_memory_tools
 from openchatbi.tool.run_python_code import run_python_code
+from openchatbi.tool.save_report import save_report
 from openchatbi.tool.search_knowledge import search_knowledge, show_schema
 from openchatbi.utils import log
 
@@ -154,6 +155,7 @@ def agent_router(llm: BaseChatModel, tools: list) -> Callable:
                     "run_python_code",
                     "manage_memory",
                     "search_memory",
+                    "save_report",
                 ) or tool_calls[0]["name"].startswith("mcp_"):
                     agent_next_node = "use_tool"
                 else:
@@ -203,6 +205,7 @@ def _build_graph_core(
         run_python_code,
         manage_memory_tool,
         search_memory_tool,
+        save_report,
     ] + mcp_tools
     tool_node = ToolNode(normal_tools)
 

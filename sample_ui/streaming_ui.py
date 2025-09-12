@@ -17,7 +17,7 @@ from openchatbi.catalog.entry import catalog_store
 from openchatbi.agent_graph import build_agent_graph_async
 from openchatbi.llm.llm import default_llm
 from openchatbi.tool.memory import cleanup_async_memory_store, get_async_memory_tools, setup_async_memory_store
-from openchatbi.utils import get_text_from_message_chunk, log
+from openchatbi.utils import get_text_from_message_chunk, log, get_report_download_response
 from sample_ui.style import custom_css
 
 # Session state storage: user_session_id -> state
@@ -302,6 +302,12 @@ with gr.Blocks(css=custom_css, theme=gr.themes.Soft()) as demo:
 
             # Event handler for loading memories
             load_memories_btn.click(fn=list_user_memories, inputs=[memory_user_input], outputs=[memory_display])
+
+# ---------- API Endpoints ----------
+@app.get("/api/download/report/{filename}")
+async def download_report(filename: str):
+    """Download a saved report file."""
+    return get_report_download_response(filename)
 
 # ---------- Application Startup ----------
 # Mount Gradio app to FastAPI

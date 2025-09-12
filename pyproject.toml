@@ -46,24 +46,24 @@ classifiers = [
 requires-python = ">=3.11,<4.0"
 
 dependencies = [
+    "requests>=2.31.0,<3.0.0",
     "langgraph>=0.4.7,<1.0.0",
     "langchain-openai>=0.3.18,<1.0.0",
     "langchain-anthropic>=0.3.13,<1.0.0",
     "langchain-community>=0.3.27,<1.0.0",
-    "langmem==0.0.29",
-    "sqlalchemy>=2.0.41,<3.0.0",
-    "requests>=2.31.0,<3.0.0",
-    "rank-bm25>=0.2.2,<1.0.0",
-    "sqlalchemy-trino>=0.5.0",
     "langgraph-checkpoint-sqlite>=2.0.11",
+    "langchain-chroma>=0.2.5",
+    "langchain_mcp_adapters>=0.1.9",
+    "langmem>=0.0.29",
+    "sqlalchemy>=2.0.41,<3.0.0",
+    "sqlalchemy-trino>=0.5.0",
+    "pysqlite3>=0.5.4",
     "aiosqlite>=0.21.0",
     "pyhive[presto]>=0.7.0",
-    "langchain-chroma>=0.2.5",
+    "rank-bm25>=0.2.2,<1.0.0",
     "python-levenshtein>=0.27.1",
     "jieba>=0.42.1",
     "gradio>=5.43.1,<6.0.0",
-    "pysqlite3>=0.5.4",
-    "langchain_mcp_adapters>=0.1.9",
 ]
 
 [project.urls]

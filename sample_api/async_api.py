@@ -10,6 +10,7 @@ from pydantic import BaseModel
 
 from openchatbi.catalog.entry import catalog_store
 from openchatbi.agent_graph import build_agent_graph_async
+from openchatbi.utils import get_report_download_response
 
 # Session state storage: session_id -> state
 sessions = defaultdict(dict)
@@ -112,6 +113,12 @@ async def get_user_memories(user_id: str):
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to access memory store: {str(e)}") from e
+
+
+@app.get("/api/download/report/{filename}")
+async def download_report(filename: str):
+    """Download a saved report file."""
+    return get_report_download_response(filename)
 
 
 if __name__ == "__main__":

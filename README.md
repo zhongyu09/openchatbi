@@ -31,8 +31,8 @@ and workflows that support natural language to SQL conversion and data analysis.
 ### Prerequisites
 
 - Python 3.11 or higher
-- Access to a supported LLM provider (Azure OpenAI, OpenAI, or Anthropic)
-- Database credentials (for Presto, Trino, or MySQL)
+- Access to a supported LLM provider (OpenAI, Anthropic, etc.)
+- Data Warehose (Database) credentials (like Presto, Postgre SQL, MySQL, etc.)
 
 ### Installation
 

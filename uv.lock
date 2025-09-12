@@ -2404,7 +2404,7 @@ requires-dist = [
     { name = "langchain-openai", specifier = ">=0.3.18,<1.0.0" },
     { name = "langgraph", specifier = ">=0.4.7,<1.0.0" },
     { name = "langgraph-checkpoint-sqlite", specifier = ">=2.0.11" },
-    { name = "langmem", specifier = "==0.0.29" },
+    { name = "langmem", specifier = ">=0.0.29" },
     { name = "langsmith", extras = ["pytest"], marker = "extra == 'test'", specifier = ">=0.4.8,<1.0.0" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.13.0,<2.0.0" },
     { name = "openchatbi", extras = ["test", "docs"], marker = "extra == 'dev'" },

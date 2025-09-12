@@ -41,6 +41,9 @@ class Config(BaseModel):
     # Catalog Store
     catalog_store: Any = None
 
+    # MCP Servers Configuration
+    mcp_servers: list[dict[str, Any]] = []
+
     @classmethod
     def from_dict(cls, config: dict[str, Any]) -> "Config":
         """Creates a Config instance from a dictionary.

@@ -9,7 +9,7 @@ from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.types import Command
 
 from openchatbi.catalog.entry import catalog_store
-from openchatbi.graph import build_agent_graph
+from openchatbi.agent_graph import build_agent_graph_sync
 from openchatbi.tool.memory import get_sync_memory_store
 from openchatbi.utils import log
 from sample_ui.style import custom_css
@@ -20,9 +20,7 @@ session_interrupt = defaultdict(bool)
 # Use SqliteSaver for persistence
 sqlite_checkpointer_cm = SqliteSaver.from_conn_string("checkpoints.db")
 sqlite_checkpointer = sqlite_checkpointer_cm.__enter__()
-graph = build_agent_graph(
-    catalog_store, sync_mode=True, checkpointer=sqlite_checkpointer, memory_store=get_sync_memory_store()
-)
+graph = build_agent_graph_sync(catalog_store, checkpointer=sqlite_checkpointer, memory_store=get_sync_memory_store())
 
 # ---------- FastAPI ----------
 app = FastAPI()
@@ -74,7 +72,6 @@ with gr.Blocks(css=custom_css, theme=gr.themes.Soft()) as demo:
                 elem_id="description",
             )
 
-
     def respond(
         message: str, chat_history: list[tuple[str, str]], user_id: str, session_id: str
     ) -> tuple[str, list[tuple[str, str]]]:
@@ -82,7 +79,6 @@ with gr.Blocks(css=custom_css, theme=gr.themes.Soft()) as demo:
         response = chat_fn(message, chat_history, user_id, session_id)
         chat_history.append((message, response))
         return "", chat_history
-
 
     msg.submit(respond, [msg, chatbot, user_box, session_box], [msg, chatbot])
 

@@ -14,7 +14,7 @@ from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from langgraph.types import Command
 
 from openchatbi.catalog.entry import catalog_store
-from openchatbi.graph import build_agent_graph
+from openchatbi.agent_graph import build_agent_graph_async
 from openchatbi.llm.llm import default_llm
 from openchatbi.tool.memory import cleanup_async_memory_store, get_async_memory_tools, setup_async_memory_store
 from openchatbi.utils import get_text_from_message_chunk, log
@@ -49,9 +49,8 @@ class CheckpointerManager:
                 async_memory_tools = await get_async_memory_tools(default_llm)
 
                 # Build graph with async memory tools
-                self.graph = build_agent_graph(
+                self.graph = await build_agent_graph_async(
                     catalog_store,
-                    sync_mode=False,
                     checkpointer=self.checkpointer,
                     memory_store=async_store,
                     memory_tools=async_memory_tools,

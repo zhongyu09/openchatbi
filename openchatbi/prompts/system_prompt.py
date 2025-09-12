@@ -7,13 +7,14 @@ from openchatbi import config
 # Configuration from BI config
 BASIC_KNOWLEDGE = config.get().bi_config.get("basic_knowledge_glossary", "")
 DATA_WAREHOUSE_INTRODUCTION = config.get().bi_config.get("data_warehouse_introduction", "")
+AGENT_EXTRA_TOOL_USE_RULE = config.get().bi_config.get("extra_tool_use_rule", "")
 ORGANIZATION = config.get().organization
 
 
 def _load_sql_dialects():
     """Auto-scan sql_dialect folder and load available dialect rules."""
 
-    dialect_dir = importlib.resources.files('openchatbi.prompts.sql_dialect')
+    dialect_dir = importlib.resources.files("openchatbi.prompts.sql_dialect")
     _dialect_rule_dict = {}
 
     for item in dialect_dir.iterdir():
@@ -27,16 +28,20 @@ def _load_sql_dialects():
 
 def _get_agent_prompt_template() -> str:
     """Load and configure agent prompt template."""
-    with importlib.resources.files('openchatbi.prompts').joinpath("agent_prompt.md").open('r') as f:
+    with importlib.resources.files("openchatbi.prompts").joinpath("agent_prompt.md").open("r") as f:
         prompt = f.read()
 
-    prompt = prompt.replace("[organization]", ORGANIZATION)
+    prompt = (
+        prompt.replace("[organization]", ORGANIZATION)
+        .replace("[basic_knowledge_glossary]", BASIC_KNOWLEDGE)
+        .replace("[extra_tool_use_rule]", AGENT_EXTRA_TOOL_USE_RULE)
+    )
     return prompt
 
 
 def _get_extraction_prompt_template() -> str:
     """Load and configure extraction prompt template."""
-    with importlib.resources.files('openchatbi.prompts').joinpath("extraction_prompt.md").open('r') as f:
+    with importlib.resources.files("openchatbi.prompts").joinpath("extraction_prompt.md").open("r") as f:
         prompt = f.read()
 
     prompt = prompt.replace("[organization]", ORGANIZATION).replace("[basic_knowledge_glossary]", BASIC_KNOWLEDGE)
@@ -45,7 +50,7 @@ def _get_extraction_prompt_template() -> str:
 
 def _get_table_selection_prompt_template() -> str:
     """Load and configure table selection prompt template."""
-    with importlib.resources.files('openchatbi.prompts').joinpath("schema_linking_prompt.md").open('r') as f:
+    with importlib.resources.files("openchatbi.prompts").joinpath("schema_linking_prompt.md").open("r") as f:
         prompt = f.read()
     prompt = prompt.replace("[organization]", ORGANIZATION).replace("[basic_knowledge_glossary]", BASIC_KNOWLEDGE)
     return prompt
@@ -53,7 +58,7 @@ def _get_table_selection_prompt_template() -> str:
 
 def _get_text2sql_prompt_template() -> str:
     """Load and configure text2sql prompt template."""
-    with importlib.resources.files('openchatbi.prompts').joinpath("text2sql_prompt.md").open('r') as f:
+    with importlib.resources.files("openchatbi.prompts").joinpath("text2sql_prompt.md").open("r") as f:
         prompt = f.read()
     prompt = (
         prompt.replace("[organization]", ORGANIZATION)

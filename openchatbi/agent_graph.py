@@ -4,7 +4,7 @@ import datetime
 import logging
 import traceback
 from collections.abc import Callable
-from typing import Any
+from typing import Any, Optional
 
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import AIMessage, SystemMessage
@@ -19,12 +19,14 @@ from langgraph.types import Checkpointer, interrupt
 from pydantic import BaseModel, Field
 
 from openchatbi import config
+from openchatbi.catalog import CatalogStore
 from openchatbi.constants import datetime_format
 from openchatbi.graph_state import AgentState, InputState, OutputState
 from openchatbi.llm.llm import call_llm_chat_model_with_retry, default_llm
 from openchatbi.prompts.system_prompt import AGENT_PROMPT_TEMPLATE
 from openchatbi.text2sql.sql_graph import build_sql_graph
 from openchatbi.tool.ask_human import AskHuman
+from openchatbi.tool.mcp_tools import create_mcp_tools_sync, get_mcp_tools_async
 from openchatbi.tool.memory import get_memory_tools
 from openchatbi.tool.run_python_code import run_python_code
 from openchatbi.tool.search_knowledge import search_knowledge, show_schema
@@ -133,8 +135,8 @@ def agent_router(llm: BaseChatModel, tools: list) -> Callable:
     def _call_model(state: AgentState):
         messages = state["messages"]
         system_prompt = AGENT_PROMPT_TEMPLATE.replace(
-            "[basic_knowledge_glossary]", config.get().bi_config.get("basic_knowledge_glossary", "")
-        ).replace("[time_field_placeholder]", datetime.datetime.now().strftime(datetime_format))
+            "[time_field_placeholder]", datetime.datetime.now().strftime(datetime_format)
+        )
 
         response = call_llm_chat_model_with_retry(
             llm_with_tools, ([SystemMessage(system_prompt)] + messages), bound_tools=tools
@@ -152,7 +154,7 @@ def agent_router(llm: BaseChatModel, tools: list) -> Callable:
                     "run_python_code",
                     "manage_memory",
                     "search_memory",
-                ):
+                ) or tool_calls[0]["name"].startswith("mcp_"):
                     agent_next_node = "use_tool"
                 else:
                     raise ValueError(f"Unknown tool call: {tool_calls[0]['name']}")
@@ -163,24 +165,26 @@ def agent_router(llm: BaseChatModel, tools: list) -> Callable:
     return _call_model
 
 
-def build_agent_graph(
-    catalog: Any,
-    sync_mode: bool = False,
-    checkpointer: Checkpointer = None,
-    memory_store: BaseStore = None,
-    memory_tools: tuple[Callable, Callable] = None,
+def _build_graph_core(
+    catalog: CatalogStore,
+    sync_mode: bool,
+    checkpointer: Checkpointer,
+    memory_store: BaseStore,
+    memory_tools: Optional[tuple[Callable, Callable]],
+    mcp_tools: list,
 ) -> CompiledStateGraph:
-    """Build the main agent graph with all nodes and edges.
+    """Core graph building logic shared by both sync and async versions.
 
     Args:
-        catalog: Catalog store containing schema information.
-        sync_mode: Whether to use synchronous mode for tools and operations.
-        checkpointer: The Checkpointer for state persistence (short memory). If None, no short memory.
-        memory_store: The BaseStore to use for long-term memory. If None, will auto assign according to sync_mode.
-        memory_tools: Tuple of (manage_memory_tool, search_memory_tool). If None, creates the sync tools if sync_mode = True.
+        catalog: Catalog store containing schema information
+        sync_mode: Whether to use synchronous mode for tools and operations
+        checkpointer: The Checkpointer for state persistence
+        memory_store: The BaseStore to use for long-term memory
+        memory_tools: Tuple of (manage_memory_tool, search_memory_tool)
+        mcp_tools: Pre-initialized MCP tools
 
     Returns:
-        CompiledStateGraph: Compiled agent graph ready for execution.
+        CompiledStateGraph: Compiled agent graph ready for execution
     """
     sql_graph = build_sql_graph(catalog, checkpointer, memory_store)
     call_sql_graph_tool = get_sql_tools(sql_graph=sql_graph, sync_mode=sync_mode)
@@ -191,6 +195,7 @@ def build_agent_graph(
     else:
         manage_memory_tool, search_memory_tool = get_memory_tools(default_llm, sync_mode=sync_mode, store=memory_store)
 
+    log(str(mcp_tools))
     normal_tools = [
         search_knowledge,
         show_schema,
@@ -198,8 +203,14 @@ def build_agent_graph(
         run_python_code,
         manage_memory_tool,
         search_memory_tool,
-    ]
+    ] + mcp_tools
     tool_node = ToolNode(normal_tools)
+
+    def ask_human(state: AgentState) -> dict:
+        interrupt(state)
+        question = state["messages"][-1].content
+        human_response = state["user_feedback"]
+        return {"messages": [AIMessage(content=f"The user responded to '{question}' with: '{human_response}'")]}
 
     # Define the agent graph
     graph = StateGraph(AgentState, input_schema=InputState, output_schema=OutputState)
@@ -228,3 +239,64 @@ def build_agent_graph(
 
     graph = graph.compile(name="agent_graph", checkpointer=checkpointer, store=memory_store)
     return graph
+
+
+def build_agent_graph_sync(
+    catalog: CatalogStore,
+    checkpointer: Checkpointer = None,
+    memory_store: BaseStore = None,
+) -> CompiledStateGraph:
+    """Build the main agent graph with all nodes and edges (sync version).
+
+    Args:
+        catalog: Catalog store containing schema information.
+        checkpointer: The Checkpointer for state persistence (short memory). If None, no short memory.
+        memory_store: The BaseStore to use for long-term memory. If None, will auto assign according to sync_mode.
+
+    Returns:
+        CompiledStateGraph: Compiled agent graph ready for execution.
+    """
+    # Get MCP tools for sync context
+    mcp_tools = create_mcp_tools_sync(config.get().mcp_servers)
+
+    return _build_graph_core(
+        catalog=catalog,
+        sync_mode=True,
+        checkpointer=checkpointer,
+        memory_store=memory_store,
+        memory_tools=None,  # Always None for sync version - creates its own
+        mcp_tools=mcp_tools,
+    )
+
+
+async def build_agent_graph_async(
+    catalog: CatalogStore,
+    checkpointer: Checkpointer = None,
+    memory_store: BaseStore = None,
+    memory_tools: tuple[Callable, Callable] = None,
+) -> CompiledStateGraph:
+    """Build the main agent graph with all nodes and edges (async version).
+
+    This function is identical to build_agent_graph_sync but properly handles
+    async MCP tool initialization when called from async contexts.
+
+    Args:
+        catalog: Catalog store containing schema information.
+        checkpointer: The Checkpointer for state persistence (short memory). If None, no short memory.
+        memory_store: The BaseStore to use for long-term memory. If None, will auto assign according to sync_mode.
+        memory_tools: Tuple of (manage_memory_tool, search_memory_tool). If None, creates async tools.
+
+    Returns:
+        CompiledStateGraph: Compiled agent graph ready for execution.
+    """
+    # Get MCP tools for async context
+    mcp_tools = await get_mcp_tools_async(config.get().mcp_servers)
+
+    return _build_graph_core(
+        catalog=catalog,
+        sync_mode=False,
+        checkpointer=checkpointer,
+        memory_store=memory_store,
+        memory_tools=memory_tools,
+        mcp_tools=mcp_tools,
+    )

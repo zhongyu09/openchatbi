@@ -41,3 +41,23 @@ text2sql_llm:
     model: gpt-4.1
     temperature: 0.02
     max_tokens: 8192
+
+# MCP (Model Context Protocol) server configurations
+mcp_servers:
+  # File system MCP server (stdio transport)
+  - name: filesystem
+    transport: stdio
+    command: ["npx", "-y", "@modelcontextprotocol/server-filesystem"]
+    args: ["--path", "/tmp"]
+    enabled: false
+    timeout: 30
+  
+
+  # Example HTTP-based MCP server (streamable_http transport)
+  - name: weather
+    transport: streamable_http
+    url: "http://localhost:8000/mcp/"
+    headers:
+      Authorization: "Bearer YOUR_TOKEN"
+    enabled: false
+    timeout: 30

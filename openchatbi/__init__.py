@@ -18,9 +18,10 @@ def get_default_graph() -> CompiledStateGraph:
     """
     from langgraph.checkpoint.memory import MemorySaver
 
-    from openchatbi.graph import build_agent_graph
+    from openchatbi.agent_graph import build_agent_graph_sync
     from openchatbi.tool.memory import get_sync_memory_store
 
     checkpointer = MemorySaver()
-    return build_agent_graph(config.get().catalog_store, sync_mode=True, checkpointer=checkpointer,
-        memory_store=get_sync_memory_store())
+    return build_agent_graph_sync(
+        config.get().catalog_store, checkpointer=checkpointer, memory_store=get_sync_memory_store()
+    )

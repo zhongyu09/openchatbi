@@ -1,8 +1,8 @@
 # OpenChatBI
 
 OpenChatBI is an intelligent chat-based BI tool powered by large language models, designed to help users query, analyze,
-and visualize data through natural language conversations. It uses LangGraph and LangChain to build chat agent and
-workflows that support natural language to SQL conversion and data analysis.
+and visualize data through natural language conversations. It uses LangGraph and LangChain ecosystem to build chat agent 
+and workflows that support natural language to SQL conversion and data analysis.
 
 ## Core Features
 
@@ -10,19 +10,19 @@ workflows that support natural language to SQL conversion and data analysis.
 2. **Automatic SQL Generation**: Convert natural language queries into SQL statements using advanced text2sql workflows
    with schema linking and well organized prompt engineering
 3. **Knowledge Base Integration**: Answer complex questions by combining catalog based knowledge retrival and external
-   knowledge base retrival
+   knowledge base retrival (via MCP tools)
 4. **Code Execution**: Execute Python code for data analysis and visualization
 5. **Interactive Problem-Solving**: Proactively ask users for more context when information is incomplete
 6. **Persistent Memory**: Conversation management and user characteristic memory based on LangGraph checkpointing
-7. **Web UI Interface**: Provide 2 sample UI: simple and streaming web interfaces using Gradio, easy to integrate with
+7. **MCP Support**: Integration with MCP tools by configuration
+8. **Web UI Interface**: Provide 2 sample UI: simple and streaming web interfaces using Gradio, easy to integrate with
    other web applications
 
 ## Roadmap
 
 1. **Data Visualization**: Generate intuitive charts and dashboards
-2. **MCP Support**: Integration with Claude Desktop and other MCP-compatible tools
-3. **Time Series Forecasting**: Forecasting models deployed in-house
-4. **Root Cause Analysis Algorithm**: Multi-dimensional drill-down capabilities for anomaly investigation
+2. **Time Series Forecasting**: Forecasting models deployed in-house
+3. **Root Cause Analysis Algorithm**: Multi-dimensional drill-down capabilities for anomaly investigation
 
 # Getting started
 
@@ -54,6 +54,15 @@ pip install git+https://github.com/zhongyu09/openchatbi@main
 ```bash
 git clone git@github.com:zhongyu09/openchatbi
 uv sync --group dev
+```
+
+4. If you have issues when installing pysqlite3 on macOS, try to install sqlite using Homebrew first:
+
+```bash
+brew install sqlite
+brew info sqlite
+export LDFLAGS="-L/opt/homebrew/opt/sqlite/lib"
+export CPPFLAGS="-I/opt/homebrew/opt/sqlite/include"
 ```
 
 ### Configuration
@@ -204,7 +213,7 @@ openchatbi/
 │   ├── config.yaml             # Configuration file
 │   ├── config_loader.py        # Configuration management
 │   ├── constants.py            # Application constants
-│   ├── graph.py                # Main LangGraph workflow
+│   ├── agent_graph.py          # Main LangGraph workflow
 │   ├── graph_state.py          # State definition for workflows
 │   ├── utils.py                # Utility functions
 │   ├── catalog/                # Data catalog management
@@ -218,7 +227,7 @@ openchatbi/
 │   ├── code/                   # Code execution framework
 │   │   ├── executor_base.py    # Base executor interface
 │   │   ├── local_executor.py   # Local code execution
-│   │   └── restricted_local_executor.py # Sandboxed execution
+│   │   └── restricted_local_executor.py # Local code execution with restriction
 │   ├── llm/                    # LLM integration layer
 │   │   └── llm.py              # LLM management and retry logic
 │   ├── prompts/                # Prompt templates and engineering
@@ -228,23 +237,24 @@ openchatbi/
 │   │   ├── table_selection_prompt.md # Table selection prompts
 │   │   └── text2sql_prompt.md  # Text-to-SQL prompts
 │   ├── text2sql/               # Text-to-SQL conversion pipeline
-│   │   ├── data.py             # Data models and structures
+│   │   ├── data.py             # Data and retriver for Text-to-SQL 
 │   │   ├── extraction.py       # Information extraction
 │   │   ├── generate_sql.py     # SQL generation logic
-│   │   ├── schema_linking.py   # Schema linking algorithms
-│   │   ├── sql_graph.py        # SQL generation workflow
+│   │   ├── schema_linking.py   # Schema linking process
+│   │   ├── sql_graph.py        # SQL generation LangGraph workflow
 │   │   └── text2sql_utils.py   # Text2SQL utilities
 │   └── tool/                   # LangGraph tools and functions
 │       ├── ask_human.py        # Human-in-the-loop interactions
 │       ├── memory.py           # Memory management tool
 │       ├── run_python_code.py  # Python code execution tool
-│       └── search_knowledge.py # Knowledge base search
+│       ├── search_knowledge.py # Knowledge base search
+│       └── mcp_tools.py        # Integrate with MCP tools
 ├── sample_api/                 # API implementations
 │   └── async_api.py            # Asynchronous API example
 └── sample_ui/                  # Web interface implementations
     ├── memory_ui.py            # Memory-enhanced UI interface
-    ├── simple_ui.py            # Basic Gradio interface
-    ├── streaming_ui.py         # Streaming chat interface
+    ├── simple_ui.py            # Simple non-streaming UI based on Gradio
+    ├── streaming_ui.py         # Streaming UI
     └── style.py                # UI styling and CSS
 ```
 

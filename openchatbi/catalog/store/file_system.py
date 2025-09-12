@@ -692,9 +692,7 @@ class FileSystemCatalogStore(CatalogStore):
 
         return success
 
-    def save_table_sql_examples(
-        self, table: str, examples: list[dict[str, str]], database: str | None = None
-    ) -> bool:
+    def save_table_sql_examples(self, table: str, examples: list[dict[str, str]], database: str | None = None) -> bool:
         # Validate input data (let validation errors propagate)
         self._validate_table_name(table)
         self._validate_sql_examples(examples)

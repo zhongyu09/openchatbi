@@ -63,6 +63,7 @@ dependencies = [
     "jieba>=0.42.1",
     "gradio>=5.43.1,<6.0.0",
     "pysqlite3>=0.5.4",
+    "langchain_mcp_adapters>=0.1.9",
 ]
 
 [project.urls]

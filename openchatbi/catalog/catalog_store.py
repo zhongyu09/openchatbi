@@ -140,9 +140,7 @@ class CatalogStore(ABC):
         pass
 
     @abstractmethod
-    def save_table_sql_examples(
-        self, table: str, examples: list[dict[str, str]], database: str | None = None
-    ) -> bool:
+    def save_table_sql_examples(self, table: str, examples: list[dict[str, str]], database: str | None = None) -> bool:
         """
         Save SQL examples for a table
 

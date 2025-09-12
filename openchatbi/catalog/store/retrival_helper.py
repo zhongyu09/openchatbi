@@ -1,6 +1,5 @@
 """Helper functions for building column retrieval systems."""
 
-
 import jieba
 from langchain_community.vectorstores import Chroma
 from rank_bm25 import BM25Okapi

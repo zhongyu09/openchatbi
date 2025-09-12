@@ -102,6 +102,9 @@ def fix_schema_for_openai(schema: dict) -> None:
     props = schema.get("properties", {})
     schema["required"] = list(props.keys())
 
+    # Since Pydantic 2.11, it will always add `additionalProperties: True` for arbitrary dictionary schemas
+    # If it is already set to True, we need override it to False
+    # Can remove this fix when the patch release: https://github.com/langchain-ai/langchain/pull/32879
     def fix(obj):
         if isinstance(obj, dict):
             if obj.get("type") == "object" and "additionalProperties" in obj and obj["additionalProperties"]:

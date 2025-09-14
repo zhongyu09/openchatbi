@@ -32,7 +32,8 @@ and workflows that support natural language to SQL conversion and data analysis.
 
 - Python 3.11 or higher
 - Access to a supported LLM provider (OpenAI, Anthropic, etc.)
-- Data Warehose (Database) credentials (like Presto, Postgre SQL, MySQL, etc.)
+- Data Warehouse (Database) credentials (like Presto, PostgreSQL, MySQL, etc.)
+- Docker (optional, required only for `docker` executor mode)
 
 ### Installation
 
@@ -198,6 +199,7 @@ OpenChatBI is built using a modular architecture with clear separation of concer
 - **Frameworks**: LangGraph, LangChain, FastAPI, Gradio
 - **Large Language Models**: Azure OpenAI (GPT-4), Anthropic Claude, OpenAI GPT models
 - **Databases**: Presto, Trino, MySQL with SQLAlchemy support
+- **Code Execution**: Local Python, RestrictedPython, Docker containerization
 - **Development**: Python 3.11+, with modern tooling (Black, Ruff, MyPy, Pytest)
 - **Storage**: SQLite for conversation checkpointing, file system catalog storage
 
@@ -207,60 +209,74 @@ OpenChatBI is built using a modular architecture with clear separation of concer
 openchatbi/
 ├── README.md                   # Project documentation
 ├── pyproject.toml              # Modern Python project configuration
-├── run_tests.py                # Test runner script
-├── openchatbi/                 # Core application code
-│   ├── __init__.py             # Package initialization
-│   ├── config.yaml             # Configuration file
-│   ├── config_loader.py        # Configuration management
-│   ├── constants.py            # Application constants
-│   ├── agent_graph.py          # Main LangGraph workflow
-│   ├── graph_state.py          # State definition for workflows
-│   ├── utils.py                # Utility functions
-│   ├── catalog/                # Data catalog management
-│   │   ├── catalog_loader.py   # Catalog loading logic
-│   │   ├── catalog_store.py    # Catalog storage interface
-│   │   ├── entry.py            # Catalog entry points
-│   │   ├── factory.py          # Catalog factory patterns
-│   │   ├── helper.py           # Catalog helper functions
-│   │   ├── schema_retrival.py  # Schema retrieval logic
-│   │   └── token_service.py    # Token service integration
-│   ├── code/                   # Code execution framework
-│   │   ├── executor_base.py    # Base executor interface
-│   │   ├── local_executor.py   # Local code execution
-│   │   └── restricted_local_executor.py # Local code execution with restriction
-│   ├── llm/                    # LLM integration layer
-│   │   └── llm.py              # LLM management and retry logic
-│   ├── prompts/                # Prompt templates and engineering
-│   │   ├── agent_prompt.md     # Main agent prompts
+├── Dockerfile.python-executor  # Docker image for isolated code execution
+├── config.yaml.template        # Configuration template
+├── run_tests.py               # Test runner script
+├── openchatbi/                # Core application code
+│   ├── __init__.py            # Package initialization
+│   ├── config.yaml.template   # Configuration template
+│   ├── config_loader.py       # Configuration management
+│   ├── constants.py           # Application constants
+│   ├── agent_graph.py         # Main LangGraph workflow
+│   ├── graph_state.py         # State definition for workflows
+│   ├── utils.py               # Utility functions
+│   ├── catalog/               # Data catalog management
+│   │   ├── __init__.py        # Package initialization
+│   │   ├── catalog_loader.py  # Catalog loading logic
+│   │   ├── catalog_store.py   # Catalog storage interface
+│   │   ├── entry.py           # Catalog entry points
+│   │   ├── factory.py         # Catalog factory patterns
+│   │   ├── helper.py          # Catalog helper functions
+│   │   ├── schema_retrival.py # Schema retrieval logic
+│   │   └── token_service.py   # Token service integration
+│   ├── code/                  # Code execution framework
+│   │   ├── __init__.py        # Package initialization
+│   │   ├── executor_base.py   # Base executor interface
+│   │   ├── local_executor.py  # Local Python execution
+│   │   ├── restricted_local_executor.py # RestrictedPython execution
+│   │   └── docker_executor.py # Docker-based isolated execution
+│   ├── llm/                   # LLM integration layer
+│   │   ├── __init__.py        # Package initialization
+│   │   └── llm.py             # LLM management and retry logic
+│   ├── prompts/               # Prompt templates and engineering
+│   │   ├── __init__.py        # Package initialization
+│   │   ├── agent_prompt.md    # Main agent prompts
 │   │   ├── extraction_prompt.md # Information extraction prompts
-│   │   ├── system_prompt.py    # System prompt management
+│   │   ├── system_prompt.py   # System prompt management
 │   │   ├── table_selection_prompt.md # Table selection prompts
-│   │   └── text2sql_prompt.md  # Text-to-SQL prompts
-│   ├── text2sql/               # Text-to-SQL conversion pipeline
-│   │   ├── data.py             # Data and retriver for Text-to-SQL 
-│   │   ├── extraction.py       # Information extraction
-│   │   ├── generate_sql.py     # SQL generation logic
-│   │   ├── schema_linking.py   # Schema linking process
-│   │   ├── sql_graph.py        # SQL generation LangGraph workflow
-│   │   └── text2sql_utils.py   # Text2SQL utilities
-│   └── tool/                   # LangGraph tools and functions
-│       ├── ask_human.py        # Human-in-the-loop interactions
-│       ├── memory.py           # Memory management tool
-│       ├── run_python_code.py  # Python code execution tool
+│   │   └── text2sql_prompt.md # Text-to-SQL prompts
+│   ├── text2sql/              # Text-to-SQL conversion pipeline
+│   │   ├── __init__.py        # Package initialization
+│   │   ├── data.py            # Data and retriever for Text-to-SQL
+│   │   ├── extraction.py      # Information extraction
+│   │   ├── generate_sql.py    # SQL generation logic
+│   │   ├── schema_linking.py  # Schema linking process
+│   │   ├── sql_graph.py       # SQL generation LangGraph workflow
+│   │   └── text2sql_utils.py  # Text2SQL utilities
+│   └── tool/                  # LangGraph tools and functions
+│       ├── __init__.py        # Package initialization
+│       ├── ask_human.py       # Human-in-the-loop interactions
+│       ├── memory.py          # Memory management tool
+│       ├── run_python_code.py # Configurable Python code execution
+│       ├── save_report.py     # Report saving functionality
 │       ├── search_knowledge.py # Knowledge base search
-│       └── mcp_tools.py        # Integrate with MCP tools
-├── sample_api/                 # API implementations
-│   └── async_api.py            # Asynchronous API example
-└── sample_ui/                  # Web interface implementations
-    ├── memory_ui.py            # Memory-enhanced UI interface
-    ├── simple_ui.py            # Simple non-streaming UI based on Gradio
-    ├── streaming_ui.py         # Streaming UI
-    └── style.py                # UI styling and CSS
+│       └── mcp_tools.py       # MCP (Model Context Protocol) integration
+├── sample_api/               # API implementations
+│   └── async_api.py          # Asynchronous API example
+├── sample_ui/                # Web interface implementations
+│   ├── memory_ui.py          # Memory-enhanced UI interface
+│   ├── simple_ui.py          # Simple non-streaming UI
+│   ├── streaming_ui.py       # Streaming UI with real-time updates
+│   └── style.py              # UI styling and CSS
+└── tests/                    # Test suite
+    ├── test_tools_run_python_code.py # Code execution tests
+    └── ...                   # Additional test files
 ```
 
 ## Advanced Features
 
-### Basic Knowledge & Glossary
+### Prompt Engineering
+#### Basic Knowledge & Glossary
 
 You can define basic knowledge and glossary in `example/bi.yaml`, for example:
 
@@ -272,7 +288,7 @@ basic_knowledge_glossary: |
     Common terms and their definitions used in your business context.
 ```
 
-### Data Warehouse Introduction
+#### Data Warehouse Introduction
 
 You can provide a brief introduction of your data warehouse in `example/bi.yaml`, for example:
 
@@ -284,7 +300,7 @@ data_warehouse_introduction: |
     The data is updated hourly and is used for reporting and analysis purposes.
 ```
 
-### Table Selection Rules
+#### Table Selection Rules
 
 You can configure table selection rules in `example/bi.yaml`, for example:
 
@@ -293,7 +309,7 @@ table_selection_extra_rule: |
   - All tables with is_valid can support both valid and invalid traffics
 ```
 
-### Custom SQL Rules
+#### Custom SQL Rules
 
 You can define SQL rules for tables in `example/table_info.yaml`, for example:
 
@@ -303,6 +319,53 @@ sql_rule: |
   - All event_date in the table are stored in **UTC**. If the user specifies a timezone (e.g., CET, PST), convert between timezones accordingly.
 
 ```
+
+
+### Python Code Execution Configuration
+
+OpenChatBI supports multiple execution environments for running Python code with different security and performance characteristics:
+
+```yaml
+# Python Code Execution Configuration
+python_executor: local  # Options: "local", "restricted_local", "docker"
+```
+
+#### Executor Types
+
+- **`local`** (Default)
+  - **Performance**: Fastest execution
+  - **Security**: Least secure (code runs in current Python process)
+  - **Capabilities**: Full Python capabilities and library access
+  - **Use Case**: Development environments, trusted code execution
+
+- **`restricted_local`**
+  - **Performance**: Moderate execution speed
+  - **Security**: Moderate security with RestrictedPython sandboxing
+  - **Capabilities**: Limited Python features (no imports, file access, etc.)
+  - **Use Case**: Semi-trusted environments with controlled execution
+
+- **`docker`**
+  - **Performance**: Slower due to container overhead
+  - **Security**: Highest security with complete process isolation
+  - **Capabilities**: Full Python capabilities within isolated container
+  - **Use Case**: Production environments, untrusted code execution
+  - **Requirements**: Docker must be installed and running
+
+#### Docker Executor Setup
+
+For production deployments or when running untrusted code, the Docker executor provides complete isolation:
+
+1. **Install Docker**: Download and install Docker Desktop or Docker Engine
+2. **Configure executor**: Set `python_executor: docker` in your config
+3. **Automatic setup**: OpenChatBI will automatically build the required Docker image
+4. **Fallback behavior**: If Docker is unavailable, automatically falls back to local executor
+
+**Docker Executor Features**:
+- Pre-installed data science libraries (pandas, numpy, matplotlib, seaborn)
+- Network isolation for security
+- Automatic container cleanup
+- Resource isolation from host system
+
 
 ## Development & Testing
 

@@ -47,6 +47,9 @@ class Config(BaseModel):
     # Report Configuration
     report_directory: str = "./data"
 
+    # Code Execution Configuration
+    python_executor: str = "local"  # Options: "local", "restricted_local", "docker"
+
     @classmethod
     def from_dict(cls, config: dict[str, Any]) -> "Config":
         """Creates a Config instance from a dictionary.
@@ -67,7 +70,13 @@ class ConfigLoader:
     for the application, including LLM models, SQL dialect, and other settings.
     """
 
+    _instance = None
     _config: Config = Config()
+
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+        return cls._instance
 
     llm_configs = ["default_llm", "embedding_model", "text2sql_llm"]
 

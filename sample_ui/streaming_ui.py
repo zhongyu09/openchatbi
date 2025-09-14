@@ -145,7 +145,7 @@ async def respond(message, chat_history, user_id, session_id="default"):
             if event_value.get("router"):
                 message = event_value["router"].get("messages")[0]
                 if message and message.tool_calls:
-                    token = f"\nUse tool: {message.tool_calls[0]['name']}\n"
+                    token = f"\nUse tool: {", ".join(tool["name"] for tool in message.tool_calls)}\n"
                 else:
                     token = "\n"
             elif event_value.get("information_extraction"):
@@ -303,11 +303,13 @@ with gr.Blocks(css=custom_css, theme=gr.themes.Soft()) as demo:
             # Event handler for loading memories
             load_memories_btn.click(fn=list_user_memories, inputs=[memory_user_input], outputs=[memory_display])
 
+
 # ---------- API Endpoints ----------
 @app.get("/api/download/report/{filename}")
 async def download_report(filename: str):
     """Download a saved report file."""
     return get_report_download_response(filename)
+
 
 # ---------- Application Startup ----------
 # Mount Gradio app to FastAPI

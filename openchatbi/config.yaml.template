@@ -2,6 +2,13 @@ organization: The Company
 dialect: presto
 bi_config_file: example/bi.yaml
 
+# Python Code Execution Configuration
+# Options: "local", "restricted_local", "docker"
+# - local: Run code in the current Python process (fastest, least secure)
+# - restricted_local: Run code with RestrictedPython (moderate security, some limitations)
+# - docker: Run code in isolated Docker containers (slowest, most secure, requires Docker to be installed)
+python_executor: local
+
 # Catalog store configuration
 catalog_store:
   store_type: file_system

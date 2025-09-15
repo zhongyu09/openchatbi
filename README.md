@@ -9,13 +9,14 @@ and workflows that support natural language to SQL conversion and data analysis.
 1. **Natural Language Interaction**: Get data analysis results by asking questions in natural language
 2. **Automatic SQL Generation**: Convert natural language queries into SQL statements using advanced text2sql workflows
    with schema linking and well organized prompt engineering
-3. **Knowledge Base Integration**: Answer complex questions by combining catalog based knowledge retrival and external
+3. **Data Catalog Management**: Automatically discovers and indexes database table structures, supports flexible catalog storage backends, and easily maintains business explanations for tables and columns as well as optimizes Prompts.
+4. **Knowledge Base Integration**: Answer complex questions by combining catalog based knowledge retrival and external
    knowledge base retrival (via MCP tools)
-4. **Code Execution**: Execute Python code for data analysis and visualization
-5. **Interactive Problem-Solving**: Proactively ask users for more context when information is incomplete
-6. **Persistent Memory**: Conversation management and user characteristic memory based on LangGraph checkpointing
-7. **MCP Support**: Integration with MCP tools by configuration
-8. **Web UI Interface**: Provide 2 sample UI: simple and streaming web interfaces using Gradio, easy to integrate with
+5. **Code Execution**: Execute Python code for data analysis and visualization
+6. **Interactive Problem-Solving**: Proactively ask users for more context when information is incomplete
+7. **Persistent Memory**: Conversation management and user characteristic memory based on LangGraph checkpointing
+8. **MCP Support**: Integration with MCP tools by configuration
+9. **Web UI Interface**: Provide 2 sample UI: simple and streaming web interfaces using Gradio, easy to integrate with
    other web applications
 
 ## Roadmap
@@ -183,6 +184,16 @@ Commonly used LLM providers and their corresponding classes and installation com
 - **Deepseek**: `chat_models.ChatDeepSeek`, `pip install langchain-deepseek`
 - **Ollama**: `chat_models.ChatOllama`, `pip install langchain-ollama`
 
+### Advanced Configuration
+
+OpenChatBI supports sophisticated customization through prompt engineering and catalog management features:
+
+- **Prompt Engineering Configuration**: Customize system prompts, business glossaries, and data warehouse introductions
+- **Data Catalog Management**: Configure table metadata, column descriptions, and SQL generation rules
+- **Business Rules**: Define table selection criteria and domain-specific SQL constraints
+
+For detailed configuration options and examples, see the [Advanced Features](#advanced-features) section.
+
 ## Architecture Overview
 
 OpenChatBI is built using a modular architecture with clear separation of concerns:
@@ -311,7 +322,7 @@ table_selection_extra_rule: |
 
 #### Custom SQL Rules
 
-You can define SQL rules for tables in `example/table_info.yaml`, for example:
+You can define your additional SQL Generation rules for tables in `example/table_info.yaml`, for example:
 
 ```yaml
 sql_rule: |
@@ -319,6 +330,100 @@ sql_rule: |
   - All event_date in the table are stored in **UTC**. If the user specifies a timezone (e.g., CET, PST), convert between timezones accordingly.
 
 ```
+
+
+### Catalog Management
+
+#### Introduction
+
+High-quality catalog data is essential for accurate Text2SQL generation and data analysis. OpenChatBI automatically discovers and indexes data warehouse table structures while providing flexible management for business metadata, column descriptions, and query optimization rules.
+
+#### Catalog Structure
+
+The catalog system organizes metadata in a hierarchical structure:
+
+**Database Level**
+- Top-level container for all tables and schemas
+
+**Table Level**
+- `description`: Business functionality and purpose of the table
+- `selection_rule`: Guidelines for when and how to use this table in queries
+- `sql_rule`: Specific SQL generation rules and constraints for this table
+
+**Column Level**
+- **Required Fields**: Essential metadata for each column to enable effective Text2SQL generation
+  - `column_name`: Technical database column name
+  - `display_name`: Human-readable name for business users
+  - `alias`: Alternative names or abbreviations
+  - `type`: Data type (string, integer, date, etc.)
+  - `category`: Business category, dimension or metric
+  - `tag`: Additional labels for filtering and organization
+  - `description`: Detailed explanation of column purpose and usage
+- **Two Types** of Columns
+  - **Common Columns**: Columns with standardized business meanings shared across tables
+  - **Table-Specific Columns**: Columns with context-dependent meanings that vary between tables
+- **Derived Metrics**: Virtual metrics calculated from existing columns using SQL formulas
+  - Computed dynamically during query execution rather than stored as physical columns
+  - Examples: CTR (clicks/impressions), conversion rates, profit margins
+  - Enable complex business calculations without pre-computing values
+  
+#### Loading Catalog from Database
+
+OpenChatBI can automatically discover and load table structures from your data warehouse:
+
+1. **Automatic Discovery**: Connects to your configured data warehouse and scans table schemas
+2. **Metadata Extraction**: Extracts column names, data types, and basic structural information
+3. **Incremental Updates**: Supports updating catalog data as your database schema evolves
+
+Configure automatic catalog loading in your `config.yaml`:
+
+```yaml
+catalog_store:
+  store_type: file_system
+  data_path: ./catalog_data
+data_warehouse_config:
+  include_tables:
+    - your_table_pattern
+  # Leave empty to include all accessible tables
+```
+
+#### File System Catalog Store
+
+The file system catalog store organizes metadata across multiple files for maintainability and version control:
+
+**Core Table Information**
+- `table_info.yaml`: Comprehensive table metadata organized hierarchically (database → table → information)
+  - `type`: Table classification (e.g., "fact" for Fact Tables, "dimension" for Dimension Tables)
+  - `description`: Business functionality and purpose
+  - `selection_rule`: Usage guidelines in markdown list format (each line starts with `-`)
+  - `sql_rule`: SQL generation rules in markdown header format (each rule starts with `####`)
+  - `derived_metric`: Virtual metrics with calculation formulas, organized by groups:
+    ```md
+    #### Derived Ratio Metrics
+    Click-through Rate (alias CTR): SUM(clicks) / SUM(impression)
+    Conversion Rate (alias CVR): SUM(conversions) / SUM(clicks)
+    ```
+
+**Column Management**
+- `table_columns.csv`: Basic column registry with schema `db_name,table_name,column_name`
+- `table_spec_columns.csv`: Table-specific column metadata with full schema:
+  `db_name,table_name,column_name,display_name,alias,type,category,tag,description`
+- `common_columns.csv`: Shared column definitions across tables with schema:
+  `column_name,display_name,alias,type,category,tag,description`
+
+**Query Examples and Training Data**
+- `table_selection_example.csv`: Table selection training examples with schema `question,selected_tables`
+- `sql_example.yaml`: Query examples organized by database and table structure:
+  ```yaml
+  your_database:
+    ad_performance: |
+      Q: Show me CTR trends for the past 7 days
+      A: SELECT date, SUM(clicks)/SUM(impressions) AS ctr
+         FROM ad_performance
+         WHERE date >= CURRENT_DATE - INTERVAL 7 DAY
+         GROUP BY date
+         ORDER BY date;
+  ```
 
 
 ### Python Code Execution Configuration

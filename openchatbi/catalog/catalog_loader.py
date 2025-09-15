@@ -61,8 +61,6 @@ class DataCatalogLoader:
                             "category": "",
                             "tag": "",
                             "description": column.get("comment", "") or "",
-                            "enums": "",
-                            "business_category": "",
                             "dimension_table": "",
                             "default": str(column.get("default", "")) if column.get("default") is not None else "",
                             "primary_key": column.get("primary_key", False),
@@ -158,7 +156,7 @@ class DataCatalogLoader:
                         # Some databases don't support table comments
                         pass
 
-                    table_info = {"description": table_comment, "selection_rule": "", "sql_rule": "", "time_column": ""}
+                    table_info = {"description": table_comment, "selection_rule": "", "sql_rule": ""}
                     if catalog_store.save_table_information(table_name, table_info, columns, database_name):
                         success_count += 1
                         logger.info(f"Successfully loaded table: {database_name}.{table_name}")

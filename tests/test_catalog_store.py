@@ -87,7 +87,7 @@ class TestFileSystemCatalogStore:
     def test_get_tables_malformed_csv(self, temp_dir):
         """Test handling malformed CSV files."""
         # Create malformed CSV
-        malformed_csv = temp_dir / "tables.csv"
+        malformed_csv = temp_dir / "table_columns.csv"
         malformed_csv.write_text("invalid,csv,format\\nno,proper\\nheaders")
 
         data_warehouse_config = {"uri": "sqlite:///:memory:", "include_tables": None, "database_name": "test_db"}

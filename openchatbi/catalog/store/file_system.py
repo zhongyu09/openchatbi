@@ -26,12 +26,12 @@ class FileSystemCatalogStore(CatalogStore):
     table_info_file: str
     sql_example_file: str
     table_selection_example_file: str
-    tables_file: str
+    table_columns_file: str
     common_columns_file: str
     table_spec_columns_file: str
 
     _table_info_cache: dict | None
-    _tables_cache: dict | None
+    _table_columns_cache: dict | None
     _common_columns_cache: dict | None
     _table_spec_columns_cache: dict | None
     _sql_example_cache: dict | None
@@ -54,7 +54,7 @@ class FileSystemCatalogStore(CatalogStore):
         self.table_info_file = os.path.join(data_path, "table_info.yaml")
         self.sql_example_file = os.path.join(data_path, "sql_example.yaml")
         self.table_selection_example_file = os.path.join(data_path, "table_selection_example.csv")
-        self.tables_file = os.path.join(data_path, "tables.csv")
+        self.table_columns_file = os.path.join(data_path, "table_columns.csv")
         self.common_columns_file = os.path.join(data_path, "common_columns.csv")
         self.table_spec_columns_file = os.path.join(data_path, "table_spec_columns.csv")
 
@@ -63,7 +63,7 @@ class FileSystemCatalogStore(CatalogStore):
 
         # Initialize cache
         self._table_info_cache = None
-        self._tables_cache = None
+        self._table_columns_cache = None
         self._common_columns_cache = None
         self._table_spec_columns_cache = None
         self._sql_example_cache = None
@@ -77,7 +77,7 @@ class FileSystemCatalogStore(CatalogStore):
         Clear all cached data to ensure consistency after data modifications
         """
         self._table_info_cache = None
-        self._tables_cache = None
+        self._table_columns_cache = None
         self._common_columns_cache = None
         self._table_spec_columns_cache = None
         self._sql_example_cache = None
@@ -169,7 +169,7 @@ class FileSystemCatalogStore(CatalogStore):
             raise ValueError("Table information must be a dictionary")
 
         # Validate optional string fields
-        string_fields = ["description", "selection_rule", "time_column"]
+        string_fields = ["description", "selection_rule"]
         for field in string_fields:
             if field in information:
                 value = information[field]
@@ -324,12 +324,12 @@ class FileSystemCatalogStore(CatalogStore):
             return False
 
     def _load_tables(self) -> dict[str, list[str]]:
-        # Load tables.csv
-        tables_csv = self._load_csv_file(self.tables_file)
+        # Load table_columns.csv
+        table_columns_csv = self._load_csv_file(self.table_columns_file)
 
         # Get unique db_name.table_name combinations
         table_dict = {}
-        for row in tables_csv:
+        for row in table_columns_csv:
             if "db_name" in row and "table_name" in row and "column_name" in row:
                 db_name = row["db_name"]
                 table_name = row["table_name"]
@@ -426,25 +426,25 @@ class FileSystemCatalogStore(CatalogStore):
     def get_database_list(self) -> list[str]:
         # Extract unique database names
         databases = set()
-        for table in self._get_tables().keys():
+        for table in self._get_all_table_schema().keys():
             full_table_name, db_name, table_name = split_db_table_name(table)
             databases.add(db_name)
 
         return list(databases)
 
-    def _get_tables(self) -> dict[str, list[str]]:
+    def _get_all_table_schema(self) -> dict[str, list[str]]:
         """
         Get all tables schema (columns of table)
         Returns:
             Dict[str, List[str]]: Tables schema (columns) dict, keyed by table name
         """
-        if self._tables_cache is None:
-            self._tables_cache = self._load_tables()
+        if self._table_columns_cache is None:
+            self._table_columns_cache = self._load_tables()
         # Return a deep copy to prevent external modifications
-        return {k: v.copy() for k, v in self._tables_cache.items()}
+        return {k: v.copy() for k, v in self._table_columns_cache.items()}
 
     def get_table_list(self, database: str | None = None) -> list[str]:
-        tables = self._get_tables()
+        tables = self._get_all_table_schema()
         if database is None:
             return list(tables.keys())
 
@@ -488,7 +488,7 @@ class FileSystemCatalogStore(CatalogStore):
         full_table_name, db_name, table_name = split_db_table_name(table, database)
 
         # Filter table columns
-        tables_dict = self._get_tables()
+        tables_dict = self._get_all_table_schema()
         if full_table_name not in tables_dict:
             return []
 
@@ -619,7 +619,7 @@ class FileSystemCatalogStore(CatalogStore):
         self, table_name: str, columns: list[dict[str, Any]], db_name: str = "", update_existing: bool = False
     ) -> bool:
         """
-        Save columns information to common_columns.csv and columns of tables to tables.csv
+        Save columns information to common_columns.csv and columns of tables to table_columns.csv
 
         Args:
             table_name (str): Table name
@@ -632,7 +632,7 @@ class FileSystemCatalogStore(CatalogStore):
         """
         full_table_name, db_name, table_name = split_db_table_name(table_name, db_name)
         # Load existing data
-        tables_data = self._load_csv_file(self.tables_file)
+        tables_data = self._load_csv_file(self.table_columns_file)
         common_columns_dict = self._load_common_columns()
         table_spec_columns_dict = self._load_table_spec_columns()
 
@@ -643,7 +643,7 @@ class FileSystemCatalogStore(CatalogStore):
                 key = f"{row['db_name']}.{row['table_name']}:{row['column_name']}"
                 existing_table_columns.add(key)
 
-        # Update tables.csv and track new columns to add
+        # Update table_columns.csv and track new columns to add
 
         for column in columns:
             if "column_name" not in column:
@@ -658,7 +658,7 @@ class FileSystemCatalogStore(CatalogStore):
                 column_info["db_name"] = db_name
                 column_info["table_name"] = table_name
 
-            # New column of the table -> add to tables.csv
+            # New column of the table -> add to table_columns.csv
             if key not in existing_table_columns:
                 tables_data.append({"db_name": db_name, "table_name": table_name, "column_name": column_name})
                 existing_table_columns.add(key)
@@ -678,7 +678,7 @@ class FileSystemCatalogStore(CatalogStore):
                     table_spec_columns_dict[key] = column_info
 
         # Save updated data
-        tables_success = self._save_csv_file(self.tables_file, tables_data)
+        tables_success = self._save_csv_file(self.table_columns_file, tables_data)
         common_columns_success = self._save_csv_file(self.common_columns_file, list(common_columns_dict.values()))
         table_spec_columns_success = self._save_csv_file(
             self.table_spec_columns_file, list(table_spec_columns_dict.values())
@@ -739,9 +739,9 @@ class FileSystemCatalogStore(CatalogStore):
         try:
             # Check if essential catalog files exist and have content
             files_missing = (
-                not os.path.exists(self.tables_file)
+                not os.path.exists(self.table_columns_file)
                 or not os.path.exists(self.common_columns_file)
-                or os.path.getsize(self.tables_file) <= 1  # Empty or just header
+                or os.path.getsize(self.table_columns_file) <= 1  # Empty or just header
                 or os.path.getsize(self.common_columns_file) <= 1
             )
 

@@ -63,7 +63,7 @@ def mock_catalog_store(temp_dir: Path) -> FileSystemCatalogStore:
     test_data_dir = temp_dir / "test_data"
     test_data_dir.mkdir(exist_ok=True)
 
-    # Create sample tables.csv
+    # Create sample table_columns.csv
     tables_info_file = test_data_dir / "table_info.yaml"
     tables_info_file.write_text(
         """test:
@@ -75,8 +75,8 @@ def mock_catalog_store(temp_dir: Path) -> FileSystemCatalogStore:
     description: User information table"""
     )
 
-    # Create sample tables.csv
-    tables_file = test_data_dir / "tables.csv"
+    # Create sample table_columns.csv
+    tables_file = test_data_dir / "table_columns.csv"
     tables_file.write_text(
         """db_name,table_name,column_name
 test,test_table,id

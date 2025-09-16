@@ -34,7 +34,6 @@ extensions = [
     "sphinx.ext.viewcode",
     "sphinx.ext.githubpages",
     "myst_parser",
-    "autodoc_pydantic",
 ]
 
 # Set an environment variable to indicate we're building docs

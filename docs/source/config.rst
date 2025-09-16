@@ -9,9 +9,10 @@ The configuration system consists of two main classes:
 Config
 ------
 
-.. autopydantic_model:: openchatbi.config_loader.Config
-    :model-show-field-summary:
-    :model-show-field-details:
+.. autoclass:: openchatbi.config_loader.Config
+    :undoc-members:
+    :show-inheritance:
+    :no-index:
 
 ConfigLoader
 ------------

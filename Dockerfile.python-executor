@@ -1,0 +1,23 @@
+FROM python:3.11-slim
+
+# Set working directory
+WORKDIR /app
+
+# Install basic packages that might be needed for data analysis
+RUN pip install --no-cache-dir \
+    pandas \
+    numpy \
+    matplotlib \
+    seaborn \
+    requests \
+    json5
+
+# Create a directory for code execution
+RUN mkdir -p /app/code
+
+# Set up a non-root user for security
+RUN useradd -m -u 1000 executor
+USER executor
+
+# Set the default command
+CMD ["python3"]

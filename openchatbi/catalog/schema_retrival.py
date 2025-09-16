@@ -1,16 +1,22 @@
 """Schema and column retrieval functionality for finding relevant database structures."""
 
+import os
 import re
 
-import jieba
 import Levenshtein
+import jieba
 
 from openchatbi.catalog.entry import catalog_store
 from openchatbi.catalog.store.retrival_helper import build_column_tables_mapping, build_columns_retriever
 from openchatbi.utils import log
 
-bm25, vector_db, columns, col_dict = build_columns_retriever(catalog_store)
-column_tables_mapping = build_column_tables_mapping(catalog_store)
+# Skip build during documentation build
+if not os.environ.get("SPHINX_BUILD"):
+    bm25, vector_db, columns, col_dict = build_columns_retriever(catalog_store)
+    column_tables_mapping = build_column_tables_mapping(catalog_store)
+else:
+    bm25, vector_db, columns, col_dict = None, None, [], {}
+    column_tables_mapping = {}
 
 
 def column_retrieval(query, db, k=10, threshold=0.5, filter=None):

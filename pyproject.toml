@@ -81,9 +81,10 @@ Documentation = "https://github.com/zhongyu09/openchatbi/tree/main"
 
 [project.optional-dependencies]
 docs = [
-    "sphinx>=7.0.0,<8.0.0",
-    "furo>=2024.5.6,<2025.0.0",
-    "sphinx-autodoc-typehints>=2.0.0,<3.0.0",
+    "sphinx>=8.2.3,<9.0.0",
+    "sphinx-autodoc-typehints>=2.5.0,<3.0.0",
+    "myst_parser",
+    "autodoc-pydantic",
 ]
 test = [
     "pytest>=7.4.0,<9.0.0",

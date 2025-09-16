@@ -30,7 +30,7 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install sphinx sphinx-rtd-theme myst-parser
+        pip install sphinx sphinx-rtd-theme myst-parser autodoc-pydantic
 
     - name: Build documentation
       run: |

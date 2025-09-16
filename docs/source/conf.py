@@ -7,29 +7,39 @@
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 import os
 import sys
-sys.path.insert(0, os.path.abspath('../..'))
 
-project = 'OpenChatBI'
-copyright = '2025, Yu Zhong'
-author = 'Yu Zhong'
-release = '0.0.1'
+sys.path.insert(0, os.path.abspath("../.."))
+
+project = "OpenChatBI"
+copyright = "2025, Yu Zhong"
+author = "Yu Zhong"
+release = "0.0.1"
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
 
 # Mock dependencies for documentation build
-autodoc_mock_imports = ["langchain", "langchain_openai", "langchain_anthropic", "langgraph", "sqlalchemy", "chromadb"]
-
+autodoc_mock_imports = [
+    "langchain",
+    "langchain_openai",
+    "langchain_anthropic",
+    "langgraph",
+    "sqlalchemy",
+    "chromadb",
+    "langmem",
+]
 extensions = [
     "sphinx.ext.autodoc",
     "sphinx.ext.napoleon",
     "sphinx.ext.viewcode",
     "sphinx.ext.githubpages",
     "myst_parser",
+    "autodoc_pydantic",
 ]
 
 # Set an environment variable to indicate we're building docs
 import os
+
 os.environ["SPHINX_BUILD"] = "1"
 
 # MyST parser configuration
@@ -39,17 +49,18 @@ myst_enable_extensions = [
     "html_admonition",
     "html_image",
 ]
+myst_heading_anchors = 3
 
-templates_path = ['_templates']
+templates_path = ["_templates"]
 exclude_patterns = []
 
 # Autodoc configuration
 autodoc_default_options = {
-    'members': True,
-    'member-order': 'bysource',
-    'special-members': '__init__',
-    'undoc-members': True,
-    'exclude-members': '__weakref__'
+    "members": True,
+    "member-order": "bysource",
+    "special-members": "__init__",
+    "undoc-members": True,
+    "exclude-members": "__weakref__",
 }
 
 # Napoleon configuration for Google/NumPy style docstrings
@@ -71,17 +82,17 @@ napoleon_attr_annotations = True
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
 
-html_theme = 'sphinx_rtd_theme'
-html_static_path = ['_static']
+html_theme = "sphinx_rtd_theme"
+html_static_path = ["_static"]
 
 # GitHub Pages configuration
-html_baseurl = 'https://zhongyu09.github.io/openchatbi/'
+html_baseurl = "https://zhongyu09.github.io/openchatbi/"
 
 # Theme options for RTD theme
 html_theme_options = {
-    'navigation_depth': 4,
-    'collapse_navigation': False,
-    'sticky_navigation': True,
-    'includehidden': True,
-    'titles_only': False
+    "navigation_depth": 4,
+    "collapse_navigation": False,
+    "sticky_navigation": True,
+    "includehidden": True,
+    "titles_only": False,
 }

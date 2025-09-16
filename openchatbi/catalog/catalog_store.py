@@ -6,9 +6,12 @@ from sqlalchemy import Engine
 
 class CatalogStore(ABC):
     """
-    Abstract base class defining the storage interface for data catalog (database, table, column definitions, descriptions, and additional prompts)
-    Common columns which have same meanings across tables will be store centralized to avoid data duplication
+    Abstract base class defining the storage interface for data catalog (database, table, column definitions, descriptions, and additional prompts).
+
+    Common columns which have same meanings across tables will be store centralized to avoid data duplication.
+
     Column attribute:
+
         - column_name: the name of the column
         - display_name: the display name of the column
         - type: the data type of the column

@@ -19,15 +19,7 @@ release = "0.0.1"
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
 
 # Mock dependencies for documentation build
-autodoc_mock_imports = [
-    "langchain",
-    "langchain_openai",
-    "langchain_anthropic",
-    "langgraph",
-    "sqlalchemy",
-    "chromadb",
-    "langmem",
-]
+autodoc_mock_imports = []
 extensions = [
     "sphinx.ext.autodoc",
     "sphinx.ext.napoleon",

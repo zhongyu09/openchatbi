@@ -10,9 +10,7 @@ Config
 ------
 
 .. autoclass:: openchatbi.config_loader.Config
-    :undoc-members:
-    :show-inheritance:
-    :no-index:
+    :exclude-members: organization, dialect, default_llm, embedding_model, text2sql_llm, bi_config, data_warehouse_config, catalog_store, mcp_servers, report_directory, python_executor
 
 ConfigLoader
 ------------

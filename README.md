@@ -1,15 +1,16 @@
 # OpenChatBI
 
-OpenChatBI is an intelligent chat-based BI tool powered by large language models, designed to help users query, analyze,
-and visualize data through natural language conversations. It uses LangGraph and LangChain ecosystem to build chat agent 
-and workflows that support natural language to SQL conversion and data analysis.
+OpenChatBI is an open source, chat-based intelligent BI tool powered by large language models, designed to help users 
+query, analyze, and visualize data through natural language conversations. Built on LangGraph and LangChain ecosystem, 
+it provides chat agents and workflows that support natural language to SQL conversion and streamlined data analysis.
 
 ## Core Features
 
 1. **Natural Language Interaction**: Get data analysis results by asking questions in natural language
 2. **Automatic SQL Generation**: Convert natural language queries into SQL statements using advanced text2sql workflows
    with schema linking and well organized prompt engineering
-3. **Data Catalog Management**: Automatically discovers and indexes database table structures, supports flexible catalog storage backends, and easily maintains business explanations for tables and columns as well as optimizes Prompts.
+3. **Data Catalog Management**: Automatically discovers and indexes database table structures, supports flexible catalog 
+   storage backends, and easily maintains business explanations for tables and columns as well as optimizes Prompts.
 4. **Knowledge Base Integration**: Answer complex questions by combining catalog based knowledge retrival and external
    knowledge base retrival (via MCP tools)
 5. **Code Execution**: Execute Python code for data analysis and visualization

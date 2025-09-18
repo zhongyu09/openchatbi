@@ -10,5 +10,3 @@ if not os.environ.get("SPHINX_BUILD"):
 else:
     sql_example_retriever, sql_example_dicts = None, {}
     table_selection_retriever, table_selection_example_dict = None, {}
-
-

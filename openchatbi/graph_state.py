@@ -32,6 +32,7 @@ class SQLGraphState(MessagesState):
     sql_execution_result: str
     data: str
     previous_sql_errors: list[dict[str, Any]]
+    visualization_dsl: dict[str, Any]
 
 
 class InputState(MessagesState):
@@ -53,3 +54,4 @@ class SQLOutputState(MessagesState):
     tables: list[dict[str, Any]]
     sql: str
     data: str
+    visualization_dsl: dict[str, Any]

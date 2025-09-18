@@ -19,6 +19,7 @@ from openchatbi.constants import (
 from openchatbi.graph_state import SQLGraphState
 from openchatbi.prompts.system_prompt import get_text2sql_dialect_prompt_template
 from openchatbi.text2sql.data import sql_example_dicts, sql_example_retriever
+from openchatbi.text2sql.visualization import VisualizationAnalyzer
 from openchatbi.utils import get_text_from_content, log
 
 COLUMN_PROMPT_TEMPLATE = """### Columns
@@ -29,8 +30,10 @@ Column(Name, Type, Display Name, Description):
 """
 
 
-def create_sql_nodes(llm: BaseChatModel, catalog: CatalogStore, dialect: str) -> tuple[Callable, Callable, Callable]:
-    """Creates the three SQL processing nodes for LangGraph.
+def create_sql_nodes(
+    llm: BaseChatModel, catalog: CatalogStore, dialect: str
+) -> tuple[Callable, Callable, Callable, Callable]:
+    """Creates the four SQL processing nodes for LangGraph.
 
     Args:
         llm (BaseChatModel): The language model to use for SQL generation.
@@ -38,7 +41,7 @@ def create_sql_nodes(llm: BaseChatModel, catalog: CatalogStore, dialect: str) ->
         dialect (str): The SQL dialect to use (e.g., 'presto', 'mysql').
 
     Returns:
-        tuple: Three node functions (generate_sql_node, execute_sql_node, regenerate_sql_node)
+        tuple: Four node functions (generate_sql_node, execute_sql_node, regenerate_sql_node, generate_visualization_node)
     """
 
     def _get_column_prompt(column: dict[str, Any]) -> str:
@@ -256,7 +259,43 @@ def create_sql_nodes(llm: BaseChatModel, catalog: CatalogStore, dialect: str) ->
 
         return {"sql": sql_query, "sql_retry_count": retry_count, "sql_execution_result": ""}
 
-    return generate_sql_node, execute_sql_node, regenerate_sql_node
+    def generate_visualization_node(state: SQLGraphState) -> dict:
+        """Fourth node: Generates visualization DSL based on successful SQL execution result.
+
+        Args:
+            state (SQLGraphState): The current SQL graph state containing query data and results.
+
+        Returns:
+            dict: Updated state with visualization DSL.
+        """
+        execution_result = state.get("sql_execution_result", "")
+        if execution_result != SQL_SUCCESS:
+            # No visualization for failed queries
+            return {"visualization_dsl": {}}
+
+        question = state.get("rewrite_question", "")
+        data = state.get("data", "")
+
+        if not question or not data:
+            return {"visualization_dsl": {}}
+
+        try:
+            # Generate visualization DSL
+            viz_dsl = VisualizationAnalyzer.generate_visualization_dsl(question, data)
+
+            # Update the AI message to include visualization information
+            messages = list(state.get("messages", []))
+            if messages and hasattr(messages[-1], "content"):
+                current_content = messages[-1].content
+                viz_info = f"\n\n**Visualization Generated**: {viz_dsl.chart_type.title()} chart with {len(viz_dsl.data_columns)} column(s)"
+                messages[-1] = AIMessage(current_content + viz_info)
+
+            return {"visualization_dsl": viz_dsl.to_dict(), "messages": messages}
+        except Exception as e:
+            log(f"Visualization generation error: {str(e)}")
+            return {"visualization_dsl": {"error": f"Failed to generate visualization: {str(e)}"}}
+
+    return generate_sql_node, execute_sql_node, regenerate_sql_node, generate_visualization_node
 
 
 def should_retry_sql(state: SQLGraphState) -> str:

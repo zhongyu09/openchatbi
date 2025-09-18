@@ -22,9 +22,8 @@ it provides chat agents and workflows that support natural language to SQL conve
 
 ## Roadmap
 
-1. **Data Visualization**: Generate intuitive charts and dashboards
-2. **Time Series Forecasting**: Forecasting models deployed in-house
-3. **Root Cause Analysis Algorithm**: Multi-dimensional drill-down capabilities for anomaly investigation
+1. **Time Series Forecasting**: Forecasting models deployed in-house
+2. **Root Cause Analysis Algorithm**: Multi-dimensional drill-down capabilities for anomaly investigation
 
 # Getting started
 

@@ -64,6 +64,37 @@ class CallSQLGraphInput(BaseModel):
     )
 
 
+def _format_sql_response(sql_graph_response: dict) -> str:
+    """Format SQL graph response into a standardized string format.
+
+    Args:
+        sql_graph_response: The response dictionary from the SQL graph
+
+    Returns:
+        str: Formatted response string
+    """
+    sql = sql_graph_response.get("sql", "")
+    data = sql_graph_response.get("data", "")
+    visualization_dsl = sql_graph_response.get("visualization_dsl", {})
+
+    response_parts = []
+    if sql:
+        response_parts.append(f"SQL Query:\n```sql\n{sql}\n```")
+    if data:
+        response_parts.append(f"\nQuery Results (CSV format):\n```csv\n{data}\n```")
+
+    # Include visualization status
+    if visualization_dsl and "error" not in visualization_dsl:
+        chart_type = visualization_dsl.get("chart_type", "unknown")
+        response_parts.append(
+            f"\nVisualization Created: {chart_type} chart has been automatically generated and will be displayed in the UI."
+        )
+    elif visualization_dsl and "error" in visualization_dsl:
+        response_parts.append(f"\nVisualization Error: {visualization_dsl['error']}")
+
+    return "\n\n".join(response_parts) if response_parts else "No results returned."
+
+
 def get_sql_tools(sql_graph: CompiledStateGraph, sync_mode: bool = False) -> Callable:
     """Create SQL generation tool from compiled SQL graph.
 
@@ -78,39 +109,39 @@ def get_sql_tools(sql_graph: CompiledStateGraph, sync_mode: bool = False) -> Cal
     if sync_mode:
 
         @tool("text2sql", args_schema=CallSQLGraphInput, return_direct=False, infer_schema=True)
-        def call_sql_graph_sync(reasoning: str, context: str) -> (str, str):
-            """Text2SQL tool (sync version) to generate and execute SQL query based on user's question and context."""
+        def call_sql_graph_sync(reasoning: str, context: str) -> str:
+            """Text2SQL tool (sync version) to generate and execute SQL query based on user's question and context.
+
+            Returns:
+                str: A formatted response containing SQL, data, and visualization status.
+            """
             log(f"Call SQL graph (sync) with reasoning: {reasoning}, context: {context}")
             try:
                 sql_graph_response = sql_graph.invoke({"messages": context})
-                sql = sql_graph_response.get("sql")
-                data = sql_graph_response.get("data")
-                return sql, data
+                return _format_sql_response(sql_graph_response)
             except Exception as e:
                 log(f"Run sql graph error:\n{repr(e)}")
                 traceback.print_exc()
-            return "Error occurred when calling Text2SQL tool.", ""
+            return "Error occurred when calling Text2SQL tool."
 
         return call_sql_graph_sync
     else:
 
         @tool("text2sql", args_schema=CallSQLGraphInput, return_direct=False, infer_schema=True)
-        async def call_sql_graph_async(reasoning: str, context: str) -> (str, str):
+        async def call_sql_graph_async(reasoning: str, context: str) -> str:
             """Text2SQL tool (async version) to generate and execute SQL query based on user's question and context.
+
             Returns:
-                sql (str): The generated SQL query.
-                data (str): The CSV data returned from executing the SQL query.
+                str: A formatted response containing SQL, data, and visualization status.
             """
             log(f"Call SQL graph (async) with reasoning: {reasoning}, context: {context}")
             try:
                 sql_graph_response = await sql_graph.ainvoke({"messages": context})
-                sql = sql_graph_response.get("sql")
-                data = sql_graph_response.get("data")
-                return sql, data
+                return _format_sql_response(sql_graph_response)
             except Exception as e:
                 log(f"Run sql graph error:\n{repr(e)}")
                 traceback.print_exc()
-            return "Error occurred when calling Text2SQL tool.", ""
+            return "Error occurred when calling Text2SQL tool."
 
         return call_sql_graph_async
 

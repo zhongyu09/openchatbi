@@ -50,6 +50,9 @@ class Config(BaseModel):
     # Code Execution Configuration
     python_executor: str = "local"  # Options: "local", "restricted_local", "docker"
 
+    # Visualization Configuration
+    visualization_mode: str | None = "rule"  # Options: "rule", "llm", None (skip visualization)
+
     @classmethod
     def from_dict(cls, config: dict[str, Any]) -> "Config":
         """Creates a Config instance from a dictionary.

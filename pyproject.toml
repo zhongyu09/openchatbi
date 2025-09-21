@@ -64,12 +64,14 @@ dependencies = [
     "python-levenshtein>=0.27.1",
     "jieba>=0.42.1",
     "gradio>=5.43.1,<6.0.0",
+    "streamlit>=1.49.1,<2.0.0",
     "RestrictedPython>=8.0,<9.0",
     "docker>=7.0.0,<8.0.0",
     "pandas>=2.2.0,<3.0.0",
     "numpy>=2.3.0,<3.0.0",
     "matplotlib>=3.10.6,<4.0.0",
     "seaborn>=0.13.0,<1.0.0",
+    "plotly>=5.17.0,<6.0.0",
     "json5>=0.10.0,<1.0.0",
 ]
 

@@ -1,29 +1,30 @@
 # OpenChatBI
 
-OpenChatBI is an intelligent chat-based BI tool powered by large language models, designed to help users query, analyze,
-and visualize data through natural language conversations. It uses LangGraph and LangChain ecosystem to build chat agent 
-and workflows that support natural language to SQL conversion and data analysis.
+OpenChatBI is an open source, chat-based intelligent BI tool powered by large language models, designed to help users 
+query, analyze, and visualize data through natural language conversations. Built on LangGraph and LangChain ecosystem, 
+it provides chat agents and workflows that support natural language to SQL conversion and streamlined data analysis.
 
 ## Core Features
 
 1. **Natural Language Interaction**: Get data analysis results by asking questions in natural language
 2. **Automatic SQL Generation**: Convert natural language queries into SQL statements using advanced text2sql workflows
    with schema linking and well organized prompt engineering
-3. **Data Catalog Management**: Automatically discovers and indexes database table structures, supports flexible catalog storage backends, and easily maintains business explanations for tables and columns as well as optimizes Prompts.
-4. **Knowledge Base Integration**: Answer complex questions by combining catalog based knowledge retrival and external
+3. **Data Visualization**: Generate intuitive data visualizations (via plotly)
+4. **Data Catalog Management**: Automatically discovers and indexes database table structures, supports flexible catalog 
+   storage backends, and easily maintains business explanations for tables and columns as well as optimizes Prompts.
+5. **Knowledge Base Integration**: Answer complex questions by combining catalog based knowledge retrival and external
    knowledge base retrival (via MCP tools)
-5. **Code Execution**: Execute Python code for data analysis and visualization
-6. **Interactive Problem-Solving**: Proactively ask users for more context when information is incomplete
-7. **Persistent Memory**: Conversation management and user characteristic memory based on LangGraph checkpointing
-8. **MCP Support**: Integration with MCP tools by configuration
-9. **Web UI Interface**: Provide 2 sample UI: simple and streaming web interfaces using Gradio, easy to integrate with
-   other web applications
+6. **Code Execution**: Execute Python code for data analysis and visualization
+7. **Interactive Problem-Solving**: Proactively ask users for more context when information is incomplete
+8. **Persistent Memory**: Conversation management and user characteristic memory based on LangGraph checkpointing
+9. **MCP Support**: Integration with MCP tools by configuration
+10. **Web UI Interface**: Provide 2 sample UI: simple and streaming web interfaces using Gradio and Streamlit, easy to
+   integrate with other web applications
 
 ## Roadmap
 
-1. **Data Visualization**: Generate intuitive charts and dashboards
-2. **Time Series Forecasting**: Forecasting models deployed in-house
-3. **Root Cause Analysis Algorithm**: Multi-dimensional drill-down capabilities for anomaly investigation
+1. **Time Series Forecasting**: Forecasting models deployed in-house
+2. **Root Cause Analysis Algorithm**: Multi-dimensional drill-down capabilities for anomaly investigation
 
 # Getting started
 
@@ -134,6 +135,12 @@ ORDER BY date;
 
 2. **Sample Web UI:**
 
+Streamlit based UI:
+```bash
+streamlit run sample_ui streamlit_ui.py
+```
+
+Run Gradio based UI:
 ```bash
 python sample_ui/streaming_ui.py
 ```
@@ -207,7 +214,7 @@ OpenChatBI is built using a modular architecture with clear separation of concer
 
 ## Technology Stack
 
-- **Frameworks**: LangGraph, LangChain, FastAPI, Gradio
+- **Frameworks**: LangGraph, LangChain, FastAPI, Gradio/Streamlit
 - **Large Language Models**: Azure OpenAI (GPT-4), Anthropic Claude, OpenAI GPT models
 - **Databases**: Presto, Trino, MySQL with SQLAlchemy support
 - **Code Execution**: Local Python, RestrictedPython, Docker containerization
@@ -285,6 +292,13 @@ openchatbi/
 ```
 
 ## Advanced Features
+
+### Visualization configuration
+You can choose rule-based or llm-based visualization or disable visualization.
+```yaml
+# Options: "rule" (rule-based), "llm" (LLM-based), or null (skip visualization)
+visualization_mode: llm
+```
 
 ### Prompt Engineering
 #### Basic Knowledge & Glossary
@@ -481,11 +495,9 @@ The project uses modern Python tooling for code quality:
 ```bash
 # Format code
 uv run black .
-uv run isort .
 
 # Lint code  
 uv run ruff check .
-uv run pylint openchatbi/
 
 # Type checking
 uv run mypy openchatbi/

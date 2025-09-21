@@ -68,12 +68,20 @@ def _get_text2sql_prompt_template() -> str:
     return prompt
 
 
+def _get_visualization_prompt_template() -> str:
+    """Load visualization prompt template."""
+    with importlib.resources.files("openchatbi.prompts").joinpath("visualization_prompt.md").open("r") as f:
+        prompt = f.read()
+    return prompt
+
+
 # Supported SQL dialects
 DIALECT_RULES = _load_sql_dialects()
 AGENT_PROMPT_TEMPLATE = _get_agent_prompt_template()
 EXTRACTION_PROMPT_TEMPLATE = _get_extraction_prompt_template()
 TABLE_SELECTION_PROMPT_TEMPLATE = _get_table_selection_prompt_template()
 TEXT2SQL_PROMPT_TEMPLATE = _get_text2sql_prompt_template()
+VISUALIZATION_PROMPT_TEMPLATE = _get_visualization_prompt_template()
 
 
 def get_text2sql_dialect_prompt_template(dialect: str) -> str:

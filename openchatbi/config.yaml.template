@@ -9,6 +9,10 @@ bi_config_file: example/bi.yaml
 # - docker: Run code in isolated Docker containers (slowest, most secure, requires Docker to be installed)
 python_executor: local
 
+# Visualization configuration
+# Options: "rule" (rule-based), "llm" (LLM-based), or null (skip visualization)
+# visualization_mode: llm
+
 # Catalog store configuration
 catalog_store:
   store_type: file_system

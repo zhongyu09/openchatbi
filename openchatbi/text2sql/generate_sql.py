@@ -1,7 +1,8 @@
 import datetime
 from collections.abc import Callable
-from typing import Any
+from typing import Any, Tuple, Dict
 
+import pandas as pd
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from sqlalchemy import text
@@ -19,6 +20,7 @@ from openchatbi.constants import (
 from openchatbi.graph_state import SQLGraphState
 from openchatbi.prompts.system_prompt import get_text2sql_dialect_prompt_template
 from openchatbi.text2sql.data import sql_example_dicts, sql_example_retriever
+from openchatbi.text2sql.visualization import VisualizationService
 from openchatbi.utils import get_text_from_content, log
 
 COLUMN_PROMPT_TEMPLATE = """### Columns
@@ -29,17 +31,23 @@ Column(Name, Type, Display Name, Description):
 """
 
 
-def create_sql_nodes(llm: BaseChatModel, catalog: CatalogStore, dialect: str) -> tuple[Callable, Callable, Callable]:
-    """Creates the three SQL processing nodes for LangGraph.
+def create_sql_nodes(
+    llm: BaseChatModel, catalog: CatalogStore, dialect: str, visualization_mode: str | None = "rule"
+) -> tuple[Callable, Callable, Callable, Callable]:
+    """Creates the four SQL processing nodes for LangGraph.
 
     Args:
         llm (BaseChatModel): The language model to use for SQL generation.
         catalog (CatalogStore): The catalog store containing schema information.
         dialect (str): The SQL dialect to use (e.g., 'presto', 'mysql').
+        visualization_mode (str | None): Visualization analysis mode ("rule", "llm", or None to skip).
 
     Returns:
-        tuple: Three node functions (generate_sql_node, execute_sql_node, regenerate_sql_node)
+        tuple: Four node functions (generate_sql_node, execute_sql_node, regenerate_sql_node, generate_visualization_node)
     """
+
+    # Initialize visualization service based on configuration
+    visualization_service = VisualizationService(llm if visualization_mode == "llm" else None)
 
     def _get_column_prompt(column: dict[str, Any]) -> str:
         alias_prompt = f"alias({column['alias']})" if "alias" in column and column["alias"] else ""
@@ -96,14 +104,50 @@ def create_sql_nodes(llm: BaseChatModel, catalog: CatalogStore, dialect: str) ->
         log(f"Examples using selected tables: {examples}")
         return "\n".join(examples)
 
-    def _execute_sql(sql: str):
-        """Executes the generated SQL query and returns the result.
+    def _analyze_dataframe_schema(df: pd.DataFrame) -> Dict[str, Any]:
+        """Analyze DataFrame to understand column types and characteristics."""
+        try:
+            schema_info = {
+                "columns": list(df.columns),
+                "column_types": {},
+                "row_count": len(df),
+                "numeric_columns": [],
+                "categorical_columns": [],
+                "datetime_columns": [],
+            }
+
+            for col in df.columns:
+                dtype = str(df[col].dtype)
+                schema_info["column_types"][col] = dtype
+
+                # Classify column types
+                if df[col].dtype in ["int64", "float64", "int32", "float32"]:
+                    schema_info["numeric_columns"].append(col)
+                elif df[col].dtype == "object":
+                    # Check if it could be datetime
+                    try:
+                        pd.to_datetime(df[col].head(10))
+                        schema_info["datetime_columns"].append(col)
+                    except:
+                        schema_info["categorical_columns"].append(col)
+
+            # Calculate unique value counts for categorical columns
+            schema_info["unique_counts"] = {}
+            for col in schema_info["categorical_columns"]:
+                schema_info["unique_counts"][col] = df[col].nunique()
+
+            return schema_info
+        except Exception as e:
+            return {"error": f"Failed to analyze data schema: {str(e)}"}
+
+    def _execute_sql(sql: str) -> Tuple[dict, str]:
+        """Executes the generated SQL query and returns the result with schema analysis.
 
         Args:
             sql (str): The SQL query to execute.
 
         Returns:
-            str: The result of the SQL query in CSV format.
+            Tuple[dict, str]: A tuple containing (schema_info, CSV string).
         """
         with catalog.get_sql_engine().connect() as connection:
             result = connection.execute(text(sql))
@@ -112,18 +156,19 @@ def create_sql_nodes(llm: BaseChatModel, catalog: CatalogStore, dialect: str) ->
             rows = result.fetchall()
 
             # Get column names
-            columns = result.keys()
+            columns = list(result.keys())
+
+            # Create DataFrame for analysis
+            df = pd.DataFrame(rows, columns=columns)
+
+            # Analyze data schema
+            schema_info = _analyze_dataframe_schema(df)
 
             # Format as CSV
-            # Create CSV header
-            csv_lines = [",".join(str(col) for col in columns)]
-
-            # Add data rows
-            for row in rows:
-                csv_lines.append(",".join(str(value) if value is not None else "" for value in row))
+            csv_data = df.to_csv(index=False)
 
             connection.commit()
-            return "\n".join(csv_lines)
+            return schema_info, csv_data
 
     def generate_sql_node(state: SQLGraphState) -> dict:
         """First node: Generates initial SQL query based on the state.
@@ -183,9 +228,14 @@ def create_sql_nodes(llm: BaseChatModel, catalog: CatalogStore, dialect: str) ->
             return {"sql_execution_result": SQL_NA, "messages": [AIMessage("No SQL query to execute")]}
 
         try:
-            execute_result = _execute_sql(sql_query)
-            result = f"```sql\n{sql_query}\n```\nSQL Result:\n```csv\n{execute_result}\n```"
-            return {"sql_execution_result": SQL_SUCCESS, "data": execute_result, "messages": [AIMessage(result)]}
+            schema_info, csv_result = _execute_sql(sql_query)
+            result = f"```sql\n{sql_query}\n```\nSQL Result:\n```csv\n{csv_result}\n```"
+            return {
+                "sql_execution_result": SQL_SUCCESS,
+                "schema_info": schema_info,
+                "data": csv_result,
+                "messages": [AIMessage(result)],
+            }
         except (OperationalError, TimeoutError) as e:
             log(f"Database connection/timeout error: {str(e)}")
             error_result = (
@@ -256,7 +306,48 @@ def create_sql_nodes(llm: BaseChatModel, catalog: CatalogStore, dialect: str) ->
 
         return {"sql": sql_query, "sql_retry_count": retry_count, "sql_execution_result": ""}
 
-    return generate_sql_node, execute_sql_node, regenerate_sql_node
+    def generate_visualization_node(state: SQLGraphState) -> dict:
+        """Fourth node: Generates visualization DSL based on successful SQL execution result.
+
+        Args:
+            state (SQLGraphState): The current SQL graph state containing query data and results.
+
+        Returns:
+            dict: Updated state with visualization DSL.
+        """
+        execution_result = state.get("sql_execution_result", "")
+        if execution_result != SQL_SUCCESS:
+            # No visualization for failed queries
+            return {"visualization_dsl": {}}
+
+        question = state.get("rewrite_question", "")
+        schema_info = state.get("schema_info", {})
+        data = state.get("data", "")
+
+        if not question or not schema_info or not data or not visualization_mode:
+            return {"visualization_dsl": {}}
+
+        try:
+            # Generate visualization DSL using configured service
+            viz_dsl = visualization_service.generate_visualization(question, schema_info, data)
+
+            # Handle case where visualization is skipped
+            if viz_dsl is None:
+                return {"visualization_dsl": {}}
+
+            # Update the AI message to include visualization information
+            messages = list(state.get("messages", []))
+            if messages and hasattr(messages[-1], "content"):
+                current_content = messages[-1].content
+                viz_info = f"\n\n**Visualization Generated**: {viz_dsl.chart_type.title()} chart with {len(viz_dsl.data_columns)} column(s)"
+                messages[-1] = AIMessage(current_content + viz_info)
+
+            return {"visualization_dsl": viz_dsl.to_dict(), "messages": messages}
+        except Exception as e:
+            log(f"Visualization generation error: {str(e)}")
+            return {"visualization_dsl": {"error": f"Failed to generate visualization: {str(e)}"}}
+
+    return generate_sql_node, execute_sql_node, regenerate_sql_node, generate_visualization_node
 
 
 def should_retry_sql(state: SQLGraphState) -> str:

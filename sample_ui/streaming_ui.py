@@ -19,6 +19,7 @@ from openchatbi.llm.llm import default_llm
 from openchatbi.tool.memory import cleanup_async_memory_store, get_async_memory_tools, setup_async_memory_store
 from openchatbi.utils import get_text_from_message_chunk, log, get_report_download_response
 from sample_ui.style import custom_css
+from sample_ui.plotly_utils import visualization_dsl_to_gradio_plot, create_inline_chart_markdown
 
 # Session state storage: user_session_id -> state
 session_interrupt = defaultdict(bool)
@@ -104,10 +105,13 @@ async def respond(message, chat_history, user_id, session_id="default"):
     """
     Asynchronous callback for Gradio Chatbot with streaming updates.
     This function processes user input and streams responses from the LangGraph agent.
+    Returns: message_input, chat_history, plot_figure, chart_panel_visibility
     """
     # Add a placeholder in chat history
     chat_history.append((message, ""))
-    yield "", chat_history  # Stream updates to UI
+    plot_figure = None
+    chart_panel_update = gr.update()
+    yield "", chat_history, plot_figure, chart_panel_update  # Stream updates to UI
 
     user_session_id = f"{user_id}-{session_id}"
     full_response = ""
@@ -125,9 +129,10 @@ async def respond(message, chat_history, user_id, session_id="default"):
         except Exception as e:
             log(f"Failed to initialize graph: {e}")
             chat_history[-1] = (chat_history[-1][0], f"Error: Failed to initialize system - {str(e)}")
-            yield "", chat_history
+            yield "", chat_history, plot_figure, chart_panel_update
             return
 
+    data_csv = None
     # Asynchronously iterate through LangGraph stream
     async for _namespace, event_type, event_value in checkpointer_manager.graph.astream(
         stream_input, config=config, stream_mode=["updates", "messages"], subgraphs=True, debug=True
@@ -136,7 +141,7 @@ async def respond(message, chat_history, user_id, session_id="default"):
         if event_type == "messages":
             chunk = event_value[0]
             metadata = event_value[1]
-            # Skip router node messages to avoid duplicates
+            # Keep router node messages only to avoid duplicates
             if metadata["langgraph_node"] != "router":
                 continue
             token = get_text_from_message_chunk(chunk)
@@ -155,21 +160,43 @@ async def respond(message, chat_history, user_id, session_id="default"):
                 else:
                     token = f"Rewrite question: {event_value['information_extraction'].get('rewrite_question')}\n"
             elif event_value.get("table_selection"):
-                token = f"Select tables: {event_value['table_selection'].get('tables')}\n"
+                token = f"Selected tables: {event_value['table_selection'].get('tables')}\n"
             elif event_value.get("generate_sql"):
                 token = f"SQL: \n ```sql \n{event_value['generate_sql'].get('sql')}\n```\n"
             elif event_value.get("execute_sql"):
                 token = "Running SQL...\n"
+                data_csv = event_value["execute_sql"].get("data")
             elif event_value.get("regenerate_sql"):
                 token = f"SQL: \n ```sql \n{event_value['regenerate_sql'].get('sql')}\n```\n"
+            elif event_value.get("generate_visualization"):
+                visualization_dsl = event_value["generate_visualization"].get("visualization_dsl")
+                # Check for visualization data in the final state and embed in response
+                if visualization_dsl and "error" not in visualization_dsl and data_csv:
+                    try:
+                        plot_figure, plot_description = visualization_dsl_to_gradio_plot(data_csv, visualization_dsl)
+                        # Add markdown representation to the chat
+                        chart_markdown = create_inline_chart_markdown(data_csv, visualization_dsl)
+                        full_response += f"\n\n{chart_markdown}"
+                        chat_history[-1] = (chat_history[-1][0], full_response)
+                        # Auto-show chart panel when plot is generated
+                        chart_panel_update = gr.update(visible=True)
+                        yield "", chat_history, plot_figure, chart_panel_update
+                    except Exception as e:
+                        log(f"Visualization generation error: {str(e)}")
+                        full_response += f"\n\n⚠️ Visualization error: {str(e)}"
+                        chat_history[-1] = (chat_history[-1][0], full_response)
+                        yield "", chat_history, plot_figure, chart_panel_update
 
         # Update chat history with new tokens and yield updated UI
         if token:
             full_response += token
             chat_history[-1] = (chat_history[-1][0], full_response)
-            yield "", chat_history  # Stream updates to UI
+            yield "", chat_history, plot_figure, chart_panel_update  # Stream updates to UI
 
+    # Get final state and check for visualization data
     state = await checkpointer_manager.graph.aget_state(config)
+    final_state_values = state.values
+
     if state.interrupts:
         log(f"state.interrupts: {state.interrupts}")
         output_content = state.interrupts[0].value.get("text")
@@ -178,7 +205,7 @@ async def respond(message, chat_history, user_id, session_id="default"):
         full_response += output_content
         chat_history[-1] = (chat_history[-1][0], full_response)
         session_interrupt[user_session_id] = True
-        yield "", chat_history
+        yield "", chat_history, plot_figure, chart_panel_update
     else:
         session_interrupt[user_session_id] = False
 
@@ -261,29 +288,59 @@ def list_user_memories(user_id: str) -> str:
 
 # Create Gradio interface with custom CSS and theme
 with gr.Blocks(css=custom_css, theme=gr.themes.Soft()) as demo:
-    gr.Markdown("## 💬 OpenChatBI Agent Chatbot")
+    gr.Markdown("## 💬 OpenChatBI Agent Chatbot with Streaming & On-Demand Visualization")
 
     with gr.Tabs():
         with gr.TabItem("💬 Chat"):
             with gr.Row():
                 with gr.Column(scale=4):
-                    chatbot = gr.Chatbot(elem_id="chatbot", label="", bubble_full_width=False, height=600)
+                    chatbot = gr.Chatbot(
+                        elem_id="chatbot",
+                        label="Chat",
+                        bubble_full_width=False,
+                        height=500,
+                        show_label=False,
+                        sanitize_html=False,
+                        render_markdown=True,
+                    )
                     msg = gr.Textbox(placeholder="Type a message and press Enter", label="Input", elem_id="msg")
+
+                with gr.Column(scale=2, visible=False) as chart_panel:
+                    with gr.Row():
+                        with gr.Column(scale=3):
+                            gr.Markdown("### 📊 Interactive Chart")
+                        with gr.Column(scale=1):
+                            hide_chart_btn = gr.Button("✖️ Hide", elem_id="hide-chart-btn", size="sm")
+                    plot = gr.Plot(label="", visible=True, show_label=False)
+
                 with gr.Column(scale=1):
                     user_box = gr.Textbox(value="default", label="User ID", interactive=True)
                     session_box = gr.Textbox(value="default", label="Session ID", interactive=True)
+                    show_chart_btn = gr.Button("📊 Show Chart Panel", variant="secondary")
                     gr.Markdown(
                         """
                     **Instructions**  
-                    - Type a message and press Enter to send
-                    - Supports streaming output (word-by-word display)
+                    - Type a data question and press Enter
+                    - Supports streaming output (real-time display)
+                    - Click chart links in chat to view interactive charts
+                    - Use 'Show Chart Panel' to make panel visible
                     - Session ID can be used to differentiate between conversations
                     """,
                         elem_id="description",
                     )
 
-            # Register async submit handler for message input
-            msg.submit(respond, [msg, chatbot, user_box, session_box], [msg, chatbot])
+            def show_chart_panel():
+                """Show the chart panel."""
+                return gr.update(visible=True)
+
+            def hide_chart_panel():
+                """Hide the chart panel."""
+                return gr.update(visible=False)
+
+            # Register async submit handler for message input with plot output
+            msg.submit(respond, [msg, chatbot, user_box, session_box], [msg, chatbot, plot, chart_panel])
+            show_chart_btn.click(show_chart_panel, outputs=[chart_panel])
+            hide_chart_btn.click(hide_chart_panel, outputs=[chart_panel])
 
         with gr.TabItem("🧠 Memory Store"):
             gr.Markdown("### Long-term Memory Viewer")

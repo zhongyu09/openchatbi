@@ -10,6 +10,7 @@ from langgraph.types import Checkpointer, interrupt
 
 from openchatbi import config
 from openchatbi.catalog import CatalogStore
+from openchatbi.constants import SQL_SUCCESS
 from openchatbi.graph_state import InputState, SQLGraphState, SQLOutputState
 from openchatbi.llm.llm import default_llm, text2sql_llm
 from openchatbi.text2sql.extraction import information_extraction, information_extraction_conditional_edges
@@ -36,6 +37,27 @@ def ask_human(state):
     return {"messages": tool_message, "user_input": user_feedback}
 
 
+def should_generate_visualization_or_retry(state: SQLGraphState) -> str:
+    """Conditional edge function to determine next action after execute_sql.
+
+    Args:
+        state (SQLGraphState): Current state
+
+    Returns:
+        str: Next node name - "generate_visualization" if SQL succeeded, "regenerate_sql" if retry needed, "end" if done
+    """
+    execution_result = state.get("sql_execution_result", "")
+    retry_count = state.get("sql_retry_count", 0)
+    max_retries = 3
+
+    if execution_result == SQL_SUCCESS:
+        return "generate_visualization"
+    elif retry_count < max_retries and execution_result not in ("SQL_EXECUTE_TIMEOUT",):
+        return "regenerate_sql"
+    else:
+        return "end"
+
+
 def build_sql_graph(catalog: CatalogStore, checkpointer: Checkpointer, memory_store: BaseStore) -> CompiledStateGraph:
     """Build SQL generation graph with all nodes and edges.
 
@@ -53,9 +75,9 @@ def build_sql_graph(catalog: CatalogStore, checkpointer: Checkpointer, memory_st
         llm_with_tools = default_llm.bind_tools(tools, strict=True).bind(response_format={"type": "json_object"})
     else:
         llm_with_tools = default_llm.bind_tools(tools)
-    # Create SQL processing nodes
-    generate_sql_node, execute_sql_node, regenerate_sql_node = create_sql_nodes(
-        text2sql_llm, catalog, dialect=config.get().dialect
+    # Create SQL processing nodes with visualization configuration
+    generate_sql_node, execute_sql_node, regenerate_sql_node, generate_visualization_node = create_sql_nodes(
+        text2sql_llm, catalog, dialect=config.get().dialect, visualization_mode=config.get().visualization_mode
     )
 
     # Define the SQL generation graph
@@ -69,6 +91,7 @@ def build_sql_graph(catalog: CatalogStore, checkpointer: Checkpointer, memory_st
     graph.add_node("generate_sql", generate_sql_node)
     graph.add_node("execute_sql", execute_sql_node)
     graph.add_node("regenerate_sql", regenerate_sql_node)
+    graph.add_node("generate_visualization", generate_visualization_node)
 
     # Add basic edges
     graph.add_edge(START, "information_extraction")
@@ -109,15 +132,19 @@ def build_sql_graph(catalog: CatalogStore, checkpointer: Checkpointer, memory_st
         },
     )
 
-    # Add conditional edges for execute_sql error retry logic
+    # Add conditional edges for execute_sql - either retry, generate visualization, or end
     graph.add_conditional_edges(
         "execute_sql",
-        should_retry_sql,
+        should_generate_visualization_or_retry,
         {
+            "generate_visualization": "generate_visualization",
             "regenerate_sql": "regenerate_sql",
             "end": END,
         },
     )
+
+    # Add edge from visualization to end
+    graph.add_edge("generate_visualization", END)
 
     graph = graph.compile(name="text2sql_graph", checkpointer=checkpointer, store=memory_store)
     return graph

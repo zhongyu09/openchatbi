@@ -1,4 +1,5 @@
 """OpenChatBI core module initialization."""
+
 import os
 
 from langgraph.graph.state import CompiledStateGraph

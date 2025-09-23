@@ -1,0 +1,53 @@
+extra_tool_use_rule: | 
+  - Try your best to give appropriate parameters when calling tools.
+
+table_selection_extra_rule: |
+  - When users ask about orders, consider if they need customer information (join with Customers table)
+  - For product-related queries, check if order information is needed (join with Order_Items)  
+  - Shipment queries often require order and product details (join with multiple tables)
+  - Invoice questions may need shipment information for complete tracking
+
+text2sql_extra_rule: |
+  - Use proper JOIN syntax when connecting related tables
+  - Use LIKE operator for partial string matches in product names or customer names
+  - Handle NULL values properly in optional fields like details columns
+
+basic_knowledge_glossary: |
+  # Sales Business System Glossary
+  
+  ## Overview
+  You're answering questions related to a sales order tracking business system that manages the complete customer order lifecycle from placement to delivery.
+
+  ## Key Business Concepts
+  
+  **Customer Management:**
+  - Customer: Individual or entity who places orders
+  - Customer Details: Additional information like contact info, preferences, or notes
+  
+  **Order Processing:**
+  - Order: A request from a customer to purchase products
+  - Order Status: Current state - Valid values: "Shipped", "Packing", "On Road"
+  - Order Item: Individual product within an order (orders can contain multiple items)
+  - Order Item Status: Status of specific items - Valid values: "Finish", "Payed", "Cancel"
+  
+  **Product Catalog:**
+  - Product: Items available for purchase
+  - Product Details: Specifications, descriptions, or additional product information
+  
+  **Fulfillment & Shipping:**
+  - Shipment: Physical delivery package sent to customer
+  - Shipment Items: Specific order items included in a shipment
+  - Tracking Number: Unique identifier for package tracking
+  - Shipment Date: When package was dispatched
+  
+  **Financial Processing:**
+  - Invoice: Bill generated for completed orders
+  - Invoice Number: Unique identifier for billing purposes
+  - Invoice Date: When billing document was created
+  
+  ## Business Rules
+  - One order can have multiple items (products)
+  - One order can be fulfilled through multiple shipments
+  - Each shipment links to one invoice for billing
+  - Order items can have different statuses within the same order
+  - Customers can have multiple orders over time

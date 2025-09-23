@@ -1,0 +1,29 @@
+? ''
+: Customers:
+    description: 'Contains customer information including unique ID, name, and additional details'
+    selection_rule: 'Select when queries involve customer information, customer names, or need to join orders with customer data'
+    sql_rule: 'Use customer_id as primary key for joins. Always include customer_name when displaying customer information'
+  Invoices:
+    description: 'Stores invoice information with unique invoice numbers, dates, and details'
+    selection_rule: 'Select when queries involve billing, invoice tracking, or financial reporting'
+    sql_rule: 'Use invoice_number as primary key. Filter by invoice_date for temporal queries'
+  Order_Items:
+    description: 'Links products to orders with individual item status and details'
+    selection_rule: 'Select when queries need product details within orders or item-level status tracking'
+    sql_rule: 'Always join with Products table via product_id and Orders table via order_id for complete information'
+  Orders:
+    description: 'Main order table containing order status, placement date, and customer relationships'
+    selection_rule: 'Select when queries involve order status, order history, or customer order relationships'
+    sql_rule: 'Use order_id as primary key. Join with Customers via customer_id for customer information'
+  Products:
+    description: 'Product catalog containing product names, IDs, and detailed product information'
+    selection_rule: 'Select when queries involve product information, product searches, or inventory-related questions'
+    sql_rule: 'Use product_id as primary key. Use LIKE operator for product_name searches'
+  Shipment_Items:
+    description: 'Junction table linking shipments to specific order items'
+    selection_rule: 'Select when queries need to track which specific items are in which shipments'
+    sql_rule: 'Always join with both Shipments and Order_Items tables. No primary key - composite key of shipment_id and order_item_id'
+  Shipments:
+    description: 'Shipment tracking information including tracking numbers, dates, and shipment details'
+    selection_rule: 'Select when queries involve shipping, delivery tracking, or fulfillment information'
+    sql_rule: 'Use shipment_id as primary key. Join with Orders via order_id and Invoices via invoice_number for complete shipping context'

@@ -1,0 +1,11 @@
+question,selected_tables
+"Show me all customers","[""Customers""]"
+"What orders were placed today?","[""Orders""]"
+"List all products and their details","[""Products""]"
+"Show me customer orders with their details","[""Customers"", ""Orders""]"
+"What products are in each order?","[""Orders"", ""Order_Items"", ""Products""]"
+"Show shipment tracking information","[""Shipments""]"
+"Which items are in each shipment?","[""Shipments"", ""Shipment_Items"", ""Order_Items""]"
+"Show order status and customer information","[""Orders"", ""Customers""]"
+"What invoices were created this month?","[""Invoices""]"
+"Show complete order fulfillment chain","[""Orders"", ""Order_Items"", ""Products"", ""Shipments"", ""Invoices""]"

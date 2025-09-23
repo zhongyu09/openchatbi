@@ -68,6 +68,14 @@ export LDFLAGS="-L/opt/homebrew/opt/sqlite/lib"
 export CPPFLAGS="-I/opt/homebrew/opt/sqlite/include"
 ```
 
+### Run Demo
+
+Run demo using **example dataset** from spider dataset.
+```bash
+cp example/config.yaml openchatbi/config.yaml
+python run_streamlit_ui.py
+```
+
 ### Configuration
 
 1. **Create configuration file**
@@ -225,70 +233,90 @@ OpenChatBI is built using a modular architecture with clear separation of concer
 
 ```
 openchatbi/
-├── README.md                   # Project documentation
-├── pyproject.toml              # Modern Python project configuration
+├── README.md                    # Project documentation
+├── pyproject.toml               # Modern Python project configuration
 ├── Dockerfile.python-executor  # Docker image for isolated code execution
-├── config.yaml.template        # Configuration template
-├── run_tests.py               # Test runner script
-├── openchatbi/                # Core application code
-│   ├── __init__.py            # Package initialization
-│   ├── config.yaml.template   # Configuration template
-│   ├── config_loader.py       # Configuration management
-│   ├── constants.py           # Application constants
-│   ├── agent_graph.py         # Main LangGraph workflow
-│   ├── graph_state.py         # State definition for workflows
-│   ├── utils.py               # Utility functions
-│   ├── catalog/               # Data catalog management
-│   │   ├── __init__.py        # Package initialization
-│   │   ├── catalog_loader.py  # Catalog loading logic
-│   │   ├── catalog_store.py   # Catalog storage interface
-│   │   ├── entry.py           # Catalog entry points
-│   │   ├── factory.py         # Catalog factory patterns
-│   │   ├── helper.py          # Catalog helper functions
-│   │   ├── schema_retrival.py # Schema retrieval logic
-│   │   └── token_service.py   # Token service integration
-│   ├── code/                  # Code execution framework
-│   │   ├── __init__.py        # Package initialization
-│   │   ├── executor_base.py   # Base executor interface
-│   │   ├── local_executor.py  # Local Python execution
+├── run_tests.py                # Test runner script
+├── run_streamlit_ui.py         # Streamlit UI launcher
+├── openchatbi/                 # Core application code
+│   ├── __init__.py             # Package initialization
+│   ├── config.yaml.template    # Configuration template
+│   ├── config_loader.py        # Configuration management
+│   ├── constants.py            # Application constants
+│   ├── agent_graph.py          # Main LangGraph workflow
+│   ├── graph_state.py          # State definition for workflows
+│   ├── utils.py                # Utility functions
+│   ├── catalog/                # Data catalog management
+│   │   ├── __init__.py         # Package initialization
+│   │   ├── catalog_loader.py   # Catalog loading logic
+│   │   ├── catalog_store.py    # Catalog storage interface
+│   │   ├── entry.py            # Catalog entry points
+│   │   ├── factory.py          # Catalog factory patterns
+│   │   ├── helper.py           # Catalog helper functions
+│   │   ├── schema_retrival.py  # Schema retrieval logic
+│   │   └── token_service.py    # Token service integration
+│   ├── code/                   # Code execution framework
+│   │   ├── __init__.py         # Package initialization
+│   │   ├── executor_base.py    # Base executor interface
+│   │   ├── local_executor.py   # Local Python execution
 │   │   ├── restricted_local_executor.py # RestrictedPython execution
-│   │   └── docker_executor.py # Docker-based isolated execution
-│   ├── llm/                   # LLM integration layer
-│   │   ├── __init__.py        # Package initialization
-│   │   └── llm.py             # LLM management and retry logic
-│   ├── prompts/               # Prompt templates and engineering
-│   │   ├── __init__.py        # Package initialization
-│   │   ├── agent_prompt.md    # Main agent prompts
+│   │   └── docker_executor.py  # Docker-based isolated execution
+│   ├── llm/                    # LLM integration layer
+│   │   ├── __init__.py         # Package initialization
+│   │   └── llm.py              # LLM management and retry logic
+│   ├── prompts/                # Prompt templates and engineering
+│   │   ├── __init__.py         # Package initialization
+│   │   ├── agent_prompt.md     # Main agent prompts
 │   │   ├── extraction_prompt.md # Information extraction prompts
-│   │   ├── system_prompt.py   # System prompt management
+│   │   ├── system_prompt.py    # System prompt management
 │   │   ├── table_selection_prompt.md # Table selection prompts
-│   │   └── text2sql_prompt.md # Text-to-SQL prompts
-│   ├── text2sql/              # Text-to-SQL conversion pipeline
-│   │   ├── __init__.py        # Package initialization
-│   │   ├── data.py            # Data and retriever for Text-to-SQL
-│   │   ├── extraction.py      # Information extraction
-│   │   ├── generate_sql.py    # SQL generation logic
-│   │   ├── schema_linking.py  # Schema linking process
-│   │   ├── sql_graph.py       # SQL generation LangGraph workflow
-│   │   └── text2sql_utils.py  # Text2SQL utilities
-│   └── tool/                  # LangGraph tools and functions
-│       ├── __init__.py        # Package initialization
-│       ├── ask_human.py       # Human-in-the-loop interactions
-│       ├── memory.py          # Memory management tool
-│       ├── run_python_code.py # Configurable Python code execution
-│       ├── save_report.py     # Report saving functionality
-│       ├── search_knowledge.py # Knowledge base search
-│       └── mcp_tools.py       # MCP (Model Context Protocol) integration
-├── sample_api/               # API implementations
-│   └── async_api.py          # Asynchronous API example
-├── sample_ui/                # Web interface implementations
-│   ├── memory_ui.py          # Memory-enhanced UI interface
-│   ├── simple_ui.py          # Simple non-streaming UI
-│   ├── streaming_ui.py       # Streaming UI with real-time updates
-│   └── style.py              # UI styling and CSS
-└── tests/                    # Test suite
-    ├── test_tools_run_python_code.py # Code execution tests
-    └── ...                   # Additional test files
+│   │   └── text2sql_prompt.md  # Text-to-SQL prompts
+│   ├── text2sql/               # Text-to-SQL conversion pipeline
+│   │   ├── __init__.py         # Package initialization
+│   │   ├── data.py             # Data and retriever for Text-to-SQL
+│   │   ├── extraction.py       # Information extraction
+│   │   ├── generate_sql.py     # SQL generation and execution logic
+│   │   ├── schema_linking.py   # Schema linking process
+│   │   ├── sql_graph.py        # SQL generation LangGraph workflow
+│   │   ├── text2sql_utils.py   # Text2SQL utilities
+│   │   └── visualization.py    # Data visualization functions
+│   └── tool/                   # LangGraph tools and functions
+│       ├── ask_human.py        # Human-in-the-loop interactions
+│       ├── memory.py           # Memory management tool
+│       ├── mcp_tools.py        # MCP (Model Context Protocol) integration
+│       ├── run_python_code.py  # Configurable Python code execution
+│       ├── save_report.py      # Report saving functionality
+│       └── search_knowledge.py # Knowledge base search
+├── sample_api/                 # API implementations
+│   └── async_api.py            # Asynchronous FastAPI example
+├── sample_ui/                  # Web interface implementations
+│   ├── memory_ui.py            # Memory-enhanced UI interface
+│   ├── plotly_utils.py         # Plotly utilities and helpers
+│   ├── simple_ui.py            # Simple non-streaming Gradio UI
+│   ├── streaming_ui.py         # Streaming Gradio UI with real-time updates
+│   ├── streamlit_ui.py         # Streaming Streamlit UI with enhanced features
+│   └── style.py                # UI styling and CSS
+├── example/                    # Example configurations and data
+│   ├── bi.yaml                 # BI configuration example
+│   ├── config.yaml             # Application config example
+│   ├── table_info.yaml         # Table information
+│   ├── table_columns.csv       # Table column registry
+│   ├── common_columns.csv      # Common column definitions
+│   ├── sql_example.yaml        # SQL examples for retrieval
+│   ├── table_selection_example.csv # Table selection examples
+│   └── tracking_orders.sqlite  # Sample SQLite database
+├── tests/                      # Test suite
+│   ├── __init__.py             # Package initialization
+│   ├── conftest.py             # Test configuration
+│   ├── test_*.py               # Test modules for various components
+│   └── README.md               # Testing documentation
+├── docs/                       # Documentation
+│   ├── source/                 # Sphinx documentation source
+│   ├── build/                  # Built documentation
+│   ├── Makefile                # Documentation build scripts
+│   └── make.bat                # Windows build script
+└── .github/                    # GitHub workflows and templates
+    └── workflows/              # CI/CD workflows
 ```
 
 ## Advanced Features

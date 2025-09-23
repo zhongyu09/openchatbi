@@ -1,0 +1,45 @@
+'':
+  Customers: |
+    Q: Show me all customers with their names and details
+    A: SELECT customer_id, customer_name, customer_details 
+    FROM Customers 
+    ORDER BY customer_name
+  Invoices: |
+    Q: List all invoices from the last 30 days
+    A: SELECT invoice_number, invoice_date, invoice_details 
+    FROM Invoices 
+    WHERE invoice_date >= DATE(''now'', ''-30 days'') 
+    ORDER BY invoice_date DESC
+    
+  Order_Items: |
+    Q: Show me all items in order 123
+    A: SELECT oi.order_item_id, p.product_name, oi.order_item_status, oi.order_item_details 
+    FROM Order_Items oi 
+    JOIN Products p ON oi.product_id = p.product_id 
+    WHERE oi.order_id = 123
+  Orders: |
+    Q: Find all pending orders with customer information
+    A: SELECT o.order_id, c.customer_name, o.order_status, o.date_order_placed 
+    FROM Orders o 
+    JOIN Customers c ON o.customer_id = c.customer_id 
+    WHERE o.order_status = ''pending'' 
+    ORDER BY o.date_order_placed
+  Products: |
+    Q: Search for products containing ''laptop'' in the name
+    A: SELECT product_id, product_name, product_details 
+    FROM Products 
+    WHERE product_name LIKE ''%laptop%'' 
+    ORDER BY product_name'
+  Shipment_Items: |
+    Q: Show which order items are in shipment 456
+    A: SELECT si.shipment_id, si.order_item_id, p.product_name 
+    FROM Shipment_Items si 
+    JOIN Order_Items oi ON si.order_item_id = oi.order_item_id 
+    JOIN Products p ON oi.product_id = p.product_id 
+    WHERE si.shipment_id = 456
+  Shipments: |
+    Q: Track all shipments for order 789
+    A: SELECT shipment_id, shipment_tracking_number, shipment_date, other_shipment_details 
+    FROM Shipments 
+    WHERE order_id = 789 
+    ORDER BY shipment_date

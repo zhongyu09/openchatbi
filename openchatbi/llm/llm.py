@@ -10,7 +10,7 @@ from openchatbi.utils import log
 
 embedding_model = config.get().embedding_model
 default_llm = config.get().default_llm
-text2sql_llm = config.get().text2sql_llm
+text2sql_llm = config.get().text2sql_llm or default_llm
 
 
 def _invalid_tool_names(valid_tools, tool_calls) -> str:

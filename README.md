@@ -70,9 +70,10 @@ export CPPFLAGS="-I/opt/homebrew/opt/sqlite/include"
 
 ### Run Demo
 
-Run demo using **example dataset** from spider dataset.
+Run demo using **example dataset** from spider dataset, you need to provide "YOUR OPENAI API KEY" or change config to other LLM.
 ```bash
 cp example/config.yaml openchatbi/config.yaml
+sed -i 's/YOUR_API_KEY_HERE/[YOUR OPENAI API KEY]/g' openchatbi/config.yaml
 python run_streamlit_ui.py
 ```
 

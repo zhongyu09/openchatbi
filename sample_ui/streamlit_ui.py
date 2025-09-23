@@ -311,7 +311,7 @@ def display_message_with_thinking(
 
 
 # Main UI
-st.title("💬 OpenChatBI - Streamlit Interface")
+st.title("💬 OpenChatBI - Streamlit UI")
 st.markdown("*AI-powered Business Intelligence Chat with Thinking*")
 
 # Sidebar for configuration
@@ -324,7 +324,7 @@ with st.sidebar:
     st.markdown(
         """
     **💡 How to use:**
-    - Type your business intelligence questions
+    - Type your business questions
     - Watch the AI thinking process in collapsible sections
     - View generated charts and analyses
     - Use different session IDs for separate conversations

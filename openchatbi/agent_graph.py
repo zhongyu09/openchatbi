@@ -8,7 +8,7 @@ from typing import Any, Optional
 
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import AIMessage, SystemMessage
-from langchain_core.tools import tool
+from langchain_core.tools import StructuredTool
 from langchain_openai.chat_models.base import BaseChatOpenAI
 from langgraph.constants import START
 from langgraph.errors import GraphInterrupt
@@ -17,6 +17,8 @@ from langgraph.graph.state import CompiledStateGraph
 from langgraph.prebuilt import ToolNode
 from langgraph.store.base import BaseStore
 from langgraph.types import Checkpointer, interrupt, Send
+from pydantic import BaseModel, Field
+
 from openchatbi import config
 from openchatbi.catalog import CatalogStore
 from openchatbi.constants import datetime_format
@@ -31,7 +33,6 @@ from openchatbi.tool.run_python_code import run_python_code
 from openchatbi.tool.save_report import save_report
 from openchatbi.tool.search_knowledge import search_knowledge, show_schema
 from openchatbi.utils import log
-from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 
@@ -63,6 +64,19 @@ class CallSQLGraphInput(BaseModel):
         Information: (the knowledge you retrival that is relevant, like metrics and dimensions)
         User's latest question:""",
     )
+
+
+# Description for SQL tools
+TEXT2SQL_TOOL_DESCRIPTION = """Text2SQL tool to generate and execute SQL query and build visualization DSL for UI 
+based on user's question and context.
+
+Returns:
+    str: A formatted response containing SQL, data, and visualization status.
+
+Important notes:
+- If user want to change the visualization chart type or style, add the requirement in the question
+- Make sure to provide question in English
+"""
 
 
 def _format_sql_response(sql_graph_response: dict) -> str:
@@ -107,50 +121,50 @@ def get_sql_tools(sql_graph: CompiledStateGraph, sync_mode: bool = False) -> Cal
         function: Tool function for SQL generation.
     """
 
+    def call_sql_graph_sync(reasoning: str, context: str) -> str:
+        """Sync node function for Text2SQL tool"""
+        log(f"Call SQL graph (sync) with reasoning: {reasoning}, context: {context}")
+        try:
+            sql_graph_response = sql_graph.invoke({"messages": context})
+            return _format_sql_response(sql_graph_response)
+        except GraphInterrupt as e:
+            log(f"Sql graph interrupted:\n{repr(e)}")
+            raise e
+        except Exception as e:
+            log(f"Run sql graph error:\n{repr(e)}")
+            traceback.print_exc()
+        return "Error occurred when calling Text2SQL tool."
+
+    async def call_sql_graph_async(reasoning: str, context: str) -> str:
+        """Async node function for Text2SQL tool"""
+        log(f"Call SQL graph (async) with reasoning: {reasoning}, context: {context}")
+        try:
+            sql_graph_response = await sql_graph.ainvoke({"messages": context})
+            return _format_sql_response(sql_graph_response)
+        except GraphInterrupt as e:
+            log(f"Sql graph interrupted:\n{repr(e)}")
+            raise e
+        except Exception as e:
+            log(f"Run sql graph error:\n{repr(e)}")
+            traceback.print_exc()
+        return "Error occurred when calling Text2SQL tool."
+
     if sync_mode:
-
-        @tool("text2sql", args_schema=CallSQLGraphInput, return_direct=False, infer_schema=True)
-        def call_sql_graph_sync(reasoning: str, context: str) -> str:
-            """Text2SQL tool (sync version) to generate and execute SQL query based on user's question and context.
-
-            Returns:
-                str: A formatted response containing SQL, data, and visualization status.
-            """
-            log(f"Call SQL graph (sync) with reasoning: {reasoning}, context: {context}")
-            try:
-                sql_graph_response = sql_graph.invoke({"messages": context})
-                return _format_sql_response(sql_graph_response)
-            except GraphInterrupt as e:
-                log(f"Sql graph interrupted:\n{repr(e)}")
-                raise e
-            except Exception as e:
-                log(f"Run sql graph error:\n{repr(e)}")
-                traceback.print_exc()
-            return "Error occurred when calling Text2SQL tool."
-
-        return call_sql_graph_sync
+        return StructuredTool.from_function(
+            func=call_sql_graph_sync,
+            name="text2sql",
+            description=TEXT2SQL_TOOL_DESCRIPTION,
+            args_schema=CallSQLGraphInput,
+            return_direct=False,
+        )
     else:
-
-        @tool("text2sql", args_schema=CallSQLGraphInput, return_direct=False, infer_schema=True)
-        async def call_sql_graph_async(reasoning: str, context: str) -> str:
-            """Text2SQL tool (async version) to generate and execute SQL query based on user's question and context.
-
-            Returns:
-                str: A formatted response containing SQL, data, and visualization status.
-            """
-            log(f"Call SQL graph (async) with reasoning: {reasoning}, context: {context}")
-            try:
-                sql_graph_response = await sql_graph.ainvoke({"messages": context})
-                return _format_sql_response(sql_graph_response)
-            except GraphInterrupt as e:
-                log(f"Sql graph interrupted:\n{repr(e)}")
-                raise e
-            except Exception as e:
-                log(f"Run sql graph error:\n{repr(e)}")
-                traceback.print_exc()
-            return "Error occurred when calling Text2SQL tool."
-
-        return call_sql_graph_async
+        return StructuredTool.from_function(
+            coroutine=call_sql_graph_async,
+            name="text2sql",
+            description=TEXT2SQL_TOOL_DESCRIPTION,
+            args_schema=CallSQLGraphInput,
+            return_direct=False,
+        )
 
 
 def agent_router(llm: BaseChatModel, tools: list) -> Callable:

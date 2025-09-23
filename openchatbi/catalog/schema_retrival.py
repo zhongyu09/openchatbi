@@ -7,7 +7,7 @@ import Levenshtein
 import jieba
 
 from openchatbi.catalog.entry import catalog_store
-from openchatbi.catalog.store.retrival_helper import build_column_tables_mapping, build_columns_retriever
+from catalog.retrival_helper import build_column_tables_mapping, build_columns_retriever
 from openchatbi.utils import log
 
 # Skip build during documentation build

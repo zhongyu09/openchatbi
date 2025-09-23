@@ -19,7 +19,7 @@ catalog_store:
   data_path: ./example
 
 # Data warehouse configuration
-data_warehouse_config2:
+data_warehouse_config:
   uri: "presto://{user_name}@domain:8080/db/default"
   include_tables:
     - null  # null means include all tables, or specify yaml list

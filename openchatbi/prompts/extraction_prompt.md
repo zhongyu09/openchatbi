@@ -37,7 +37,11 @@ Identify measurable quantities that can be aggregated:
 **start_time** and **end_time**: Convert relative time expressions to absolute timestamps
 - Format: `'%Y-%m-%d %H:%M:%S'`
 - Handle expressions like "yesterday", "last 7 days", "from X to Y"
-- Default to "last 7 days" if no time range specified
+- Default to "last 7 days" if no time range and granularity specified
+- Specific default if user mentioned granularity:
+  - Weekly -> "last 12 weeks"
+  - Monthly -> "last 12 months"
+  - Yearly -> "Full data"
 
 **Example**:
 ```

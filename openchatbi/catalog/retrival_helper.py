@@ -1,52 +1,10 @@
 """Helper functions for building column retrieval systems."""
 
 import jieba
-from langchain_community.vectorstores import Chroma
 from rank_bm25 import BM25Okapi
 
 from openchatbi.llm.llm import embedding_model
-from openchatbi.utils import log
-
-
-def CreateVectorDB(
-    texts: list[str],
-    embedding=None,
-    collection_name: str = "langchain",
-    metadatas=None,
-    collection_metadata: dict = None,
-):
-    """Create or reuse a Chroma vector database.
-
-    Args:
-        texts (List[str]): Text documents to index.
-        embedding: Embedding function to use.
-        collection_name (str): Name of the collection.
-        metadatas: Metadata for each document.
-        collection_metadata (dict): Collection-level metadata.
-
-    Returns:
-        Chroma: Vector database instance.
-    """
-    chroma_dir = "./.chroma_db"
-    client = Chroma(
-        collection_name,
-        persist_directory=chroma_dir,
-        embedding_function=embedding,
-        collection_metadata=collection_metadata,
-    )
-    if len(client) == 0:
-        print(f"Init new client from text for {collection_name}...")
-        client = client.from_texts(
-            texts,
-            embedding,
-            metadatas=metadatas,
-            collection_name=collection_name,
-            collection_metadata=collection_metadata,
-            persist_directory=chroma_dir,
-        )
-    else:
-        print(f"Re-use collection for {collection_name}")
-    return client
+from openchatbi.utils import log, create_vector_db
 
 
 def get_columns_metadata(catalog):
@@ -105,7 +63,7 @@ def build_columns_retriever(catalog):
     bm25 = BM25Okapi(column_tokens)
 
     log("Building vector database for columns...")
-    vector_db = CreateVectorDB(
+    vector_db = create_vector_db(
         embedding_keys,
         embedding_model,
         metadatas=columns,

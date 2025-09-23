@@ -4,7 +4,9 @@ import json
 import sys
 from pathlib import Path
 
+from langchain_chroma import Chroma
 from langchain_core.messages import AIMessageChunk
+from langchain_core.vectorstores import VectorStore
 from regex import regex
 from fastapi import HTTPException
 from fastapi.responses import FileResponse
@@ -115,3 +117,67 @@ def get_report_download_response(filename: str) -> FileResponse:
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to download report: {str(e)}") from e
+
+
+def _create_chroma_from_texts(
+    texts: list[str],
+    embedding,
+    collection_name: str,
+    metadatas,
+    collection_metadata: dict,
+    chroma_dir: str,
+):
+    """Helper function to create Chroma client from texts."""
+    return Chroma.from_texts(
+        texts,
+        embedding,
+        metadatas=metadatas,
+        collection_name=collection_name,
+        collection_metadata=collection_metadata,
+        persist_directory=chroma_dir,
+    )
+
+
+def create_vector_db(
+    texts: list[str],
+    embedding=None,
+    collection_name: str = "langchain",
+    metadatas=None,
+    collection_metadata: dict = None,
+) -> VectorStore:
+    """Create or reuse a Chroma vector database.
+
+    Args:
+        texts (List[str]): Text documents to index.
+        embedding: Embedding function to use.
+        collection_name (str): Name of the collection.
+        metadatas: Metadata for each document.
+        collection_metadata (dict): Collection-level metadata.
+
+    Returns:
+        Chroma: Vector database instance.
+    """
+    chroma_dir = "./.chroma_db"
+    client = Chroma(
+        collection_name,
+        persist_directory=chroma_dir,
+        embedding_function=embedding,
+        collection_metadata=collection_metadata,
+    )
+    try:
+        # Try to get documents to check if collection exists and has content
+        existing_docs = client.get()
+        if not existing_docs["documents"]:
+            print(f"Init new client from text for {collection_name}...")
+            client = _create_chroma_from_texts(
+                texts, embedding, collection_name, metadatas, collection_metadata, chroma_dir
+            )
+        else:
+            print(f"Re-use collection for {collection_name}")
+    except Exception:
+        # If collection doesn't exist or any error, create new one
+        print(f"Init new client from text for {collection_name}...")
+        client = _create_chroma_from_texts(
+            texts, embedding, collection_name, metadatas, collection_metadata, chroma_dir
+        )
+    return client

@@ -1,9 +1,8 @@
 """Tool for saving reports to files."""
 
-import os
 import datetime
 from pathlib import Path
-from typing import Optional
+
 from langchain.tools import tool
 from pydantic import BaseModel, Field
 

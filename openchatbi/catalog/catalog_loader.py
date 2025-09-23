@@ -63,7 +63,6 @@ class DataCatalogLoader:
                             "description": column.get("comment", "") or "",
                             "dimension_table": "",
                             "default": str(column.get("default", "")) if column.get("default") is not None else "",
-                            "primary_key": column.get("primary_key", False),
                             "is_common": is_common_column,
                         }
                         column_list.append(column_info)

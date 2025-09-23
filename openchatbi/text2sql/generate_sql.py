@@ -56,18 +56,18 @@ def create_sql_nodes(
             f""" "{alias_prompt}{column['description']}"),"""
         )
 
-    def _get_table_schema_prompt(tables: list[dict[str, Any]]) -> str:
+    def _get_table_schema_prompt(tables_columns: list[dict[str, Any]]) -> str:
         """Generates a prompt string for table schemas, including table description,
         columns, derived metrics and rules when writting SQL
 
         Args:
-            tables (List[Dict[str, Any]]): List of tables with their columns.
+            tables_columns (List[Dict[str, Any]]): List of tables with selected columns.
 
         Returns:
             str: Formatted table schema prompt string.
         """
         schema_prompt = []
-        for table_dict in tables:
+        for table_dict in tables_columns:
             table_name = table_dict["table"]
             # TODO maybe use columns in prompt
             columns = table_dict["columns"]
@@ -82,16 +82,17 @@ def create_sql_nodes(
             schema_prompt.append(single_table_schema_prompt)
         return "\n".join(schema_prompt)
 
-    def _get_relevant_sql_examples_prompt(question, tables: list[str]) -> str:
+    def _get_relevant_sql_examples_prompt(question, tables_columns: list[dict[str, Any]]) -> str:
         """Retrieves relevant SQL examples based on the question and selected tables.
 
         Args:
             question (str): The natural language question.
-            tables (List[str]): List of selected table names.
+            tables_columns (List[str]): List of selected tables with selected columns.
 
         Returns:
             str: Formatted string of relevant SQL examples.
         """
+        tables = [d["table"] for d in tables_columns]
         relevant_questions = sql_example_retriever.get_relevant_documents(question)
         # log(f"Retrieved examples for question: {question} \n Relevant questions: {relevant_questions}")
         # filter examples that only use the selected tables
@@ -187,11 +188,11 @@ def create_sql_nodes(
             return {}
 
         question = state["rewrite_question"]
-        tables = state["tables"]
+        tables_columns = state["tables"]
         system_prompt = (
             get_text2sql_dialect_prompt_template(dialect)
-            .replace("[table_schema]", _get_table_schema_prompt(tables))
-            .replace("[examples]", _get_relevant_sql_examples_prompt(question, tables))
+            .replace("[table_schema]", _get_table_schema_prompt(tables_columns))
+            .replace("[examples]", _get_relevant_sql_examples_prompt(question, tables_columns))
             .replace("[time_field_placeholder]", datetime.datetime.now().strftime(datetime_format))
         )
 

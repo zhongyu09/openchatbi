@@ -34,7 +34,7 @@ Identify measurable quantities that can be aggregated:
   - Example: For "click-through rate", extract ["click-through rate", "clicks", "impressions"]
 
 ### 1.4 Time Range (Optional)
-**start_time** and **end_time**: Convert relative time expressions to absolute timestamps
+**start_time** and **end_time**: Convert relative time expressions to absolute timestamps if the question is related to date/time like trends, aggregated metric, etc.
 - Format: `'%Y-%m-%d %H:%M:%S'`
 - Handle expressions like "yesterday", "last 7 days", "from X to Y"
 - Default to "last 7 days" if no time range and granularity specified
@@ -81,7 +81,8 @@ Transform the original question into a clear, comprehensive query specification.
 
 **Enhancement Rules**:
 - Add metric definitions in brackets: "CTR" → "click-through rate (clicks/impressions)"
-- Include default time range if none specified: "last 7 days"
+- Include default time range if none specified
+- Include visualization preference if provided by user
 - Preserve user intent while adding necessary context
 - Use conversation history to fill gaps
 

@@ -172,7 +172,7 @@ class DataCatalogLoader:
                     logger.error(f"Error loading table {table_name}: {e}")
 
             # init empty table selection examples
-            catalog_store.save_table_selection_examples([("", "[]")])
+            catalog_store.save_table_selection_examples([("", [])])
 
             logger.info(f"Load completed: {success_count}/{total_count} tables loaded successfully")
             return success_count == total_count

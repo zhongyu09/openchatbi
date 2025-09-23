@@ -288,13 +288,14 @@ class FileSystemCatalogStore(CatalogStore):
             return False
 
     @staticmethod
-    def _save_csv_file(file_path: str, data: list[dict[str, str]]) -> bool:
+    def _save_csv_file(file_path: str, data: list[dict[str, str]], headers: list[str] = None) -> bool:
         """
         Save CSV file
 
         Args:
             file_path (str): File path
             data (List[Dict[str, str]]): List of rows as dictionaries
+            headers (List[str]): List of header names in sequence
 
         Returns:
             bool: Whether the save was successful
@@ -304,12 +305,15 @@ class FileSystemCatalogStore(CatalogStore):
                 return True
 
             # Get all possible headers from all rows
-            headers = set()
+            all_headers = set()
             for row in data:
-                headers.update(row.keys())
+                all_headers.update(row.keys())
 
-            # Sort headers for consistent output
-            headers = sorted(headers)
+            # If specify field_names, make sure all keys are in field_names
+            if headers is not None:
+                for key in all_headers:
+                    if key not in headers:
+                        headers.append(key)
 
             with open(file_path, "w", encoding="utf-8", newline="") as f:
                 writer = csv.DictWriter(f, fieldnames=headers)
@@ -347,7 +351,7 @@ class FileSystemCatalogStore(CatalogStore):
         # Filter and return column details
         column_dict = {}
         for row in columns_csv:
-            if "column_name" in row and row["column_name"]:
+            if row.get("column_name") and row.get("type"):
                 # Convert row to Dict[str, Any]
                 column_info = {}
                 for key, value in row.items():
@@ -678,10 +682,18 @@ class FileSystemCatalogStore(CatalogStore):
                     table_spec_columns_dict[key] = column_info
 
         # Save updated data
-        tables_success = self._save_csv_file(self.table_columns_file, tables_data)
-        common_columns_success = self._save_csv_file(self.common_columns_file, list(common_columns_dict.values()))
+        tables_success = self._save_csv_file(
+            self.table_columns_file, tables_data, ["db_name", "table_name", "column_name"]
+        )
+        common_columns_success = self._save_csv_file(
+            self.common_columns_file,
+            list(common_columns_dict.values()),
+            ["column_name", "display_name", "alias", "type", "category", "tag", "description"],
+        )
         table_spec_columns_success = self._save_csv_file(
-            self.table_spec_columns_file, list(table_spec_columns_dict.values())
+            self.table_spec_columns_file,
+            list(table_spec_columns_dict.values()),
+            ["db_name", "table_name", "column_name", "display_name", "alias", "type", "category", "tag", "description"],
         )
 
         success = tables_success and common_columns_success and table_spec_columns_success
@@ -730,7 +742,9 @@ class FileSystemCatalogStore(CatalogStore):
         example_data = []
         for example in examples:
             example_data.append({"question": example[0], "selected_tables": example[1]})
-        save_success = self._save_csv_file(self.table_selection_example_file, example_data)
+        save_success = self._save_csv_file(
+            self.table_selection_example_file, example_data, ["question", "selected_tables"]
+        )
         if save_success:
             logger.info(f"Successfully saved {len(examples)} table selection examples.")
         return save_success

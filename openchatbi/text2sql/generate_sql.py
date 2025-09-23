@@ -202,7 +202,7 @@ def create_sql_nodes(
         response_content = get_text_from_content(response.content)
         sql_query = response_content.replace("```sql", "").replace("```", "").strip()
 
-        if not sql_query:
+        if not sql_query or sql_query.lower() == "null":
             log(f"Generated SQL query is empty. LLM output: {response.content}")
             return {
                 "messages": [AIMessage(response_content)],

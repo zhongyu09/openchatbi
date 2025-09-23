@@ -11,6 +11,7 @@ from langchain_core.messages import AIMessage, SystemMessage
 from langchain_core.tools import tool
 from langchain_openai.chat_models.base import BaseChatOpenAI
 from langgraph.constants import START
+from langgraph.errors import GraphInterrupt
 from langgraph.graph import END, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.prebuilt import ToolNode
@@ -119,6 +120,9 @@ def get_sql_tools(sql_graph: CompiledStateGraph, sync_mode: bool = False) -> Cal
             try:
                 sql_graph_response = sql_graph.invoke({"messages": context})
                 return _format_sql_response(sql_graph_response)
+            except GraphInterrupt as e:
+                log(f"Sql graph interrupted:\n{repr(e)}")
+                raise e
             except Exception as e:
                 log(f"Run sql graph error:\n{repr(e)}")
                 traceback.print_exc()
@@ -138,6 +142,9 @@ def get_sql_tools(sql_graph: CompiledStateGraph, sync_mode: bool = False) -> Cal
             try:
                 sql_graph_response = await sql_graph.ainvoke({"messages": context})
                 return _format_sql_response(sql_graph_response)
+            except GraphInterrupt as e:
+                log(f"Sql graph interrupted:\n{repr(e)}")
+                raise e
             except Exception as e:
                 log(f"Run sql graph error:\n{repr(e)}")
                 traceback.print_exc()

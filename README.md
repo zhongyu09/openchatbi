@@ -350,7 +350,9 @@ sql_rule: |
 
 #### Introduction
 
-High-quality catalog data is essential for accurate Text2SQL generation and data analysis. OpenChatBI automatically discovers and indexes data warehouse table structures while providing flexible management for business metadata, column descriptions, and query optimization rules.
+High-quality catalog data is essential for accurate Text2SQL generation and data analysis. OpenChatBI automatically 
+discovers and indexes data warehouse table structures while providing flexible management for business metadata, column 
+descriptions, and query optimization rules.
 
 #### Catalog Structure
 

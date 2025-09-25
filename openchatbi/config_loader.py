@@ -74,7 +74,7 @@ class ConfigLoader:
     """
 
     _instance = None
-    _config: Config = Config()
+    _config: Config = None
 
     def __new__(cls):
         if cls._instance is None:
@@ -93,7 +93,7 @@ class ConfigLoader:
             ValueError: If the configuration has not been loaded.
         """
         if self._config is None:
-            raise ValueError("Configuration has not been loaded. Please call load() first.")
+            raise ValueError("Configuration has not been loaded. Please call load() or set() first.")
         return self._config
 
     def load(self, config_file: str = None) -> None:
@@ -121,11 +121,26 @@ class ConfigLoader:
                 if config_data is None:
                     config_data = {}
         except FileNotFoundError:
-            raise FileNotFoundError(f"Configuration file not found: {config_file}")
+            log(f"Configuration file not found: {config_file}, leave config un-loaded.")
+            return
         except yaml.YAMLError as e:
             raise ValueError(f"Invalid YAML in configuration file {config_file}: {e}")
         except Exception as e:
             raise RuntimeError(f"Failed to read configuration file {config_file}: {e}")
+
+        self._process_config_dict(config_data)
+        self._config = Config.from_dict(config_data)
+
+    def _process_config_dict(self, config_data: Config) -> None:
+        """
+        Processes a configuration dictionary.
+        """
+        if "default_llm" not in config_data:
+            raise ValueError(f"Missing LLM config key: default_llm")
+        if "embedding_model" not in config_data:
+            raise ValueError(f"Missing LLM config key: embedding_model")
+        if "data_warehouse_config" not in config_data:
+            raise ValueError(f"Missing Data Warehouse config key: data_warehouse_config")
 
         # Load BI configuration
         if "bi_config_file" in config_data:
@@ -141,7 +156,14 @@ class ConfigLoader:
                 auto_load=config_data["catalog_store"].get("auto_load", True),
                 data_warehouse_config=config_data.get("data_warehouse_config"),
             )
-            config_data["catalog_store"] = catalog_store
+        else:
+            log("Catalog store config key `catalog_store` not found. Using default file system store.")
+            catalog_store = create_catalog_store(
+                store_type="file_system",
+                auto_load=True,
+                data_warehouse_config=config_data.get("data_warehouse_config"),
+            )
+        config_data["catalog_store"] = catalog_store
 
         for config_key in self.llm_configs:
             if config_key not in config_data or "class" not in config_data[config_key]:
@@ -159,8 +181,6 @@ class ConfigLoader:
                 raise RuntimeError(
                     f"Failed to load {config_key} class '{config_data[config_key]['class']}': {e}"
                 ) from e
-
-        self._config = Config.from_dict(config_data)
 
     def load_bi_config(self, bi_config_file: str) -> dict[str, Any]:
         """Load BI configuration from a YAML file.
@@ -201,4 +221,5 @@ class ConfigLoader:
         Args:
             config (Dict[str, Any]): Dictionary containing configuration values.
         """
+        self._process_config_dict(config)
         self._config = Config.from_dict(config)

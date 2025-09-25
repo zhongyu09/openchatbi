@@ -130,7 +130,7 @@ export CONFIG_FILE=YOUR_CONFIG_FILE_PATH
 ```python
 from openchatbi import get_default_graph
 
-graph = get_default_graph
+graph = get_default_graph()
 graph.invoke({"messages": [{"role": "user", "content": "Show me ctr trends for the past 7 days"}]},
     config={"configurable": {"thread_id": "1"}})
 ```

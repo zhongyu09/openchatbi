@@ -217,7 +217,10 @@ def agent_router(llm: BaseChatModel, tools: list) -> Callable:
                 return {"messages": [response], "sends": sends}
             else:
                 return {"messages": [response], "final_answer": response.content, "agent_next_node": END}
-        return {"messages": [response], "sends": []}
+        elif response is None:
+            return {"messages": [AIMessage("Sorry, the LLM service is currently unavailable.")], "agent_next_node": END}
+        else:
+            return {"messages": [response], "agent_next_node": END}
 
     return _call_model
 

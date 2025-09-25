@@ -93,7 +93,7 @@ class ConfigLoader:
             ValueError: If the configuration has not been loaded.
         """
         if self._config is None:
-            raise ValueError("Configuration has not been loaded.")
+            raise ValueError("Configuration has not been loaded. Please call load() first.")
         return self._config
 
     def load(self, config_file: str = None) -> None:
@@ -115,8 +115,17 @@ class ConfigLoader:
 
         import yaml
 
-        with open(config_file) as file:
-            config_data = yaml.safe_load(file)
+        try:
+            with open(config_file, "r", encoding="utf-8") as file:
+                config_data = yaml.safe_load(file)
+                if config_data is None:
+                    config_data = {}
+        except FileNotFoundError:
+            raise FileNotFoundError(f"Configuration file not found: {config_file}")
+        except yaml.YAMLError as e:
+            raise ValueError(f"Invalid YAML in configuration file {config_file}: {e}")
+        except Exception as e:
+            raise RuntimeError(f"Failed to read configuration file {config_file}: {e}")
 
         # Load BI configuration
         if "bi_config_file" in config_data:
@@ -137,9 +146,19 @@ class ConfigLoader:
         for config_key in self.llm_configs:
             if config_key not in config_data or "class" not in config_data[config_key]:
                 continue
-            module_name, class_name = config_data[config_key]["class"].rsplit(".", 1)
-            llm_cls = getattr(importlib.import_module(module_name), class_name)
-            config_data[config_key] = llm_cls(**config_data[config_key]["params"])
+            try:
+                class_path = config_data[config_key]["class"]
+                if "." not in class_path:
+                    raise ValueError(f"Invalid class path format: {class_path}")
+                module_name, class_name = class_path.rsplit(".", 1)
+                module = importlib.import_module(module_name)
+                llm_cls = getattr(module, class_name)
+                params = config_data[config_key].get("params", {})
+                config_data[config_key] = llm_cls(**params)
+            except (ImportError, AttributeError, ValueError, TypeError) as e:
+                raise RuntimeError(
+                    f"Failed to load {config_key} class '{config_data[config_key]['class']}': {e}"
+                ) from e
 
         self._config = Config.from_dict(config_data)
 
@@ -162,12 +181,17 @@ class ConfigLoader:
 
         import yaml
 
+        bi_config_data = {}
+
         try:
-            with open(bi_config_file) as file:
+            with open(bi_config_file, "r", encoding="utf-8") as file:
                 bi_config_data = yaml.safe_load(file) or {}
         except FileNotFoundError:
             log(f"Warning: BI config file '{bi_config_file}' not found. Ignore load BI config from yaml file.")
-            bi_config_data = {}
+        except yaml.YAMLError as e:
+            log(f"Warning: Invalid YAML in BI config file '{bi_config_file}': {e}. Using empty config.")
+        except Exception as e:
+            log(f"Warning: Failed to read BI config file '{bi_config_file}': {e}. Using empty config.")
 
         return bi_config_data
 

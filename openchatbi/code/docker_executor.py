@@ -162,13 +162,18 @@ class DockerExecutor(ExecutorBase):
 
         finally:
             # Clean up temporary file
-            if "temp_file_path" in locals():
+            if "temp_file_path" in locals() and os.path.exists(temp_file_path):
                 try:
                     os.unlink(temp_file_path)
-                except OSError:
-                    pass
+                except (OSError, PermissionError) as e:
+                    # Log but don't fail the operation for cleanup issues
+                    print(f"Warning: Failed to clean up temporary file {temp_file_path}: {e}")
 
     def __del__(self):
         """Clean up Docker client on deletion."""
-        if hasattr(self, "client"):
-            self.client.close()
+        try:
+            if hasattr(self, "client") and self.client is not None:
+                self.client.close()
+        except Exception:
+            # Ignore cleanup errors during object destruction
+            pass

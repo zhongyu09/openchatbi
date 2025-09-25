@@ -50,7 +50,15 @@ class FileSystemCatalogStore(CatalogStore):
                 - include_tables (Optional[List[str]]): List of tables to include, if None include all
                 - database_name (Optional[str]): Database name to use in catalog
         """
-        self.data_path = data_path
+        if not isinstance(data_path, str) or not data_path.strip():
+            raise ValueError("data_path must be a non-empty string")
+
+        if data_warehouse_config is None:
+            data_warehouse_config = {}
+        elif not isinstance(data_warehouse_config, dict):
+            raise ValueError("data_warehouse_config must be a dictionary")
+
+        self.data_path = data_path.strip()
         self.table_info_file = os.path.join(data_path, "table_info.yaml")
         self.sql_example_file = os.path.join(data_path, "sql_example.yaml")
         self.table_selection_example_file = os.path.join(data_path, "table_selection_example.csv")
@@ -58,8 +66,11 @@ class FileSystemCatalogStore(CatalogStore):
         self.common_columns_file = os.path.join(data_path, "common_columns.csv")
         self.table_spec_columns_file = os.path.join(data_path, "table_spec_columns.csv")
 
-        # Ensure directory exists
-        os.makedirs(data_path, exist_ok=True)
+        # Ensure directory exists with proper error handling
+        try:
+            os.makedirs(self.data_path, exist_ok=True)
+        except (OSError, PermissionError) as e:
+            raise RuntimeError(f"Failed to create data directory '{self.data_path}': {e}") from e
 
         # Initialize cache
         self._table_info_cache = None
@@ -70,7 +81,11 @@ class FileSystemCatalogStore(CatalogStore):
         self._table_selection_example_cache = None
 
         self._data_warehouse_config = data_warehouse_config
-        self._sql_engine = create_sqlalchemy_engine_instance(data_warehouse_config)
+        try:
+            self._sql_engine = create_sqlalchemy_engine_instance(data_warehouse_config)
+        except Exception as e:
+            logger.warning(f"Failed to create SQL engine: {e}. Some catalog operations may not work.")
+            self._sql_engine = None
 
     def _clear_cache(self) -> None:
         """
@@ -88,6 +103,8 @@ class FileSystemCatalogStore(CatalogStore):
         return self._data_warehouse_config
 
     def get_sql_engine(self) -> Engine:
+        if self._sql_engine is None:
+            raise RuntimeError("SQL engine is not available. Check data warehouse configuration.")
         return self._sql_engine
 
     def _validate_table_name(self, table: str) -> bool:
@@ -563,12 +580,17 @@ class FileSystemCatalogStore(CatalogStore):
     @staticmethod
     def _load_table_selection_examples_from_csv(file_path: str) -> list[tuple[str, list[str]]]:
         examples = []
-        with open(file_path, encoding="utf-8") as f:
-            reader = csv.DictReader(f)
-            for row in reader:
-                examples.append(
-                    (row["question"], [p.strip() for p in re.split(r"[ ,\n]", row["selected_tables"]) if p.strip()])
-                )
+        try:
+            with open(file_path, encoding="utf-8") as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    question = row.get("question", "").strip()
+                    selected_tables = row.get("selected_tables", "").strip()
+                    if question and selected_tables:
+                        table_list = [p.strip() for p in re.split(r"[ ,\n]", selected_tables) if p.strip()]
+                        examples.append((question, table_list))
+        except (FileNotFoundError, PermissionError, UnicodeDecodeError) as e:
+            logger.warning(f"Failed to load table selection examples from {file_path}: {e}")
         return examples
 
     def get_table_selection_examples(self) -> list[tuple[str, list[str]]]:

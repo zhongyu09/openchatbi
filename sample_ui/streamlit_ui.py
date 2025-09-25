@@ -5,6 +5,7 @@ import sys
 import traceback
 import uuid
 from typing import List
+from pathlib import Path
 
 import plotly.graph_objects as go
 import pysqlite3 as sqlite3
@@ -258,7 +259,8 @@ async def process_user_message_stream(
 
             if final_answer_text:
                 with response_container:
-                    st.markdown(final_answer_text)
+                    processed_final_answer_text = process_download_links(final_answer_text)
+                    render_content_with_downloads(processed_final_answer_text)
 
     # Final update to response container - only show plot if available (text response is in thinking container)
     with response_container:
@@ -285,6 +287,138 @@ async def process_user_message_stream(
     return final_response, plot_figure, thinking_steps, chronological_content, final_answer_text
 
 
+def get_available_reports() -> list[str]:
+    """Get list of available report files for download."""
+    try:
+        # Import config here to avoid circular imports
+        from openchatbi import config
+
+        report_dir = Path(config.get().report_directory)
+        if not report_dir.exists():
+            return []
+
+        # Get all files in the report directory
+        report_files = []
+        for file_path in report_dir.iterdir():
+            if file_path.is_file():
+                report_files.append(file_path.name)
+
+        return sorted(report_files)
+    except Exception as e:
+        st.error(f"Error accessing reports: {str(e)}")
+        return []
+
+
+def get_report_file_content(filename: str) -> tuple[bytes | None, str | None]:
+    """Get report file content for download.
+
+    Returns:
+        tuple: (file_content_bytes, mime_type) or (None, None) if error
+    """
+    try:
+        # Import config here to avoid circular imports
+        from openchatbi import config
+
+        report_dir = Path(config.get().report_directory)
+        file_path = report_dir / filename
+
+        # Security check - ensure file is within report directory
+        if not file_path.exists() or not file_path.is_file():
+            st.error(f"Report file not found: {filename}")
+            return None, None
+
+        try:
+            file_path.resolve().relative_to(report_dir.resolve())
+        except ValueError:
+            st.error("Access denied to file")
+            return None, None
+
+        # Determine MIME type
+        mime_type_map = {
+            ".md": "text/markdown",
+            ".csv": "text/csv",
+            ".txt": "text/plain",
+            ".json": "application/json",
+            ".html": "text/html",
+            ".xml": "application/xml",
+        }
+
+        file_extension = file_path.suffix.lower()
+        mime_type = mime_type_map.get(file_extension, "application/octet-stream")
+
+        # Read file content
+        with open(file_path, "rb") as f:
+            content = f.read()
+
+        return content, mime_type
+
+    except Exception as e:
+        st.error(f"Error reading report file: {str(e)}")
+        return None, None
+
+
+def process_download_links(content: str) -> str:
+    """Process download links in content and replace them with Streamlit-compatible ones.
+
+    Args:
+        content: Message content that may contain download links
+
+    Returns:
+        str: Content with download links replaced
+    """
+    import re
+
+    if not content:
+        return content
+
+    # Pattern to match both full URLs and path-only download links
+    # Matches: http://localhost:8501/api/download/report/filename.ext or /api/download/report/filename.ext
+    download_pattern = r"(?:https?://[^/\s]+)?/api/download/report/([^)\s\]<>]+)"
+
+    def replace_link(match):
+        filename = match.group(1)
+        # Return a placeholder that we'll replace with actual download button
+        return f"[DOWNLOAD_LINK:{filename}]"
+
+    processed_content = re.sub(download_pattern, replace_link, content)
+
+    # Debug log to see if processing worked
+    if processed_content != content:
+        st.write(f"🔍 Debug: Processed download links - found {content.count('/api/download/report/')} links")
+
+    return processed_content
+
+
+def render_content_with_downloads(content: str) -> None:
+    """Render content and replace download placeholders with actual download buttons."""
+    import re
+
+    # Split content by download placeholders
+    download_pattern = r"\[DOWNLOAD_LINK:([^)]+)\]"
+    parts = re.split(download_pattern, content)
+
+    for i, part in enumerate(parts):
+        if i % 2 == 0:
+            # Regular content
+            if part.strip():
+                st.markdown(part)
+        else:
+            # Download link filename
+            filename = part
+            file_content, mime_type = get_report_file_content(filename)
+
+            if file_content is not None:
+                st.download_button(
+                    label=f"📥 Download {filename}",
+                    data=file_content,
+                    file_name=filename,
+                    mime=mime_type,
+                    key=f"inline_download_{filename}_{hash(content)}",
+                )
+            else:
+                st.error(f"❌ Could not load report: {filename}")
+
+
 def display_message_with_thinking(
     role: str, content: str, thinking_steps: List[str] = None, plot_figure: go.Figure = None
 ):
@@ -297,13 +431,14 @@ def display_message_with_thinking(
                     st.markdown(f"**Step {i}:** {step}")
 
                 if content:
-                    st.markdown(f"**🤖 AI Response:** {content}")
+                    st.markdown("**🤖 AI Response:**")
+                    render_content_with_downloads(content)
 
                 st.success("✅ Analysis complete")
 
         # For non-assistant messages, display content normally
         elif content and role != "assistant":
-            st.markdown(content)
+            render_content_with_downloads(content)
 
         # Display plot if available (outside thinking container)
         if plot_figure:
@@ -335,6 +470,31 @@ with st.sidebar:
         st.session_state.messages = []
         st.rerun()
 
+    st.markdown("---")
+    st.markdown("### 📁 Report Downloads")
+
+    # Get available reports
+    available_reports = get_available_reports()
+
+    if available_reports:
+        selected_report = st.selectbox(
+            "Select a report to download:", options=[""] + available_reports, help="Choose a report file to download"
+        )
+
+        if selected_report and st.button("📥 Download Report"):
+            file_content, mime_type = get_report_file_content(selected_report)
+            if file_content is not None:
+                st.download_button(
+                    label=f"💾 Save {selected_report}",
+                    data=file_content,
+                    file_name=selected_report,
+                    mime=mime_type,
+                    key=f"download_{selected_report}",
+                )
+                st.success(f"✅ {selected_report} is ready for download!")
+    else:
+        st.info("No reports available for download.")
+
 # Display chat history
 for msg in st.session_state.messages:
     if msg["type"] == "chronological_message":
@@ -345,7 +505,7 @@ for msg in st.session_state.messages:
 
             # Extract and display final answer text outside thinking
             if msg.get("final_answer"):
-                st.markdown(msg["final_answer"])
+                render_content_with_downloads(msg["final_answer"])
 
             # Display plot if available (outside thinking container)
             if msg.get("plot_figure"):
@@ -358,7 +518,7 @@ for msg in st.session_state.messages:
     else:
         with st.chat_message(msg["role"]):
             if msg["type"] == "text":
-                st.markdown(msg["content"])
+                render_content_with_downloads(msg["content"])
             elif msg["type"] == "plot" and msg.get("plot_figure"):
                 st.plotly_chart(msg["plot_figure"], use_container_width=True, key=str(uuid.uuid4()))
 
@@ -393,13 +553,17 @@ if prompt := st.chat_input("Ask me anything about your data..."):
             )
 
             # No need to create another expander - content is already shown in real-time
-            # Store the complete message with the full chronological content
+            # Process download links in the content before storing
+            processed_chronological_content = process_download_links(full_chronological_content)
+            processed_final_answer = process_download_links(final_answer) if final_answer else final_answer
+
+            # Store the complete message with the processed content
             st.session_state.messages.append(
                 {
                     "role": "assistant",
                     "type": "chronological_message",
-                    "chronological_content": full_chronological_content,
-                    "final_answer": final_answer,
+                    "chronological_content": processed_chronological_content,
+                    "final_answer": processed_final_answer,
                     "plot_figure": plot_figure,
                 }
             )
@@ -410,7 +574,9 @@ if prompt := st.chat_input("Ask me anything about your data..."):
         except Exception as e:
             traceback.print_exc()
             st.error(f"❌ Error processing request: {str(e)}")
-            st.session_state.messages.append({"role": "assistant", "type": "text", "content": f"❌ Error: {str(e)}"})
+            error_content = f"❌ Error: {str(e)}"
+            processed_error_content = process_download_links(error_content)
+            st.session_state.messages.append({"role": "assistant", "type": "text", "content": processed_error_content})
 
 
 # Cleanup on session end

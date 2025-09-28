@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager
 import gradio as gr
 import pysqlite3 as sqlite3
 from fastapi import FastAPI
+from langchain_core.messages import AIMessage
 
 sys.modules["sqlite3"] = sqlite3
 
@@ -149,7 +150,7 @@ async def respond(message, chat_history, user_id, session_id="default"):
             # Process intermediate graph node updates
             if event_value.get("router"):
                 message = event_value["router"].get("messages")[0]
-                if message and message.tool_calls:
+                if message and isinstance(message, AIMessage) and message.tool_calls:
                     token = f"\nUse tool: {", ".join(tool["name"] for tool in message.tool_calls)}\n"
                 else:
                     token = "\n"

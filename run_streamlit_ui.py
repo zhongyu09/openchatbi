@@ -19,7 +19,7 @@ def main():
     project_dir = os.path.dirname(os.path.abspath(__file__))
     os.chdir(project_dir)
 
-    print("🚀 Starting OpenChatBI Streamlit Interface...")
+    print("🚀 Starting OpenChatBI Streamlit UI...")
     print("📍 URL: http://localhost:8501")
     print("⏹️  Press Ctrl+C to stop the server")
     print("-" * 50)

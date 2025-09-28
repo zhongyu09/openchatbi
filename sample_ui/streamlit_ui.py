@@ -10,6 +10,7 @@ from pathlib import Path
 import plotly.graph_objects as go
 import pysqlite3 as sqlite3
 import streamlit as st
+from langchain_core.messages import AIMessage
 
 sys.modules["sqlite3"] = sqlite3
 
@@ -163,7 +164,7 @@ async def process_user_message_stream(
             step_description = ""
             if event_value.get("router"):
                 message_obj = event_value["router"].get("messages")[0]
-                if message_obj and message_obj.tool_calls:
+                if message_obj and isinstance(message_obj, AIMessage) and message_obj.tool_calls:
                     step_description = f"🛠️ Using tools: {', '.join(tool['name'] for tool in message_obj.tool_calls)}"
 
             elif event_value.get("information_extraction"):

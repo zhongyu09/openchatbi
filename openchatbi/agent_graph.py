@@ -4,7 +4,7 @@ import datetime
 import logging
 import traceback
 from collections.abc import Callable
-from typing import Any, Optional
+from typing import Any
 
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import AIMessage, SystemMessage
@@ -16,7 +16,7 @@ from langgraph.graph import END, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.prebuilt import ToolNode
 from langgraph.store.base import BaseStore
-from langgraph.types import Checkpointer, interrupt, Send
+from langgraph.types import Checkpointer, Send, interrupt
 from pydantic import BaseModel, Field
 
 from openchatbi import config
@@ -33,6 +33,7 @@ from openchatbi.tool.run_python_code import run_python_code
 from openchatbi.tool.save_report import save_report
 from openchatbi.tool.search_knowledge import search_knowledge, show_schema
 from openchatbi.utils import log
+from utils import recover_incomplete_tool_calls
 
 logger = logging.getLogger(__name__)
 
@@ -67,7 +68,7 @@ class CallSQLGraphInput(BaseModel):
 
 
 # Description for SQL tools
-TEXT2SQL_TOOL_DESCRIPTION = """Text2SQL tool to generate and execute SQL query and build visualization DSL for UI 
+TEXT2SQL_TOOL_DESCRIPTION = """Text2SQL tool to generate and execute SQL query and build visualization DSL for UI
 based on user's question and context.
 
 Returns:
@@ -185,6 +186,11 @@ def agent_router(llm: BaseChatModel, tools: list) -> Callable:
         llm_with_tools = llm.bind_tools(tools)
 
     def _call_model(state: AgentState):
+        # First, check and recover any incomplete tool calls
+        recovery_ops = recover_incomplete_tool_calls(state)
+        if recovery_ops:
+            return {"messages": recovery_ops, "agent_next_node": "router"}
+
         messages = state["messages"]
         system_prompt = AGENT_PROMPT_TEMPLATE.replace(
             "[time_field_placeholder]", datetime.datetime.now().strftime(datetime_format)
@@ -193,7 +199,6 @@ def agent_router(llm: BaseChatModel, tools: list) -> Callable:
         response = call_llm_chat_model_with_retry(
             llm_with_tools, ([SystemMessage(system_prompt)] + messages), bound_tools=tools, parallel_tool_call=True
         )
-        agent_next_node = ""
         if isinstance(response, AIMessage):
             tool_calls = response.tool_calls
             print("Tool Call:", ", ".join(tool["name"] for tool in tool_calls))
@@ -230,7 +235,7 @@ def _build_graph_core(
     sync_mode: bool,
     checkpointer: Checkpointer,
     memory_store: BaseStore,
-    memory_tools: Optional[tuple[Callable, Callable]],
+    memory_tools: tuple[Callable, Callable] | None,
     mcp_tools: list,
 ) -> CompiledStateGraph:
     """Core graph building logic shared by both sync and async versions.
@@ -302,6 +307,7 @@ def _build_graph_core(
         route_tools,
         # mapping of paths to node names (for single routing)
         {
+            "router": "router",
             "ask_human": "ask_human",
             "use_tool": "use_tool",
             END: END,

@@ -4,6 +4,7 @@ import traceback
 from langchain_core.language_models import BaseChatModel
 from langchain_core.runnables.base import RunnableBinding
 from langchain_core.tools import StructuredTool
+
 from openchatbi import config
 from openchatbi.tool.ask_human import AskHuman
 from openchatbi.utils import log
@@ -21,7 +22,9 @@ def _invalid_tool_names(valid_tools, tool_calls) -> str:
     return ",".join(invalid_tools)
 
 
-def call_llm_chat_model_with_retry(chat_model: BaseChatModel, messages, bound_tools=None, parallel_tool_call=False):
+def call_llm_chat_model_with_retry(
+    chat_model: BaseChatModel, messages, streaming_tokens=False, bound_tools=None, parallel_tool_call=False
+):
     """Calls a language model chat endpoint with retry logic.
 
     Retries up to 3 times if there are errors or invalid tool calls.
@@ -29,8 +32,9 @@ def call_llm_chat_model_with_retry(chat_model: BaseChatModel, messages, bound_to
     Args:
         chat_model: The chat model to invoke.
         messages (list): List of messages to send to the model.
+        streaming_tokens (bool, optional): flag to indicate whether or not to show streaming tokens in UI.
         bound_tools (list, optional): List of valid tool names that can be called.
-        parallel_tool_call: whether or not to call multiple tools in parallel.
+        parallel_tool_call (bool, optional): whether or not to call multiple tools in parallel.
 
     Returns:
         AIMessage or None: The model response or None if all retries failed.
@@ -57,7 +61,7 @@ def call_llm_chat_model_with_retry(chat_model: BaseChatModel, messages, bound_to
         start_time = time.time()
         try:
             log(f"Call LLM chat model with retry {retry} times.")
-            response = chat_model.invoke(new_messages)
+            response = chat_model.invoke(new_messages, config={"metadata": {"streaming_tokens": streaming_tokens}})
             run_time = int(time.time() - start_time)
             log(f"LLM response after {run_time} seconds.")
         except Exception:

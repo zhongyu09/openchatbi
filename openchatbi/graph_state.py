@@ -1,9 +1,18 @@
 """State classes for OpenChatBI graph execution."""
 
-from typing import Any
+from typing import Any, Annotated
 
-from langgraph.types import Send
 from langgraph.graph import MessagesState
+from langgraph.types import Send
+from langchain_core.messages import AIMessage, HumanMessage
+
+
+def add_history_messages(left: list, right: list):
+    if left:
+        total_messages = left + right
+    else:
+        total_messages = right
+    return total_messages
 
 
 class AgentState(MessagesState):
@@ -12,6 +21,7 @@ class AgentState(MessagesState):
     Extends MessagesState with additional fields for routing and responses.
     """
 
+    history_messages: Annotated[list[HumanMessage | AIMessage], add_history_messages]
     agent_next_node: str
     sends: list[Send]
     sql: str

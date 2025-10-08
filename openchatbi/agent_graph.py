@@ -7,7 +7,7 @@ from collections.abc import Callable
 from typing import Any
 
 from langchain_core.language_models import BaseChatModel
-from langchain_core.messages import AIMessage, SystemMessage
+from langchain_core.messages import AIMessage, SystemMessage, HumanMessage
 from langchain_core.tools import StructuredTool
 from langchain_openai.chat_models.base import BaseChatOpenAI
 from langgraph.constants import START
@@ -22,6 +22,8 @@ from pydantic import BaseModel, Field
 from openchatbi import config
 from openchatbi.catalog import CatalogStore
 from openchatbi.constants import datetime_format
+from openchatbi.context_config import get_context_config
+from openchatbi.context_manager import ContextManager
 from openchatbi.graph_state import AgentState, InputState, OutputState
 from openchatbi.llm.llm import call_llm_chat_model_with_retry, default_llm
 from openchatbi.prompts.system_prompt import AGENT_PROMPT_TEMPLATE
@@ -33,7 +35,7 @@ from openchatbi.tool.run_python_code import run_python_code
 from openchatbi.tool.save_report import save_report
 from openchatbi.tool.search_knowledge import search_knowledge, show_schema
 from openchatbi.utils import log
-from utils import recover_incomplete_tool_calls
+from openchatbi.utils import recover_incomplete_tool_calls
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +54,11 @@ def ask_human(state: AgentState) -> dict[str, Any]:
     args = tool_call["args"]
     user_feedback = interrupt({"text": args["question"], "buttons": args.get("options", None)})
     tool_message = [{"tool_call_id": tool_call_id, "type": "tool", "content": user_feedback}]
-    return {"messages": tool_message, "user_input": user_feedback}
+    return {
+        "messages": tool_message,
+        "history_messages": [AIMessage(args["question"]), HumanMessage(user_feedback)],
+        "user_input": user_feedback,
+    }
 
 
 class CallSQLGraphInput(BaseModel):
@@ -168,12 +174,13 @@ def get_sql_tools(sql_graph: CompiledStateGraph, sync_mode: bool = False) -> Cal
         )
 
 
-def agent_router(llm: BaseChatModel, tools: list) -> Callable:
+def agent_router(llm: BaseChatModel, tools: list, context_manager: ContextManager = None) -> Callable:
     """Create router function to determine next node based on LLM tool calls.
 
     Args:
         llm (BaseChatModel): The LLM for decision-making.
         tools: List of tools.
+        context_manager: Optional context manager for handling long conversations.
 
     Returns:
         function: Router function that processes state and determines next node.
@@ -192,12 +199,27 @@ def agent_router(llm: BaseChatModel, tools: list) -> Callable:
             return {"messages": recovery_ops, "agent_next_node": "router"}
 
         messages = state["messages"]
+        final_messages = []
+        if isinstance(messages[-1], HumanMessage):
+            final_messages.append(messages[-1])
+
+        # Apply context management if available (before processing)
+        if context_manager:
+            original_count = len(messages)
+            context_manager.manage_context_messages(messages)
+            if len(messages) != original_count:
+                logger.info(f"Context management: modified messages from {original_count} to {len(messages)}")
+
         system_prompt = AGENT_PROMPT_TEMPLATE.replace(
             "[time_field_placeholder]", datetime.datetime.now().strftime(datetime_format)
         )
 
         response = call_llm_chat_model_with_retry(
-            llm_with_tools, ([SystemMessage(system_prompt)] + messages), bound_tools=tools, parallel_tool_call=True
+            llm_with_tools,
+            ([SystemMessage(system_prompt)] + messages),
+            streaming_tokens=True,
+            bound_tools=tools,
+            parallel_tool_call=True,
         )
         if isinstance(response, AIMessage):
             tool_calls = response.tool_calls
@@ -219,13 +241,23 @@ def agent_router(llm: BaseChatModel, tools: list) -> Callable:
                     tool_msg = AIMessage(content=response.content, tool_calls=normal_tool_calls)
                     sends.append(Send("use_tool", {"messages": [tool_msg]}))
 
-                return {"messages": [response], "sends": sends}
+                return {"messages": [response], "history_messages": final_messages, "sends": sends}
             else:
-                return {"messages": [response], "final_answer": response.content, "agent_next_node": END}
+                final_messages.append(AIMessage(response.content))
+                return {
+                    "messages": [response],
+                    "final_answer": response.content,
+                    "history_messages": final_messages,
+                    "agent_next_node": END,
+                }
         elif response is None:
-            return {"messages": [AIMessage("Sorry, the LLM service is currently unavailable.")], "agent_next_node": END}
+            return {
+                "messages": [AIMessage("Sorry, the LLM service is currently unavailable.")],
+                "history_messages": final_messages,
+                "agent_next_node": END,
+            }
         else:
-            return {"messages": [response], "agent_next_node": END}
+            return {"messages": [response], "history_messages": final_messages, "agent_next_node": END}
 
     return _call_model
 
@@ -237,6 +269,7 @@ def _build_graph_core(
     memory_store: BaseStore,
     memory_tools: tuple[Callable, Callable] | None,
     mcp_tools: list,
+    enable_context_management: bool = True,
 ) -> CompiledStateGraph:
     """Core graph building logic shared by both sync and async versions.
 
@@ -247,6 +280,7 @@ def _build_graph_core(
         memory_store: The BaseStore to use for long-term memory
         memory_tools: Tuple of (manage_memory_tool, search_memory_tool)
         mcp_tools: Pre-initialized MCP tools
+        enable_context_management: Whether to enable context management
 
     Returns:
         CompiledStateGraph: Compiled agent graph ready for execution
@@ -270,13 +304,19 @@ def _build_graph_core(
         search_memory_tool,
         save_report,
     ] + mcp_tools
+
+    # Initialize context manager if enabled
+    context_manager = None
+    if enable_context_management:
+        context_manager = ContextManager(llm=default_llm, config=get_context_config())
+
     tool_node = ToolNode(normal_tools)
 
     # Define the agent graph
     graph = StateGraph(AgentState, input_schema=InputState, output_schema=OutputState)
 
     # Add nodes to the graph
-    graph.add_node("router", agent_router(default_llm, normal_tools + [AskHuman]))
+    graph.add_node("router", agent_router(default_llm, normal_tools + [AskHuman], context_manager))
     graph.add_node("ask_human", ask_human)
     graph.add_node("use_tool", tool_node)
 
@@ -322,6 +362,7 @@ def build_agent_graph_sync(
     catalog: CatalogStore,
     checkpointer: Checkpointer = None,
     memory_store: BaseStore = None,
+    enable_context_management: bool = True,
 ) -> CompiledStateGraph:
     """Build the main agent graph with all nodes and edges (sync version).
 
@@ -329,6 +370,7 @@ def build_agent_graph_sync(
         catalog: Catalog store containing schema information.
         checkpointer: The Checkpointer for state persistence (short memory). If None, no short memory.
         memory_store: The BaseStore to use for long-term memory. If None, will auto assign according to sync_mode.
+        enable_context_management: Whether to enable context management for long conversations.
 
     Returns:
         CompiledStateGraph: Compiled agent graph ready for execution.
@@ -343,6 +385,7 @@ def build_agent_graph_sync(
         memory_store=memory_store,
         memory_tools=None,  # Always None for sync version - creates its own
         mcp_tools=mcp_tools,
+        enable_context_management=enable_context_management,
     )
 
 
@@ -351,6 +394,7 @@ async def build_agent_graph_async(
     checkpointer: Checkpointer = None,
     memory_store: BaseStore = None,
     memory_tools: tuple[Callable, Callable] = None,
+    enable_context_management: bool = True,
 ) -> CompiledStateGraph:
     """Build the main agent graph with all nodes and edges (async version).
 
@@ -362,6 +406,7 @@ async def build_agent_graph_async(
         checkpointer: The Checkpointer for state persistence (short memory). If None, no short memory.
         memory_store: The BaseStore to use for long-term memory. If None, will auto assign according to sync_mode.
         memory_tools: Tuple of (manage_memory_tool, search_memory_tool). If None, creates async tools.
+        enable_context_management: Whether to enable context management for long conversations.
 
     Returns:
         CompiledStateGraph: Compiled agent graph ready for execution.
@@ -376,4 +421,5 @@ async def build_agent_graph_async(
         memory_store=memory_store,
         memory_tools=memory_tools,
         mcp_tools=mcp_tools,
+        enable_context_management=enable_context_management,
     )

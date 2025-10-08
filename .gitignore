@@ -210,3 +210,4 @@ __marimo__/
 openchatbi/config.yaml
 memory.db
 checkpoints.db
+data

@@ -143,7 +143,7 @@ async def respond(message, chat_history, user_id, session_id="default"):
             chunk = event_value[0]
             metadata = event_value[1]
             # Keep router node messages only to avoid duplicates
-            if metadata["langgraph_node"] != "router":
+            if metadata["langgraph_node"] != "router" or not metadata.get("streaming_tokens", False):
                 continue
             token = get_text_from_message_chunk(chunk)
         else:

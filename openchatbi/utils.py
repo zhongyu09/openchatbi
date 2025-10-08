@@ -12,7 +12,7 @@ from langchain_core.messages import AIMessageChunk, AIMessage, ToolMessage, Remo
 from langchain_core.vectorstores import VectorStore
 from regex import regex
 
-from graph_state import AgentState
+from openchatbi.graph_state import AgentState
 
 
 def log(args) -> None:

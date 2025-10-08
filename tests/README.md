@@ -24,10 +24,17 @@ tests/
 ├── test_text2sql_generate_sql.py        # SQL generation tests
 ├── test_text2sql_schema_linking.py      # Schema linking tests
 │
-└── Tool Tests
-    ├── test_tools_ask_human.py          # Human interaction tool tests
-    ├── test_tools_run_python_code.py    # Python code execution tests
-    └── test_tools_search_knowledge.py   # Knowledge search tests
+├── Tool Tests
+├── test_tools_ask_human.py              # Human interaction tool tests
+├── test_tools_run_python_code.py        # Python code execution tests
+├── test_tools_search_knowledge.py       # Knowledge search tests
+│
+├── Additional Module Tests
+├── test_memory.py                       # Memory management tests
+├── test_plotly_utils.py                 # Plotly utilities tests
+│
+└── Context Management Tests
+    └── context_management/              # Context management test suite (see context_management/README.md)
 ```
 
 ## Running Tests
@@ -83,6 +90,12 @@ uv run pytest -m "not slow"
 uv run pytest tests/test_catalog* -k "catalog"
 uv run pytest tests/test_text2sql* -k "text2sql"
 uv run pytest tests/test_tools* -k "tools"
+
+# Run context management tests
+uv run pytest tests/context_management/
+
+# Run memory and utility tests
+uv run pytest tests/test_memory.py tests/test_plotly_utils.py
 ```
 
 ## Test Configuration

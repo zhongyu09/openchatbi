@@ -211,10 +211,11 @@ addopts = [
 testpaths = ["tests"]
 markers = [
     "unit: Unit tests",
-    "integration: Integration tests", 
+    "integration: Integration tests",
     "slow: Slow tests that may take several seconds",
     "requires_db: Tests that require database connection",
-    "requires_llm: Tests that require LLM service"
+    "requires_llm: Tests that require LLM service",
+    "asyncio: Asynchronous tests"
 ]
 filterwarnings = [
     "error",

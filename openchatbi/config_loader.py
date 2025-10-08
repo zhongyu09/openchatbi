@@ -53,6 +53,9 @@ class Config(BaseModel):
     # Visualization Configuration
     visualization_mode: str | None = "rule"  # Options: "rule", "llm", None (skip visualization)
 
+    # Context Management Configuration
+    context_config: dict[str, Any] = {}
+
     @classmethod
     def from_dict(cls, config: dict[str, Any]) -> "Config":
         """Creates a Config instance from a dictionary.

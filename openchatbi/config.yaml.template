@@ -13,6 +13,32 @@ python_executor: local
 # Options: "rule" (rule-based), "llm" (LLM-based), or null (skip visualization)
 # visualization_mode: llm
 
+# Context management configuration
+# Controls how conversation context is managed and compressed when it becomes too long
+context_config:
+  # Enable/disable context management entirely
+  enabled: true
+
+  # Token limit that triggers context management (when conversation exceeds this, compression starts)
+  summary_trigger_tokens: 12000
+
+  # Number of recent messages to always preserve in full (never compress these)
+  keep_recent_messages: 20
+
+  # Historical tool output compression limits
+  max_tool_output_length: 2000  # Max length for historical tool outputs
+  max_sql_result_rows: 50       # Max rows to keep in CSV results
+  max_code_output_lines: 50     # Max lines for code execution output
+
+  # Conversation summarization settings
+  enable_summarization: true         # Enable conversation summarization
+  enable_conversation_summary: true  # Enable detailed conversation summary
+  summary_max_messages: 50           # Max messages to include in summary context
+
+  # Content preservation settings
+  preserve_tool_errors: true    # Always preserve error messages in full
+  preserve_recent_sql: true     # Preserve SQL content (less aggressive compression)
+
 # Catalog store configuration
 catalog_store:
   store_type: file_system

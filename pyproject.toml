@@ -1,6 +1,6 @@
 [project]
 name = "openchatbi"
-version = "0.0.1"
+version = "0.1.0"
 description = "OpenChatBI - Natural language business intelligence powered by LLMs for intuitive data analysis and SQL generation"
 authors = [
     { name = "Yu Zhong", email = "zhongyu8@gmail.com" },
@@ -108,6 +108,7 @@ dev = [
     "pre-commit>=4.0.1,<5.0.0",
     "bandit>=1.8.6,<2.0.0",
     "types-setuptools>=75.6.0.20241126",
+    "twine>=6.0.0,<7.0.0",
 ]
 
 [tool.uv]
@@ -122,6 +123,14 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["openchatbi"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/openchatbi",
+    "/tests",
+    "/README.md",
+    "/LICENSE",
+]
 
 [tool.hatch.metadata]
 allow-direct-references = true

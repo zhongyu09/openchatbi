@@ -59,15 +59,18 @@ class TestText2SQLGenerateSQL:
 
     def test_create_sql_nodes(self, mock_llm, mock_catalog):
         """Test creating SQL processing nodes."""
-        generate_node, execute_node, regenerate_node = create_sql_nodes(mock_llm, mock_catalog, "presto")
+        generate_node, execute_node, regenerate_node, visualization_node = create_sql_nodes(
+            mock_llm, mock_catalog, "presto"
+        )
 
         assert callable(generate_node)
         assert callable(execute_node)
         assert callable(regenerate_node)
+        assert callable(visualization_node)
 
     def test_generate_sql_node_success(self, mock_llm, mock_catalog):
         """Test successful SQL generation."""
-        generate_node, _, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
+        generate_node, _, _, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
 
         state = SQLGraphState(
             messages=[],
@@ -86,7 +89,7 @@ class TestText2SQLGenerateSQL:
 
     def test_generate_sql_node_missing_rewrite_question(self, mock_llm, mock_catalog):
         """Test SQL generation with missing rewrite question."""
-        generate_node, _, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
+        generate_node, _, _, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
 
         state = SQLGraphState(
             messages=[],
@@ -99,7 +102,7 @@ class TestText2SQLGenerateSQL:
 
     def test_generate_sql_node_missing_tables(self, mock_llm, mock_catalog):
         """Test SQL generation with missing tables."""
-        generate_node, _, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
+        generate_node, _, _, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
 
         state = SQLGraphState(
             messages=[], question="Show all users", rewrite_question="Show all users", tables=[]  # Empty tables
@@ -110,7 +113,7 @@ class TestText2SQLGenerateSQL:
 
     def test_execute_sql_node_success(self, mock_llm, mock_catalog):
         """Test successful SQL execution."""
-        _, execute_node, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
+        _, execute_node, _, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
 
         state = SQLGraphState(messages=[], sql="SELECT * FROM users")
 
@@ -124,7 +127,7 @@ class TestText2SQLGenerateSQL:
 
     def test_execute_sql_node_empty_sql(self, mock_llm, mock_catalog):
         """Test SQL execution with empty SQL."""
-        _, execute_node, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
+        _, execute_node, _, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
 
         state = SQLGraphState(messages=[], sql="")  # Empty SQL
 
@@ -137,7 +140,7 @@ class TestText2SQLGenerateSQL:
 
     def test_execute_sql_node_syntax_error(self, mock_llm, mock_catalog):
         """Test SQL execution with syntax error."""
-        _, execute_node, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
+        _, execute_node, _, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
 
         # Mock SQL execution to raise syntax error
         mock_engine = mock_catalog.get_sql_engine.return_value
@@ -158,7 +161,7 @@ class TestText2SQLGenerateSQL:
 
     def test_regenerate_sql_node_success(self, mock_llm, mock_catalog):
         """Test successful SQL regeneration."""
-        _, _, regenerate_node = create_sql_nodes(mock_llm, mock_catalog, "presto")
+        _, _, regenerate_node, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
 
         state = SQLGraphState(
             messages=[],
@@ -230,7 +233,7 @@ class TestText2SQLGenerateSQL:
 
     def test_sql_generation_with_examples(self, mock_llm, mock_catalog):
         """Test SQL generation with relevant examples."""
-        generate_node, _, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
+        generate_node, _, _, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
 
         state = SQLGraphState(
             messages=[],
@@ -256,7 +259,7 @@ class TestText2SQLGenerateSQL:
 
     def test_sql_error_handling_database_error(self, mock_llm, mock_catalog):
         """Test handling of database connection errors."""
-        _, execute_node, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
+        _, execute_node, _, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
 
         # Mock database connection error
         mock_engine = mock_catalog.get_sql_engine.return_value
@@ -278,7 +281,7 @@ class TestText2SQLGenerateSQL:
         """Test regeneration with empty LLM response."""
         mock_llm.invoke.return_value = AIMessage(content="")
 
-        _, _, regenerate_node = create_sql_nodes(mock_llm, mock_catalog, "presto")
+        _, _, regenerate_node, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
 
         state = SQLGraphState(
             messages=[],

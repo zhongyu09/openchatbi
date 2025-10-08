@@ -13,18 +13,35 @@ class TestConfigLoader:
 
     def test_config_initialization(self):
         """Test Config model initialization."""
-        config = Config(organization="TestOrg", dialect="presto")
+        from unittest.mock import MagicMock
+
+        mock_llm = MagicMock()
+        mock_embedding = MagicMock()
+        config = Config(organization="TestOrg", dialect="presto", default_llm=mock_llm, embedding_model=mock_embedding)
 
         assert config.organization == "TestOrg"
         assert config.dialect == "presto"
+        assert config.default_llm == mock_llm
+        assert config.embedding_model == mock_embedding
 
     def test_config_from_dict(self):
         """Test creating Config from dictionary."""
-        config_dict = {"organization": "TestOrg", "dialect": "mysql"}
+        from unittest.mock import MagicMock
+
+        mock_llm = MagicMock()
+        mock_embedding = MagicMock()
+        config_dict = {
+            "organization": "TestOrg",
+            "dialect": "mysql",
+            "default_llm": mock_llm,
+            "embedding_model": mock_embedding,
+        }
 
         config = Config.from_dict(config_dict)
         assert config.organization == "TestOrg"
         assert config.dialect == "mysql"
+        assert config.default_llm == mock_llm
+        assert config.embedding_model == mock_embedding
 
     def test_config_loader_initialization(self):
         """Test ConfigLoader initialization."""
@@ -37,6 +54,11 @@ class TestConfigLoader:
             "organization": "TestOrg",
             "dialect": "presto",
             "default_llm": {"class": "langchain_openai.ChatOpenAI", "params": {"model": "gpt-4"}},
+            "embedding_model": {
+                "class": "langchain_openai.OpenAIEmbeddings",
+                "params": {"model": "text-embedding-ada-002"},
+            },
+            "data_warehouse_config": {"uri": "sqlite:///:memory:", "include_tables": None, "database_name": "test_db"},
         }
 
         config_file = temp_dir / "test_config.yaml"
@@ -45,12 +67,17 @@ class TestConfigLoader:
 
         loader = ConfigLoader()
 
-        with patch("langchain_openai.ChatOpenAI") as mock_openai:
+        with (
+            patch("langchain_openai.ChatOpenAI") as mock_openai,
+            patch("langchain_openai.OpenAIEmbeddings") as mock_embeddings,
+        ):
             # Create a proper mock that satisfies BaseChatModel interface
             from langchain_core.language_models import BaseChatModel
 
             mock_llm_instance = MagicMock(spec=BaseChatModel)
+            mock_embedding_instance = MagicMock()
             mock_openai.return_value = mock_llm_instance
+            mock_embeddings.return_value = mock_embedding_instance
 
             loader.load(str(config_file))
 
@@ -58,13 +85,21 @@ class TestConfigLoader:
         assert config.organization == "TestOrg"
         assert config.dialect == "presto"
         assert config.default_llm == mock_llm_instance
+        assert config.embedding_model == mock_embedding_instance
 
     def test_load_config_missing_file(self):
         """Test handling of missing configuration file."""
         loader = ConfigLoader()
 
-        with pytest.raises(FileNotFoundError):
-            loader.load("/nonexistent/path.yaml")
+        # Reset the config to ensure clean state
+        loader._config = None
+
+        # The loader now logs and returns instead of raising FileNotFoundError
+        loader.load("/nonexistent/path.yaml")
+
+        # Verify that the config was not loaded (remains None)
+        with pytest.raises(ValueError, match="Configuration has not been loaded"):
+            loader.get()
 
     def test_load_config_invalid_yaml(self, temp_dir):
         """Test handling of invalid YAML syntax."""
@@ -73,7 +108,7 @@ class TestConfigLoader:
 
         loader = ConfigLoader()
 
-        with pytest.raises(yaml.YAMLError):
+        with pytest.raises(ValueError, match="Invalid YAML in configuration file"):
             loader.load(str(config_file))
 
     def test_load_config_with_bi_config_file(self, temp_dir):
@@ -84,14 +119,33 @@ class TestConfigLoader:
         with open(bi_config_file, "w") as f:
             yaml.dump(bi_config_data, f)
 
-        config_data = {"organization": "TestOrg", "bi_config_file": str(bi_config_file)}
+        config_data = {
+            "organization": "TestOrg",
+            "bi_config_file": str(bi_config_file),
+            "default_llm": {"class": "langchain_openai.ChatOpenAI", "params": {"model": "gpt-4"}},
+            "embedding_model": {
+                "class": "langchain_openai.OpenAIEmbeddings",
+                "params": {"model": "text-embedding-ada-002"},
+            },
+            "data_warehouse_config": {"uri": "sqlite:///:memory:", "include_tables": None, "database_name": "test_db"},
+        }
 
         config_file = temp_dir / "test_config.yaml"
         with open(config_file, "w") as f:
             yaml.dump(config_data, f)
 
         loader = ConfigLoader()
-        loader.load(str(config_file))
+
+        with (
+            patch("langchain_openai.ChatOpenAI") as mock_openai,
+            patch("langchain_openai.OpenAIEmbeddings") as mock_embeddings,
+        ):
+            mock_llm_instance = MagicMock()
+            mock_embedding_instance = MagicMock()
+            mock_openai.return_value = mock_llm_instance
+            mock_embeddings.return_value = mock_embedding_instance
+
+            loader.load(str(config_file))
 
         config = loader.get()
         assert config.bi_config["metrics"] == ["revenue", "users"]
@@ -103,6 +157,11 @@ class TestConfigLoader:
             "organization": "TestOrg",
             "catalog_store": {"store_type": "file_system", "data_path": str(temp_dir / "catalog_data")},
             "data_warehouse_config": {"uri": "sqlite:///:memory:", "include_tables": None, "database_name": "test_db"},
+            "default_llm": {"class": "langchain_openai.ChatOpenAI", "params": {"model": "gpt-4"}},
+            "embedding_model": {
+                "class": "langchain_openai.OpenAIEmbeddings",
+                "params": {"model": "text-embedding-ada-002"},
+            },
         }
 
         config_file = temp_dir / "test_config.yaml"
@@ -111,7 +170,16 @@ class TestConfigLoader:
 
         loader = ConfigLoader()
 
-        loader.load(str(config_file))
+        with (
+            patch("langchain_openai.ChatOpenAI") as mock_openai,
+            patch("langchain_openai.OpenAIEmbeddings") as mock_embeddings,
+        ):
+            mock_llm_instance = MagicMock()
+            mock_embedding_instance = MagicMock()
+            mock_openai.return_value = mock_llm_instance
+            mock_embeddings.return_value = mock_embedding_instance
+
+            loader.load(str(config_file))
 
         config = loader.get()
         # Just verify that a catalog store was created
@@ -123,7 +191,12 @@ class TestConfigLoader:
         config_data = {
             "organization": "TestOrg",
             "default_llm": {"class": "langchain_openai.ChatOpenAI", "params": {"model": "gpt-4", "temperature": 0.1}},
+            "embedding_model": {
+                "class": "langchain_openai.OpenAIEmbeddings",
+                "params": {"model": "text-embedding-ada-002"},
+            },
             "text2sql_llm": {"class": "langchain_openai.ChatOpenAI", "params": {"model": "gpt-3.5-turbo"}},
+            "data_warehouse_config": {"uri": "sqlite:///:memory:", "include_tables": None, "database_name": "test_db"},
         }
 
         config_file = temp_dir / "test_config.yaml"
@@ -132,26 +205,51 @@ class TestConfigLoader:
 
         loader = ConfigLoader()
 
-        with patch("langchain_openai.ChatOpenAI") as mock_openai:
+        with (
+            patch("langchain_openai.ChatOpenAI") as mock_openai,
+            patch("langchain_openai.OpenAIEmbeddings") as mock_embeddings,
+        ):
             # Create proper mocks that satisfy BaseChatModel interface
             from langchain_core.language_models import BaseChatModel
 
             mock_instance1 = MagicMock(spec=BaseChatModel)
             mock_instance2 = MagicMock(spec=BaseChatModel)
+            mock_embedding_instance = MagicMock()
             mock_openai.side_effect = [mock_instance1, mock_instance2]
+            mock_embeddings.return_value = mock_embedding_instance
 
             loader.load(str(config_file))
 
         config = loader.get()
         assert config.default_llm == mock_instance1
+        assert config.embedding_model == mock_embedding_instance
         assert config.text2sql_llm == mock_instance2
 
     def test_set_config(self):
         """Test setting configuration from dictionary."""
-        config_dict = {"organization": "SetOrg", "dialect": "postgresql"}
+        config_dict = {
+            "organization": "SetOrg",
+            "dialect": "postgresql",
+            "default_llm": {"class": "langchain_openai.ChatOpenAI", "params": {"model": "gpt-4"}},
+            "embedding_model": {
+                "class": "langchain_openai.OpenAIEmbeddings",
+                "params": {"model": "text-embedding-ada-002"},
+            },
+            "data_warehouse_config": {"uri": "sqlite:///:memory:", "include_tables": None, "database_name": "test_db"},
+        }
 
         loader = ConfigLoader()
-        loader.set(config_dict)
+
+        with (
+            patch("langchain_openai.ChatOpenAI") as mock_openai,
+            patch("langchain_openai.OpenAIEmbeddings") as mock_embeddings,
+        ):
+            mock_llm_instance = MagicMock()
+            mock_embedding_instance = MagicMock()
+            mock_openai.return_value = mock_llm_instance
+            mock_embeddings.return_value = mock_embedding_instance
+
+            loader.set(config_dict)
 
         config = loader.get()
         assert config.organization == "SetOrg"
@@ -183,6 +281,12 @@ class TestConfigLoader:
                 "data_path": "/test/path"
                 # Missing store_type
             },
+            "default_llm": {"class": "langchain_openai.ChatOpenAI", "params": {"model": "gpt-4"}},
+            "embedding_model": {
+                "class": "langchain_openai.OpenAIEmbeddings",
+                "params": {"model": "text-embedding-ada-002"},
+            },
+            "data_warehouse_config": {"uri": "sqlite:///:memory:", "include_tables": None, "database_name": "test_db"},
         }
 
         config_file = temp_dir / "test_config.yaml"

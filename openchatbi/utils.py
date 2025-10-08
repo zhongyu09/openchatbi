@@ -199,7 +199,7 @@ def recover_incomplete_tool_calls(state: AgentState) -> list:
         state (AgentState): The current graph state containing messages.
 
     Returns:
-        list: Message operations to insert recovery ToolMessages, or empty dict if no recovery needed.
+        list: Message operations to insert recovery ToolMessages, or empty list if no recovery needed.
     """
     messages = state.get("messages", [])
     if not messages:

@@ -132,16 +132,11 @@ def pytest_configure(config):
     """Configure pytest with custom markers."""
     config.addinivalue_line("markers", "slow: marks tests as slow (deselect with '-m \"not slow\"')")
     config.addinivalue_line("markers", "integration: marks tests as integration tests")
-    config.addinivalue_line("markers", "performance: marks tests as performance tests")
 
 
 def pytest_collection_modifyitems(config, items):
     """Modify test items to add markers."""
     for item in items:
-        # Mark performance tests
-        if "performance" in item.nodeid.lower():
-            item.add_marker(pytest.mark.performance)
-
         # Mark integration tests
         if "integration" in item.nodeid.lower():
             item.add_marker(pytest.mark.integration)

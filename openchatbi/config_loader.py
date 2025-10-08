@@ -2,6 +2,7 @@ import importlib
 import os
 from importlib.util import find_spec
 from typing import Any
+from unittest.mock import MagicMock
 
 from langchain_core.language_models import BaseChatModel
 from pydantic import BaseModel
@@ -23,14 +24,16 @@ class Config(BaseModel):
         data_warehouse_config (Dict[str, Any]): Data warehouse configuration. Defaults to empty dict.
     """
 
+    model_config = {"arbitrary_types_allowed": True}
+
     # General Configurations
     organization: str = "The Company"
     dialect: str = "presto"
 
     # LLM Configurations
-    default_llm: BaseChatModel = None
-    embedding_model: BaseModel = None
-    text2sql_llm: BaseChatModel | None = None
+    default_llm: BaseChatModel | MagicMock
+    embedding_model: BaseModel | MagicMock
+    text2sql_llm: BaseChatModel | MagicMock | None = None
 
     # BI Configuration
     bi_config: dict[str, Any] = {}

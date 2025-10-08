@@ -10,7 +10,7 @@ def run_tests(test_type="all", verbose=False, coverage=False):
     """Run context management tests.
 
     Args:
-        test_type: Type of tests to run ('all', 'unit', 'integration', 'performance')
+        test_type: Type of tests to run ('all', 'unit', 'integration', 'edge_cases')
         verbose: Enable verbose output
         coverage: Enable coverage reporting
     """
@@ -27,8 +27,8 @@ def run_tests(test_type="all", verbose=False, coverage=False):
         cmd.extend([str(test_dir / "test_context_manager.py"), str(test_dir / "test_context_config.py")])
     elif test_type == "integration":
         cmd.append(str(test_dir / "test_agent_graph_integration.py"))
-    elif test_type == "performance":
-        cmd.extend([str(test_dir / "test_performance_edge_cases.py"), "-m", "performance"])
+    elif test_type == "edge_cases":
+        cmd.extend([str(test_dir / "test_edge_cases.py"), str(test_dir / "test_state_operations.py")])
     else:
         print(f"Unknown test type: {test_type}")
         return False
@@ -76,7 +76,7 @@ def main():
     parser.add_argument(
         "--type",
         "-t",
-        choices=["all", "unit", "integration", "performance"],
+        choices=["all", "unit", "integration", "edge_cases"],
         default="all",
         help="Type of tests to run (default: all)",
     )
@@ -85,18 +85,7 @@ def main():
 
     parser.add_argument("--coverage", "-c", action="store_true", help="Enable coverage reporting")
 
-    parser.add_argument(
-        "--quick", "-q", action="store_true", help="Run only quick tests (exclude slow/performance tests)"
-    )
-
     args = parser.parse_args()
-
-    if args.quick:
-        # Exclude slow tests
-        cmd_extra = ["-m", "not slow and not performance"]
-        print("Running quick tests only (excluding slow and performance tests)")
-    else:
-        cmd_extra = []
 
     success = run_tests(test_type=args.type, verbose=args.verbose, coverage=args.coverage)
 

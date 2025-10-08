@@ -8,7 +8,8 @@ This directory contains comprehensive tests for the context management functiona
 
 - **`test_context_manager.py`** - Unit tests for the `ContextManager` class
 - **`test_context_config.py`** - Tests for context configuration management
-- **`test_performance_edge_cases.py`** - Performance tests and edge case handling
+- **`test_agent_graph_integration.py`** - Integration tests for agent graph with context management
+- **`test_edge_cases.py`** - Edge case handling
 - **`test_state_operations.py`** - Tests for state operations and message processing
 - **`conftest.py`** - Shared pytest fixtures and configuration
 - **`test_runner.py`** - Custom test runner script
@@ -45,6 +46,20 @@ Tests configuration management and validation:
 - `test_update_context_config_multiple_values()` - Tests configuration updates
 - `test_production_optimized_config()` - Tests realistic production settings
 
+### Integration Tests (`test_agent_graph_integration.py`)
+
+Tests integration with the agent graph system:
+
+- ✅ Agent router with context management
+- ✅ Graph building with/without context management
+- ✅ Tool wrapping in graph context
+- ✅ Full conversation flow testing
+- ✅ System message preservation
+
+**Key test cases:**
+- `test_agent_router_with_context_manager()` - Tests router integration
+- `test_full_context_management_flow()` - Tests end-to-end functionality
+
 ### State Operations Tests (`test_state_operations.py`)
 
 Tests state manipulation and message processing operations:
@@ -60,21 +75,16 @@ Tests state manipulation and message processing operations:
 - `test_state_message_processing()` - Tests state message operations
 - `test_context_state_updates()` - Tests context state modifications
 
-### Performance & Edge Cases (`test_performance_edge_cases.py`)
+### Edge Cases (`test_edge_cases.py`)
 
 Tests system behavior under stress and edge conditions:
 
-- ✅ Large conversation processing performance
-- ✅ Large tool output trimming performance
-- ✅ Concurrent processing simulation
-- ✅ Memory usage validation
 - ✅ Unicode and encoding edge cases
 - ✅ Malformed input handling
 
 **Key test cases:**
-- `test_large_conversation_processing_time()` - Performance benchmarks
-- `test_concurrent_context_management()` - Thread safety testing
-- `test_maximum_message_count_handling()` - Stress testing
+- `test_sql_output_edge_cases()` - SQL edge cases
+- `test_extremely_nested_or_complex_structures()` - Complex data structures
 
 ## 🚀 Running Tests
 
@@ -89,9 +99,6 @@ python tests/context_management/test_runner.py --type unit
 
 # Run with coverage reporting
 python tests/context_management/test_runner.py --coverage
-
-# Run quick tests (exclude slow performance tests)
-python tests/context_management/test_runner.py --quick
 ```
 
 ### Using Pytest Directly
@@ -106,12 +113,6 @@ pytest tests/context_management/test_context_manager.py
 # Run with verbose output
 pytest tests/context_management/ -v
 
-# Run only performance tests
-pytest tests/context_management/ -m performance
-
-# Exclude slow tests
-pytest tests/context_management/ -m "not slow"
-
 # Run with coverage
 pytest tests/context_management/ --cov=openchatbi.context_manager --cov-report=html
 ```
@@ -120,7 +121,6 @@ pytest tests/context_management/ --cov=openchatbi.context_manager --cov-report=h
 
 Tests are organized using pytest markers:
 
-- `@pytest.mark.performance` - Performance-related tests
 - `@pytest.mark.integration` - Integration tests
 - `@pytest.mark.slow` - Slow-running tests (can be excluded)
 
@@ -150,12 +150,9 @@ Tests are organized using pytest markers:
 - [x] Tool wrapper integration
 - [x] LLM service integration
 
-### Edge Cases & Performance
-- [x] Large dataset handling
+### Edge Cases
 - [x] Unicode and encoding issues
 - [x] Malformed input handling
-- [x] Concurrent access patterns
-- [x] Memory usage optimization
 
 ## 🧩 Fixtures
 
@@ -167,15 +164,6 @@ Tests are organized using pytest markers:
 - `sample_conversation` - Sample conversation data
 - `large_sql_output` - Large SQL output for trimming tests
 - `error_output` - Sample error output for preservation tests
-
-## 📈 Performance Benchmarks
-
-The test suite includes performance benchmarks to ensure context management doesn't impact system performance:
-
-- **Large conversation processing**: < 1.0s for 1000 messages
-- **Tool output trimming**: < 0.5s for 100KB outputs
-- **Token estimation**: < 0.1s for multiple large texts
-- **Concurrent processing**: < 2.0s for 100 parallel operations
 
 ## 🔧 Extending Tests
 
@@ -189,14 +177,6 @@ The test suite includes performance benchmarks to ensure context management does
 ### Adding New Fixtures
 
 Add shared fixtures to `conftest.py` if they'll be used across multiple test files.
-
-### Adding Performance Tests
-
-Performance tests should:
-- Use the `@pytest.mark.performance` marker
-- Include timing assertions
-- Test realistic data sizes
-- Document expected performance thresholds
 
 ## 🐛 Debugging Tests
 
@@ -224,6 +204,5 @@ pytest tests/context_management/ --profile
 Expected test results:
 - **Total tests**: ~100+ test cases across 6 test files
 - **Coverage target**: >95% for context management modules
-- **Performance tests**: All should pass within defined thresholds
 - **State operations tests**: All message processing should work correctly
 - **Edge cases**: All should handle gracefully without crashes

@@ -23,6 +23,7 @@ tests/
 ├── test_text2sql_extraction.py          # Information extraction tests
 ├── test_text2sql_generate_sql.py        # SQL generation tests
 ├── test_text2sql_schema_linking.py      # Schema linking tests
+├── test_text2sql_visualization.py       # Data visualization tests
 │
 ├── Tool Tests
 ├── test_tools_ask_human.py              # Human interaction tool tests
@@ -32,6 +33,7 @@ tests/
 ├── Additional Module Tests
 ├── test_memory.py                       # Memory management tests
 ├── test_plotly_utils.py                 # Plotly utilities tests
+├── test_incomplete_tool_calls.py        # Incomplete tool call handling tests
 │
 └── Context Management Tests
     └── context_management/              # Context management test suite (see context_management/README.md)
@@ -96,6 +98,9 @@ uv run pytest tests/context_management/
 
 # Run memory and utility tests
 uv run pytest tests/test_memory.py tests/test_plotly_utils.py
+
+# Run incomplete tool call tests
+uv run pytest tests/test_incomplete_tool_calls.py
 ```
 
 ## Test Configuration

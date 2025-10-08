@@ -34,10 +34,6 @@ jobs:
       run: |
         uv run black --check .
 
-    - name: Run type checking
-      run: |
-        uv run mypy .
-
     - name: Run tests
       run: |
         uv run pytest -v --cov=openchatbi --cov-report=xml

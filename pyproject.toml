@@ -1,6 +1,6 @@
 [project]
 name = "openchatbi"
-version = "0.1.0"
+version = "0.1.1"
 description = "OpenChatBI - Natural language business intelligence powered by LLMs for intuitive data analysis and SQL generation"
 authors = [
     { name = "Yu Zhong", email = "zhongyu8@gmail.com" },
@@ -72,7 +72,6 @@ dependencies = [
     "seaborn>=0.13.0,<1.0.0",
     "plotly>=5.17.0,<6.0.0",
     "json5>=0.10.0,<1.0.0",
-    "pkuseg>=0.0.25",
 ]
 
 [project.urls]
@@ -117,8 +116,6 @@ dev-dependencies = [
     "openchatbi[dev]",
 ]
 
-[tool.uv.extra-build-dependencies]
-pkuseg = ["numpy", "cython"]
 
 [build-system]
 requires = ["hatchling>=1.26.0"]

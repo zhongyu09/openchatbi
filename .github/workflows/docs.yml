@@ -30,8 +30,6 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip setuptools wheel
-        pip install numpy
-        pip install pkuseg
         pip install -e ".[docs]"
 
     - name: Build documentation

@@ -1,13 +1,10 @@
 """Helper functions for building column retrieval systems."""
 
-import pkuseg
 from rank_bm25 import BM25Okapi
 
 from openchatbi.llm.llm import get_embedding_model
-
-# Initialize pkuseg segmenter
-_segmenter = pkuseg.pkuseg()
 from openchatbi.utils import log, create_vector_db
+from openchatbi.text_segmenter import _segmenter
 
 
 def get_columns_metadata(catalog):

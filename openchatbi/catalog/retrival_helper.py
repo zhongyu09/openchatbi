@@ -1,9 +1,12 @@
 """Helper functions for building column retrieval systems."""
 
-import jieba
+import pkuseg
 from rank_bm25 import BM25Okapi
 
 from openchatbi.llm.llm import get_embedding_model
+
+# Initialize pkuseg segmenter
+_segmenter = pkuseg.pkuseg()
 from openchatbi.utils import log, create_vector_db
 
 
@@ -30,7 +33,7 @@ def get_columns_metadata(catalog):
             column.get("description", ""),
         ]
         text = " ".join(text_parts)
-        tokens = [token for token in jieba.cut_for_search(text) if token not in ("_", " ")]
+        tokens = [token for token in _segmenter.cut(text) if token not in ("_", " ")]
         column_tokens.append(tokens)
         embedding_key = f"{column['column_name']}: {column['display_name']}"
         embedding_keys.append(embedding_key)

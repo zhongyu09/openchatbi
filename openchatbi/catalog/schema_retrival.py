@@ -4,9 +4,12 @@ import os
 import re
 
 import Levenshtein
-import jieba
+import pkuseg
 
 from openchatbi import config
+
+# Initialize pkuseg segmenter
+_segmenter = pkuseg.pkuseg()
 from openchatbi.catalog.retrival_helper import build_column_tables_mapping, build_columns_retriever
 from openchatbi.utils import log
 
@@ -105,7 +108,7 @@ def bm25_search(query_list, top_k=5, score_threshold=0.5):
     Returns:
         list: List of relevant column names.
     """
-    query_tokens = [token for token in jieba.cut_for_search(" ".join(query_list)) if token not in ("_", " ")]
+    query_tokens = [token for token in _segmenter.cut(" ".join(query_list)) if token not in ("_", " ")]
     scores = bm25.get_scores(query_tokens)
     ranked = sorted(enumerate(scores), key=lambda x: x[1], reverse=True)
     results = []

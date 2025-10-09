@@ -1,11 +1,11 @@
 """Tests for incomplete tool call recovery functionality."""
 
+from unittest.mock import Mock, patch
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
 from openchatbi.agent_graph import agent_router
 from openchatbi.utils import recover_incomplete_tool_calls
 from openchatbi.graph_state import AgentState
-from openchatbi.llm.llm import default_llm
 
 
 class TestIncompleteToolCallRecovery:
@@ -144,8 +144,9 @@ class TestIncompleteToolCallRecovery:
     def test_router_integration_with_recovery(self):
         """Test that the router handles recovery correctly and continues processing."""
         # Create a mock router function for testing
+        mock_llm = Mock()
         mock_tools = []
-        router_func = agent_router(default_llm, mock_tools)
+        router_func = agent_router(mock_llm, mock_tools)
 
         # State with incomplete tool calls
         messages = [

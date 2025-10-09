@@ -6,14 +6,22 @@ import re
 import Levenshtein
 import jieba
 
-from openchatbi.catalog.entry import catalog_store
+from openchatbi import config
 from openchatbi.catalog.retrival_helper import build_column_tables_mapping, build_columns_retriever
 from openchatbi.utils import log
 
 # Skip build during documentation build
 if not os.environ.get("SPHINX_BUILD"):
-    bm25, vector_db, columns, col_dict = build_columns_retriever(catalog_store)
-    column_tables_mapping = build_column_tables_mapping(catalog_store)
+    try:
+        _catalog_store = config.get().catalog_store
+    except ValueError:
+        _catalog_store = None
+else:
+    _catalog_store = None
+
+if _catalog_store:
+    bm25, vector_db, columns, col_dict = build_columns_retriever(_catalog_store)
+    column_tables_mapping = build_column_tables_mapping(_catalog_store)
 else:
     bm25, vector_db, columns, col_dict = None, None, [], {}
     column_tables_mapping = {}

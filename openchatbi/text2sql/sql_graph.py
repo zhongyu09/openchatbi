@@ -12,9 +12,9 @@ from openchatbi import config
 from openchatbi.catalog import CatalogStore
 from openchatbi.constants import SQL_SUCCESS
 from openchatbi.graph_state import InputState, SQLGraphState, SQLOutputState
-from openchatbi.llm.llm import default_llm, text2sql_llm
+from openchatbi.llm.llm import get_default_llm, get_text2sql_llm
 from openchatbi.text2sql.extraction import information_extraction, information_extraction_conditional_edges
-from openchatbi.text2sql.generate_sql import create_sql_nodes, should_execute_sql, should_retry_sql
+from openchatbi.text2sql.generate_sql import create_sql_nodes, should_execute_sql
 from openchatbi.text2sql.schema_linking import schema_linking
 from openchatbi.tool.ask_human import AskHuman
 from openchatbi.tool.search_knowledge import search_knowledge
@@ -71,13 +71,14 @@ def build_sql_graph(catalog: CatalogStore, checkpointer: Checkpointer, memory_st
     """
     tools = [search_knowledge, AskHuman]
     search_tool_node = ToolNode([search_knowledge])
+    default_llm = get_default_llm()
     if isinstance(default_llm, BaseChatOpenAI):
         llm_with_tools = default_llm.bind_tools(tools, strict=True).bind(response_format={"type": "json_object"})
     else:
         llm_with_tools = default_llm.bind_tools(tools)
     # Create SQL processing nodes with visualization configuration
     generate_sql_node, execute_sql_node, regenerate_sql_node, generate_visualization_node = create_sql_nodes(
-        text2sql_llm, catalog, dialect=config.get().dialect, visualization_mode=config.get().visualization_mode
+        get_text2sql_llm(), catalog, dialect=config.get().dialect, visualization_mode=config.get().visualization_mode
     )
 
     # Define the SQL generation graph

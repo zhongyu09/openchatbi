@@ -25,8 +25,8 @@ from openchatbi.constants import datetime_format
 from openchatbi.context_config import get_context_config
 from openchatbi.context_manager import ContextManager
 from openchatbi.graph_state import AgentState, InputState, OutputState
-from openchatbi.llm.llm import call_llm_chat_model_with_retry, default_llm
-from openchatbi.prompts.system_prompt import AGENT_PROMPT_TEMPLATE
+from openchatbi.llm.llm import call_llm_chat_model_with_retry, get_default_llm
+from openchatbi.prompts.system_prompt import get_agent_prompt_template
 from openchatbi.text2sql.sql_graph import build_sql_graph
 from openchatbi.tool.ask_human import AskHuman
 from openchatbi.tool.mcp_tools import create_mcp_tools_sync, get_mcp_tools_async
@@ -38,6 +38,14 @@ from openchatbi.utils import log
 from openchatbi.utils import recover_incomplete_tool_calls
 
 logger = logging.getLogger(__name__)
+
+
+def get_mcp_servers():
+    """Get MCP servers from config with fallback for tests."""
+    try:
+        return config.get().mcp_servers
+    except ValueError:
+        return []
 
 
 def ask_human(state: AgentState) -> dict[str, Any]:
@@ -210,7 +218,7 @@ def agent_router(llm: BaseChatModel, tools: list, context_manager: ContextManage
             if len(messages) != original_count:
                 logger.info(f"Context management: modified messages from {original_count} to {len(messages)}")
 
-        system_prompt = AGENT_PROMPT_TEMPLATE.replace(
+        system_prompt = get_agent_prompt_template().replace(
             "[time_field_placeholder]", datetime.datetime.now().strftime(datetime_format)
         )
 
@@ -292,7 +300,9 @@ def _build_graph_core(
     if memory_tools:
         manage_memory_tool, search_memory_tool = memory_tools
     else:
-        manage_memory_tool, search_memory_tool = get_memory_tools(default_llm, sync_mode=sync_mode, store=memory_store)
+        manage_memory_tool, search_memory_tool = get_memory_tools(
+            get_default_llm(), sync_mode=sync_mode, store=memory_store
+        )
 
     log(str(mcp_tools))
     normal_tools = [
@@ -308,7 +318,7 @@ def _build_graph_core(
     # Initialize context manager if enabled
     context_manager = None
     if enable_context_management:
-        context_manager = ContextManager(llm=default_llm, config=get_context_config())
+        context_manager = ContextManager(llm=get_default_llm(), config=get_context_config())
 
     tool_node = ToolNode(normal_tools)
 
@@ -316,7 +326,7 @@ def _build_graph_core(
     graph = StateGraph(AgentState, input_schema=InputState, output_schema=OutputState)
 
     # Add nodes to the graph
-    graph.add_node("router", agent_router(default_llm, normal_tools + [AskHuman], context_manager))
+    graph.add_node("router", agent_router(get_default_llm(), normal_tools + [AskHuman], context_manager))
     graph.add_node("ask_human", ask_human)
     graph.add_node("use_tool", tool_node)
 
@@ -376,7 +386,7 @@ def build_agent_graph_sync(
         CompiledStateGraph: Compiled agent graph ready for execution.
     """
     # Get MCP tools for sync context
-    mcp_tools = create_mcp_tools_sync(config.get().mcp_servers)
+    mcp_tools = create_mcp_tools_sync(get_mcp_servers())
 
     return _build_graph_core(
         catalog=catalog,
@@ -412,7 +422,7 @@ async def build_agent_graph_async(
         CompiledStateGraph: Compiled agent graph ready for execution.
     """
     # Get MCP tools for async context
-    mcp_tools = await get_mcp_tools_async(config.get().mcp_servers)
+    mcp_tools = await get_mcp_tools_async(get_mcp_servers())
 
     return _build_graph_core(
         catalog=catalog,

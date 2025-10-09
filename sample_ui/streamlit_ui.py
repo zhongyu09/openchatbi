@@ -17,7 +17,7 @@ sys.modules["sqlite3"] = sqlite3
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from langgraph.types import Command
 
-from openchatbi.catalog.entry import catalog_store
+from openchatbi import config
 from openchatbi.agent_graph import build_agent_graph_async
 from openchatbi.llm.llm import default_llm
 from openchatbi.tool.memory import cleanup_async_memory_store, get_async_memory_tools, setup_async_memory_store
@@ -58,7 +58,7 @@ class AsyncGraphManager:
 
             # Build the graph
             self.graph = await build_agent_graph_async(
-                catalog_store,
+                config.get().catalog_store,
                 checkpointer=self.checkpointer,
                 memory_store=async_store,
                 memory_tools=async_memory_tools,

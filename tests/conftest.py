@@ -12,6 +12,7 @@ from langchain_core.messages import AIMessage, HumanMessage
 from sqlalchemy import create_engine
 
 from openchatbi.catalog.store.file_system import FileSystemCatalogStore
+from openchatbi.config_loader import ConfigLoader
 from openchatbi.graph_state import AgentState
 
 
@@ -145,6 +146,40 @@ def sample_messages() -> list:
         AIMessage(content="I'll help you get the user count from the database."),
         HumanMessage(content="Show me the SQL query"),
     ]
+
+
+@pytest.fixture(autouse=True)
+def reset_config_loader():
+    """Reset ConfigLoader singleton state before each test."""
+    # Reset the singleton instance to ensure clean state
+    ConfigLoader._instance = None
+    ConfigLoader._config = None
+    yield
+    # Clean up after test
+    ConfigLoader._instance = None
+    ConfigLoader._config = None
+
+
+@pytest.fixture
+def mock_config():
+    """Provide a mock configuration for tests that need it."""
+    from unittest.mock import MagicMock
+
+    config_dict = {
+        "organization": "Test Company",
+        "dialect": "presto",
+        "default_llm": MagicMock(),
+        "embedding_model": MagicMock(),
+        "data_warehouse_config": {"uri": "sqlite:///:memory:", "include_tables": None, "database_name": "test_db"},
+        "report_directory": "./data",
+        "python_executor": "local",
+        "visualization_mode": "rule",
+        "context_config": {},
+    }
+
+    loader = ConfigLoader()
+    loader.set(config_dict)
+    return loader.get()
 
 
 @pytest.fixture(autouse=True)

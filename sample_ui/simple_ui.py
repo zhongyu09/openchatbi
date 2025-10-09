@@ -8,7 +8,7 @@ from fastapi import FastAPI
 from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.types import Command
 
-from openchatbi.catalog.entry import catalog_store
+from openchatbi import config
 from openchatbi.agent_graph import build_agent_graph_sync
 from openchatbi.tool.memory import get_sync_memory_store
 from openchatbi.utils import log, get_report_download_response
@@ -20,7 +20,9 @@ session_interrupt = defaultdict(bool)
 # Use SqliteSaver for persistence
 sqlite_checkpointer_cm = SqliteSaver.from_conn_string("checkpoints.db")
 sqlite_checkpointer = sqlite_checkpointer_cm.__enter__()
-graph = build_agent_graph_sync(catalog_store, checkpointer=sqlite_checkpointer, memory_store=get_sync_memory_store())
+graph = build_agent_graph_sync(
+    config.get().catalog_store, checkpointer=sqlite_checkpointer, memory_store=get_sync_memory_store()
+)
 
 # ---------- FastAPI ----------
 app = FastAPI()

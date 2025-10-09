@@ -9,9 +9,20 @@ from openchatbi import config
 from openchatbi.tool.ask_human import AskHuman
 from openchatbi.utils import log
 
-embedding_model = config.get().embedding_model
-default_llm = config.get().default_llm
-text2sql_llm = config.get().text2sql_llm or default_llm
+
+def get_embedding_model():
+    """Get embedding model from config."""
+    return config.get().embedding_model
+
+
+def get_default_llm():
+    """Get default LLM from config."""
+    return config.get().default_llm
+
+
+def get_text2sql_llm():
+    """Get text2sql LLM from config."""
+    return config.get().text2sql_llm or get_default_llm()
 
 
 def _invalid_tool_names(valid_tools, tool_calls) -> str:

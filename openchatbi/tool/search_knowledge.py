@@ -3,7 +3,7 @@
 from langchain.tools import tool
 from pydantic import BaseModel, Field
 
-from openchatbi.catalog.entry import catalog_store
+from openchatbi import config
 from openchatbi.catalog.schema_retrival import col_dict, column_tables_mapping, get_relevant_columns
 from openchatbi.utils import log
 
@@ -70,6 +70,8 @@ def search_column_from_catalog(query_list: list[str], with_table_list: bool) -> 
 def list_table_from_catalog(tables: list[str]) -> list[str]:
     """Get table information from catalog."""
     result = []
+    catalog_store = config.get().catalog_store
+
     for table_name in tables:
         table_info = catalog_store.get_table_information(table_name)
         if not table_info:

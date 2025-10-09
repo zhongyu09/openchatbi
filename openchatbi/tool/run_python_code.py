@@ -18,8 +18,13 @@ class PythonCodeInput(BaseModel):
 def _create_executor():
     """Create appropriate executor based on configuration."""
     config_loader = ConfigLoader()
-    config = config_loader.get()
-    executor_type = config.python_executor.lower()
+    try:
+        config = config_loader.get()
+        executor_type = config.python_executor.lower()
+    except ValueError:
+        # Configuration not loaded, use default local executor
+        log("Configuration not loaded, using default LocalExecutor")
+        return LocalExecutor()
 
     log(f"Creating executor of type: {executor_type}")
 

@@ -9,7 +9,7 @@ import pandas as pd
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage
 
-from openchatbi.prompts.system_prompt import VISUALIZATION_PROMPT_TEMPLATE
+from openchatbi.prompts.system_prompt import get_visualization_prompt_template
 
 
 class ChartType(Enum):
@@ -256,7 +256,8 @@ class VisualizationService:
         """
         try:
             prompt = (
-                VISUALIZATION_PROMPT_TEMPLATE.replace("[question]", question)
+                get_visualization_prompt_template()
+                .replace("[question]", question)
                 .replace("[columns]", str(schema_info.get("columns", [])))
                 .replace("[numeric_columns]", str(schema_info.get("numeric_columns", [])))
                 .replace("[categorical_columns]", str(schema_info.get("categorical_columns", [])))

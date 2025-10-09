@@ -9,7 +9,7 @@ from openchatbi.catalog import CatalogStore
 from openchatbi.catalog.schema_retrival import col_dict, column_tables_mapping, get_relevant_columns
 from openchatbi.constants import datetime_format
 from openchatbi.graph_state import SQLGraphState
-from openchatbi.prompts.system_prompt import TABLE_SELECTION_PROMPT_TEMPLATE
+from openchatbi.prompts.system_prompt import get_table_selection_prompt_template
 from openchatbi.text2sql.data import table_selection_example_dict, table_selection_retriever
 from openchatbi.utils import extract_json_from_answer, log
 
@@ -129,8 +129,10 @@ def schema_linking(llm: BaseChatModel, catalog: CatalogStore):
             table_column_descs.append(table_desc)
 
         # Build the LLM prompt
-        prompt = TABLE_SELECTION_PROMPT_TEMPLATE.replace("[tables]", "\n\n".join(table_column_descs)).replace(
-            "[examples]", "\n".join(similar_examples)
+        prompt = (
+            get_table_selection_prompt_template()
+            .replace("[tables]", "\n\n".join(table_column_descs))
+            .replace("[examples]", "\n".join(similar_examples))
         )
         return prompt
 

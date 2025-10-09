@@ -3,7 +3,7 @@
 import jieba
 from rank_bm25 import BM25Okapi
 
-from openchatbi.llm.llm import embedding_model
+from openchatbi.llm.llm import get_embedding_model
 from openchatbi.utils import log, create_vector_db
 
 
@@ -65,7 +65,7 @@ def build_columns_retriever(catalog):
     log("Building vector database for columns...")
     vector_db = create_vector_db(
         embedding_keys,
-        embedding_model,
+        get_embedding_model(),
         metadatas=columns,
         collection_name="columns",
         collection_metadata={"hnsw:space": "cosine"},

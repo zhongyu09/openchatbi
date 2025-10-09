@@ -10,7 +10,7 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
 from openchatbi.graph_state import SQLGraphState
 from openchatbi.llm.llm import call_llm_chat_model_with_retry
-from openchatbi.prompts.system_prompt import BASIC_KNOWLEDGE, EXTRACTION_PROMPT_TEMPLATE
+from openchatbi.prompts.system_prompt import get_basic_knowledge, get_extraction_prompt_template
 from openchatbi.utils import extract_json_from_answer, get_text_from_content, log
 
 
@@ -20,11 +20,11 @@ def generate_extraction_prompt() -> str:
     Returns:
         str: Generated prompt with placeholders replaced.
     """
-    prompt = EXTRACTION_PROMPT_TEMPLATE
+    prompt = get_extraction_prompt_template()
 
     date_str = date.today().strftime("%Y-%m-%d")
     prompt = prompt.replace("[time_field_placeholder]", date_str)
-    prompt = prompt.replace("[basic_knowledge_glossary]", BASIC_KNOWLEDGE)
+    prompt = prompt.replace("[basic_knowledge_glossary]", get_basic_knowledge())
     return prompt
 
 

@@ -8,7 +8,7 @@ from fastapi.responses import StreamingResponse
 from langchain_core.messages import AIMessageChunk
 from pydantic import BaseModel
 
-from openchatbi.catalog.entry import catalog_store
+from openchatbi import config
 from openchatbi.agent_graph import build_agent_graph_async
 from openchatbi.utils import get_report_download_response
 
@@ -24,7 +24,7 @@ async def lifespan(app: FastAPI):
     """Manage application lifespan events."""
     # Startup: Initialize the async graph
     global graph
-    graph = await build_agent_graph_async(catalog_store)
+    graph = await build_agent_graph_async(config.get().catalog_store)
     yield
     # Shutdown: cleanup if needed
     graph = None

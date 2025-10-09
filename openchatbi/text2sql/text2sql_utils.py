@@ -1,6 +1,6 @@
 """Utility functions for text2sql retrieval systems."""
 
-from openchatbi.llm.llm import embedding_model
+from openchatbi.llm.llm import get_embedding_model
 from openchatbi.utils import create_vector_db
 
 
@@ -19,7 +19,7 @@ def init_sql_example_retriever(catalog):
     texts = list(sql_example_dict.keys())
     vector_db = create_vector_db(
         texts,
-        embedding_model,
+        get_embedding_model(),
         collection_name="text2sql",
         collection_metadata={"hnsw:space": "cosine"},
     )
@@ -47,7 +47,7 @@ def init_table_selection_example_dict(catalog):
 
     vector_db = create_vector_db(
         texts,
-        embedding_model,
+        get_embedding_model(),
         collection_name="table_selection_example",
         collection_metadata={"hnsw:space": "cosine"},
     )

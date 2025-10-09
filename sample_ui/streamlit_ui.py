@@ -19,7 +19,7 @@ from langgraph.types import Command
 
 from openchatbi import config
 from openchatbi.agent_graph import build_agent_graph_async
-from openchatbi.llm.llm import default_llm
+from openchatbi.llm.llm import get_default_llm
 from openchatbi.tool.memory import cleanup_async_memory_store, get_async_memory_tools, setup_async_memory_store
 from openchatbi.utils import get_text_from_message_chunk, log
 from sample_ui.plotly_utils import visualization_dsl_to_gradio_plot
@@ -54,7 +54,7 @@ class AsyncGraphManager:
             from openchatbi.tool.memory import get_async_memory_store
 
             async_store = await get_async_memory_store()
-            async_memory_tools = await get_async_memory_tools(default_llm)
+            async_memory_tools = await get_async_memory_tools(get_default_llm())
 
             # Build the graph
             self.graph = await build_agent_graph_async(

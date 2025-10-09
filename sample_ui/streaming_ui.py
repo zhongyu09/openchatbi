@@ -16,7 +16,7 @@ from langgraph.types import Command
 
 from openchatbi import config
 from openchatbi.agent_graph import build_agent_graph_async
-from openchatbi.llm.llm import default_llm
+from openchatbi.llm.llm import get_default_llm
 from openchatbi.tool.memory import cleanup_async_memory_store, get_async_memory_tools, setup_async_memory_store
 from openchatbi.utils import get_text_from_message_chunk, log, get_report_download_response
 from sample_ui.style import custom_css
@@ -48,7 +48,7 @@ class CheckpointerManager:
                 from openchatbi.tool.memory import get_async_memory_store
 
                 async_store = await get_async_memory_store()
-                async_memory_tools = await get_async_memory_tools(default_llm)
+                async_memory_tools = await get_async_memory_tools(get_default_llm())
 
                 # Build graph with async memory tools
                 self.graph = await build_agent_graph_async(

@@ -5,7 +5,7 @@ from unittest.mock import Mock, patch, MagicMock
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 from langchain_core.tools import StructuredTool
 
-from openchatbi.agent_graph import _build_graph_core, agent_router, build_agent_graph_sync, build_agent_graph_async
+from openchatbi.agent_graph import _build_graph_core, agent_llm_call, build_agent_graph_sync, build_agent_graph_async
 from openchatbi.context_manager import ContextManager
 from openchatbi.context_config import ContextConfig
 
@@ -49,14 +49,14 @@ class TestAgentGraphIntegration:
             max_tool_output_length=100,
         )
 
-    def test_agent_router_with_context_manager(self, mock_llm, mock_tools, test_config):
-        """Test agent router with context manager integration."""
+    def test_agent_llm_node_with_context_manager(self, mock_llm, mock_tools, test_config):
+        """Test agent llm_node with context manager integration."""
         context_manager = ContextManager(llm=mock_llm, config=test_config)
 
         # Mock LLM response
         mock_response = AIMessage(content="Test response", tool_calls=[])
         with patch("openchatbi.agent_graph.call_llm_chat_model_with_retry", return_value=mock_response):
-            router_func = agent_router(mock_llm, mock_tools, context_manager)
+            llm_node_func = agent_llm_call(mock_llm, mock_tools, context_manager)
 
             # Create test state with long messages to trigger context management
             long_messages = [
@@ -67,20 +67,20 @@ class TestAgentGraphIntegration:
             ]
 
             state = AgentState(messages=long_messages)
-            result = router_func(state)
+            result = llm_node_func(state)
 
             # Should have processed the state
             assert "messages" in result
             assert isinstance(result["messages"][0], AIMessage)
 
-    def test_agent_router_without_context_manager(self, mock_llm, mock_tools):
-        """Test agent router without context manager."""
+    def test_agent_llm_node_without_context_manager(self, mock_llm, mock_tools):
+        """Test agent llm_node without context manager."""
         mock_response = AIMessage(content="Test response", tool_calls=[])
         with patch("openchatbi.agent_graph.call_llm_chat_model_with_retry", return_value=mock_response):
-            router_func = agent_router(mock_llm, mock_tools, context_manager=None)
+            llm_node_func = agent_llm_call(mock_llm, mock_tools, context_manager=None)
 
             state = AgentState(messages=[HumanMessage(content="Test")])
-            result = router_func(state)
+            result = llm_node_func(state)
 
             assert "messages" in result
             assert isinstance(result["messages"][0], AIMessage)

@@ -63,8 +63,8 @@ async def chat_stream(req: UserRequest):
                 message_chunk = event_value[0]
                 if isinstance(message_chunk, AIMessageChunk):
                     text = message_chunk.content
-            elif event_value.get("router") and event_value["router"].get("final_answer"):
-                text = event_value["router"]["final_answer"]
+            elif event_value.get("llm_node") and event_value["llm_node"].get("final_answer"):
+                text = event_value["llm_node"]["final_answer"]
             if text:
                 yield text
 

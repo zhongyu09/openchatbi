@@ -3,7 +3,7 @@
 from unittest.mock import Mock, patch
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
-from openchatbi.agent_graph import agent_router
+from openchatbi.agent_graph import agent_llm_call
 from openchatbi.utils import recover_incomplete_tool_calls
 from openchatbi.graph_state import AgentState
 
@@ -141,12 +141,12 @@ class TestIncompleteToolCallRecovery:
         assert recovery_msg.tool_call_id == "new_call"
         assert "interrupted" in recovery_msg.content.lower()
 
-    def test_router_integration_with_recovery(self):
-        """Test that the router handles recovery correctly and continues processing."""
-        # Create a mock router function for testing
+    def test_llm_node_integration_with_recovery(self):
+        """Test that the llm_node handles recovery correctly and continues processing."""
+        # Create a mock llm_node function for testing
         mock_llm = Mock()
         mock_tools = []
-        router_func = agent_router(mock_llm, mock_tools)
+        llm_node_func = agent_llm_call(mock_llm, mock_tools)
 
         # State with incomplete tool calls
         messages = [
@@ -158,13 +158,13 @@ class TestIncompleteToolCallRecovery:
         ]
         state = AgentState(messages=messages)
 
-        # Call the router - it should detect incomplete tool calls and return recovery
-        result = router_func(state)
+        # Call the llm node - it should detect incomplete tool calls and return recovery
+        result = llm_node_func(state)
 
-        # Should return message operations and continue to router
+        # Should return message operations and continue to llm_node
         assert "messages" in result
         assert "agent_next_node" in result
-        assert result["agent_next_node"] == "router"
+        assert result["agent_next_node"] == "llm_node"
 
         # Should have recovery ToolMessage operation for the incomplete call
         operations = result["messages"]

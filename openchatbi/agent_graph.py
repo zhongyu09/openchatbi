@@ -182,16 +182,16 @@ def get_sql_tools(sql_graph: CompiledStateGraph, sync_mode: bool = False) -> Cal
         )
 
 
-def agent_router(llm: BaseChatModel, tools: list, context_manager: ContextManager = None) -> Callable:
-    """Create router function to determine next node based on LLM tool calls.
+def agent_llm_call(llm: BaseChatModel, tools: list, context_manager: ContextManager = None) -> Callable:
+    """Create llm call function to generate reasoning and determine next node based on tool calls in LLM response.
 
     Args:
-        llm (BaseChatModel): The LLM for decision-making.
+        llm (BaseChatModel): The LLM for agent decision-making.
         tools: List of tools.
         context_manager: Optional context manager for handling long conversations.
 
     Returns:
-        function: Router function that processes state and determines next node.
+        function: function that processes state and determines next node.
     """
 
     # OpenAI models support strict tool calling
@@ -204,7 +204,7 @@ def agent_router(llm: BaseChatModel, tools: list, context_manager: ContextManage
         # First, check and recover any incomplete tool calls
         recovery_ops = recover_incomplete_tool_calls(state)
         if recovery_ops:
-            return {"messages": recovery_ops, "agent_next_node": "router"}
+            return {"messages": recovery_ops, "agent_next_node": "llm_node"}
 
         messages = state["messages"]
         final_messages = []
@@ -326,18 +326,18 @@ def _build_graph_core(
     graph = StateGraph(AgentState, input_schema=InputState, output_schema=OutputState)
 
     # Add nodes to the graph
-    graph.add_node("router", agent_router(get_default_llm(), normal_tools + [AskHuman], context_manager))
+    graph.add_node("llm_node", agent_llm_call(get_default_llm(), normal_tools + [AskHuman], context_manager))
     graph.add_node("ask_human", ask_human)
     graph.add_node("use_tool", tool_node)
 
     # Add edges between nodes
-    graph.add_edge(START, "router")
-    graph.add_edge("ask_human", "router")
-    graph.add_edge("use_tool", "router")
+    graph.add_edge(START, "llm_node")
+    graph.add_edge("ask_human", "llm_node")
+    graph.add_edge("use_tool", "llm_node")
 
-    # Add conditional routing from router node
+    # Add conditional routing from llm node
     def route_tools(state: AgentState):
-        # Only use sends if the last message came from the router (has tool_calls)
+        # Only use sends if the last message came from the llm node (has tool_calls)
         last_message = state["messages"][-1] if state["messages"] else None
         if (
             last_message
@@ -353,11 +353,11 @@ def _build_graph_core(
             return END
 
     graph.add_conditional_edges(
-        "router",
+        "llm_node",
         route_tools,
         # mapping of paths to node names (for single routing)
         {
-            "router": "router",
+            "llm_node": "llm_node",
             "ask_human": "ask_human",
             "use_tool": "use_tool",
             END: END,

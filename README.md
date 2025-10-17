@@ -51,7 +51,7 @@ uv sync
 2. **Using pip:**
 
 ```bash
-pip install git+https://github.com/zhongyu09/openchatbi@main
+pip install openchatbi
 ```
 
 3. **For development:**
@@ -231,6 +231,12 @@ OpenChatBI is built using a modular architecture with clear separation of concer
 - **Code Execution**: Local Python, RestrictedPython, Docker containerization
 - **Development**: Python 3.11+, with modern tooling (Black, Ruff, MyPy, Pytest)
 - **Storage**: SQLite for conversation checkpointing, file system catalog storage
+
+### Agent Graph
+<img src="https://github.com/zhongyu09/openchatbi/raw/main/assets/agent_graph.png" alt="Agent Graph" width="800">
+
+### Text2SQL Graph
+<img src="https://github.com/zhongyu09/openchatbi/raw/main/assets/text2sql_graph.png" alt="Text2SQL Graph" width="800">
 
 ## Project Structure
 

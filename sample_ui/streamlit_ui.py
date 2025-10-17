@@ -146,8 +146,8 @@ async def process_user_message_stream(
         if event_type == "messages":
             chunk = event_value[0]
             metadata = event_value[1]
-            # Keep router node messages only to avoid duplicates
-            if metadata["langgraph_node"] != "router" or not metadata.get("streaming_tokens", False):
+            # Keep llm node messages only to avoid duplicates
+            if metadata["langgraph_node"] != "llm_node" or not metadata.get("streaming_tokens", False):
                 continue
             token = get_text_from_message_chunk(chunk)
             if token:
@@ -162,8 +162,8 @@ async def process_user_message_stream(
         else:
             # Process tool calls and intermediate steps
             step_description = ""
-            if event_value.get("router"):
-                message_obj = event_value["router"].get("messages")[0]
+            if event_value.get("llm_node"):
+                message_obj = event_value["llm_node"].get("messages")[0]
                 if message_obj and isinstance(message_obj, AIMessage) and message_obj.tool_calls:
                     step_description = f"🛠️ Using tools: {', '.join(tool['name'] for tool in message_obj.tool_calls)}"
 

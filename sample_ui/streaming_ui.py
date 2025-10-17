@@ -142,14 +142,14 @@ async def respond(message, chat_history, user_id, session_id="default"):
         if event_type == "messages":
             chunk = event_value[0]
             metadata = event_value[1]
-            # Keep router node messages only to avoid duplicates
-            if metadata["langgraph_node"] != "router" or not metadata.get("streaming_tokens", False):
+            # Keep llm node messages only to avoid duplicates
+            if metadata["langgraph_node"] != "llm_node" or not metadata.get("streaming_tokens", False):
                 continue
             token = get_text_from_message_chunk(chunk)
         else:
             # Process intermediate graph node updates
-            if event_value.get("router"):
-                message = event_value["router"].get("messages")[0]
+            if event_value.get("llm_node"):
+                message = event_value["llm_node"].get("messages")[0]
                 if message and isinstance(message, AIMessage) and message.tool_calls:
                     token = f"\nUse tool: {", ".join(tool["name"] for tool in message.tool_calls)}\n"
                 else:

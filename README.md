@@ -61,13 +61,23 @@ git clone git@github.com:zhongyu09/openchatbi
 uv sync --group dev
 ```
 
-4. If you have issues when installing pysqlite3 on macOS, try to install sqlite using Homebrew first:
+4. If you have issues when installing pysqlite3, try to install sqlite first:
 
+On macOS, try to install sqlite using Homebrew:
 ```bash
 brew install sqlite
 brew info sqlite
 export LDFLAGS="-L/opt/homebrew/opt/sqlite/lib"
 export CPPFLAGS="-I/opt/homebrew/opt/sqlite/include"
+```
+On Amazon Linux / RHEL / CentOS:
+```bash
+sudo yum install sqlite-devel
+```
+On Ubuntu / Debian:
+```bash
+sudo apt-get update
+sudo apt-get install libsqlite3-dev
 ```
 
 ### Run Demo
@@ -278,6 +288,7 @@ openchatbi/
 │   │   ├── agent_prompt.md     # Main agent prompts
 │   │   ├── extraction_prompt.md # Information extraction prompts
 │   │   ├── system_prompt.py    # System prompt management
+│   │   ├── summary_prompt.md   # Summary conversation prompts
 │   │   ├── table_selection_prompt.md # Table selection prompts
 │   │   └── text2sql_prompt.md  # Text-to-SQL prompts
 │   ├── text2sql/               # Text-to-SQL conversion pipeline

@@ -11,6 +11,7 @@ _extraction_prompt_template_cache = None
 _table_selection_prompt_template_cache = None
 _text2sql_prompt_template_cache = None
 _visualization_prompt_template_cache = None
+_summary_prompt_template_cache = None
 
 
 def get_basic_knowledge():
@@ -124,6 +125,15 @@ def get_visualization_prompt_template() -> str:
     return _visualization_prompt_template_cache
 
 
+def get_summary_prompt_template() -> str:
+    """Get summary prompt template with caching."""
+    global _summary_prompt_template_cache
+    if _summary_prompt_template_cache is None:
+        with importlib.resources.files("openchatbi.prompts").joinpath("summary_prompt.md").open("r") as f:
+            _summary_prompt_template_cache = f.read()
+    return _summary_prompt_template_cache
+
+
 def get_text2sql_dialect_prompt_template(dialect: str) -> str:
     """Get text2sql prompt template for specific SQL dialect."""
     prompt = get_text2sql_prompt_template()
@@ -140,6 +150,7 @@ def reset_cache():
     global _dialect_rules_cache, _agent_prompt_template_cache
     global _extraction_prompt_template_cache, _table_selection_prompt_template_cache
     global _text2sql_prompt_template_cache, _visualization_prompt_template_cache
+    global _summary_prompt_template_cache
 
     _dialect_rules_cache = None
     _agent_prompt_template_cache = None
@@ -147,3 +158,4 @@ def reset_cache():
     _table_selection_prompt_template_cache = None
     _text2sql_prompt_template_cache = None
     _visualization_prompt_template_cache = None
+    _summary_prompt_template_cache = None

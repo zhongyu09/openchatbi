@@ -10,6 +10,7 @@ from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, System
 
 from openchatbi.context_config import ContextConfig, get_context_config
 from openchatbi.llm.llm import call_llm_chat_model_with_retry
+from openchatbi.prompts.system_prompt import get_summary_prompt_template
 from openchatbi.utils import log
 
 
@@ -164,9 +165,10 @@ class ContextManager:
         if not self.config.enable_conversation_summary:
             return ""
 
-        # Filter out system messages and very recent messages for summarization
+        # Filter out system messages for summarization
+        # Note: The messages passed in are already historical messages (split point already calculated)
         messages_to_summarize = []
-        for msg in messages[: -self.config.keep_recent_messages]:
+        for msg in messages:
             if not isinstance(msg, SystemMessage):
                 messages_to_summarize.append(msg)
 
@@ -176,16 +178,8 @@ class ContextManager:
         # Create summarization prompt
         conversation_text = self._format_messages_for_summary(messages_to_summarize)
 
-        summary_prompt = f"""Please create a concise summary of this conversation, focusing on:
-1. User's main questions and objectives
-2. Key findings and results from data analysis
-3. Important context that should be preserved for future responses
-4. Any ongoing tasks or action items
-
-Conversation to summarize:
-{conversation_text}
-
-Summary:"""
+        # Get the summary prompt template from the file and replace placeholder
+        summary_prompt = get_summary_prompt_template().replace("[conversation_text]", conversation_text)
 
         try:
             response = call_llm_chat_model_with_retry(
@@ -201,6 +195,9 @@ Summary:"""
             return "[Summary generation failed]"
 
     def _truncate_text(self, text: str, truncate_len: int = 500) -> str:
+        # do not truncate Conversation Summary
+        if text.startswith("[Conversation Summary]"):
+            return text
         if len(text) > truncate_len:
             return text[:truncate_len] + "... [truncated]"
         return text
@@ -283,6 +280,11 @@ Summary:"""
 
         historical_messages = messages[:recent_start_index]
         recent_messages = messages[recent_start_index:]
+
+        if len(historical_messages) == 1:
+            msg = historical_messages[0]
+            if isinstance(msg, AIMessage) and msg.content.startswith("[Conversation Summary]"):
+                return
 
         # Generate summary
         summary_text = self.summarize_conversation(historical_messages)

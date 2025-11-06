@@ -211,3 +211,5 @@ openchatbi/config.yaml
 memory.db
 checkpoints.db
 data
+hf_model
+timeseries_forecasting/hf_model

@@ -6,8 +6,8 @@ import re
 import Levenshtein
 
 from openchatbi import config
-from openchatbi.text_segmenter import _segmenter
 from openchatbi.catalog.retrival_helper import build_column_tables_mapping, build_columns_retriever
+from openchatbi.text_segmenter import _segmenter
 from openchatbi.utils import log
 
 # Skip build during documentation build

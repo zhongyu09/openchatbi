@@ -1,5 +1,6 @@
-extra_tool_use_rule: | 
+extra_tool_use_rule: |
   - Try your best to give appropriate parameters when calling tools.
+  - timeseries_forecast tool requires at least 96 time points in input data. If no enough input data, set input_len to 96 to pad with zeros.
 
 table_selection_extra_rule: |
   - When users ask about orders, consider if they need customer information (join with Customers table)

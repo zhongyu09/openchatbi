@@ -1,14 +1,14 @@
 """Plotly utilities for generating charts from visualization DSL."""
 
-import json
-import pandas as pd
-import plotly.graph_objects as go
-import plotly.express as px
 from io import StringIO
-from typing import Dict, Any, Tuple
+from typing import Any
+
+import pandas as pd
+import plotly.express as px
+import plotly.graph_objects as go
 
 
-def create_plotly_chart(data_csv: str, visualization_dsl: Dict[str, Any]) -> go.Figure:
+def create_plotly_chart(data_csv: str, visualization_dsl: dict[str, Any]) -> go.Figure:
     """Create a plotly chart from CSV data and visualization DSL.
 
     Args:
@@ -57,7 +57,7 @@ def create_plotly_chart(data_csv: str, visualization_dsl: Dict[str, Any]) -> go.
         return create_empty_chart(f"Chart generation error: {str(e)}")
 
 
-def create_line_chart(df: pd.DataFrame, config: Dict[str, Any], layout: Dict[str, Any]) -> go.Figure:
+def create_line_chart(df: pd.DataFrame, config: dict[str, Any], layout: dict[str, Any]) -> go.Figure:
     """Create a line chart."""
     x_col = config.get("x")
     y_col = config.get("y")
@@ -91,7 +91,7 @@ def create_line_chart(df: pd.DataFrame, config: Dict[str, Any], layout: Dict[str
     return fig
 
 
-def create_bar_chart(df: pd.DataFrame, config: Dict[str, Any], layout: Dict[str, Any]) -> go.Figure:
+def create_bar_chart(df: pd.DataFrame, config: dict[str, Any], layout: dict[str, Any]) -> go.Figure:
     """Create a bar chart."""
     x_col = config.get("x")
     y_col = config.get("y")
@@ -120,7 +120,7 @@ def create_bar_chart(df: pd.DataFrame, config: Dict[str, Any], layout: Dict[str,
     return fig
 
 
-def create_pie_chart(df: pd.DataFrame, config: Dict[str, Any], layout: Dict[str, Any]) -> go.Figure:
+def create_pie_chart(df: pd.DataFrame, config: dict[str, Any], layout: dict[str, Any]) -> go.Figure:
     """Create a pie chart."""
     labels_col = config.get("labels")
     values_col = config.get("values")
@@ -133,7 +133,7 @@ def create_pie_chart(df: pd.DataFrame, config: Dict[str, Any], layout: Dict[str,
     return fig
 
 
-def create_scatter_chart(df: pd.DataFrame, config: Dict[str, Any], layout: Dict[str, Any]) -> go.Figure:
+def create_scatter_chart(df: pd.DataFrame, config: dict[str, Any], layout: dict[str, Any]) -> go.Figure:
     """Create a scatter plot."""
     x_col = config.get("x")
     y_col = config.get("y")
@@ -146,7 +146,7 @@ def create_scatter_chart(df: pd.DataFrame, config: Dict[str, Any], layout: Dict[
     return fig
 
 
-def create_histogram_chart(df: pd.DataFrame, config: Dict[str, Any], layout: Dict[str, Any]) -> go.Figure:
+def create_histogram_chart(df: pd.DataFrame, config: dict[str, Any], layout: dict[str, Any]) -> go.Figure:
     """Create a histogram."""
     x_col = config.get("x")
     nbins = config.get("nbins", 20)
@@ -159,7 +159,7 @@ def create_histogram_chart(df: pd.DataFrame, config: Dict[str, Any], layout: Dic
     return fig
 
 
-def create_box_chart(df: pd.DataFrame, config: Dict[str, Any], layout: Dict[str, Any]) -> go.Figure:
+def create_box_chart(df: pd.DataFrame, config: dict[str, Any], layout: dict[str, Any]) -> go.Figure:
     """Create a box plot."""
     y_col = config.get("y")
     x_col = config.get("x")
@@ -176,7 +176,7 @@ def create_box_chart(df: pd.DataFrame, config: Dict[str, Any], layout: Dict[str,
     return fig
 
 
-def create_table_chart(df: pd.DataFrame, config: Dict[str, Any], layout: Dict[str, Any]) -> go.Figure:
+def create_table_chart(df: pd.DataFrame, config: dict[str, Any], layout: dict[str, Any]) -> go.Figure:
     """Create a table display."""
     columns = config.get("columns", list(df.columns))
 
@@ -222,7 +222,7 @@ def create_empty_chart(message: str) -> go.Figure:
     return fig
 
 
-def visualization_dsl_to_gradio_plot(data_csv: str, visualization_dsl: Dict[str, Any]) -> Tuple[go.Figure, str]:
+def visualization_dsl_to_gradio_plot(data_csv: str, visualization_dsl: dict[str, Any]) -> tuple[go.Figure, str]:
     """Convert visualization DSL to Gradio-compatible plotly figure.
 
     Args:
@@ -244,7 +244,7 @@ def visualization_dsl_to_gradio_plot(data_csv: str, visualization_dsl: Dict[str,
     return fig, description
 
 
-def create_inline_chart_markdown(data_csv: str, visualization_dsl: Dict[str, Any]) -> str:
+def create_inline_chart_markdown(data_csv: str, visualization_dsl: dict[str, Any]) -> str:
     """Create a simplified markdown representation of the chart for inline display.
 
     This creates a text-based summary with a clickable link to show the interactive chart.
@@ -256,8 +256,9 @@ def create_inline_chart_markdown(data_csv: str, visualization_dsl: Dict[str, Any
         return f"⚠️ *Visualization error: {visualization_dsl['error']}*"
 
     try:
-        import pandas as pd
         from io import StringIO
+
+        import pandas as pd
 
         df = pd.read_csv(StringIO(data_csv))
         chart_type = visualization_dsl.get("chart_type", "table")

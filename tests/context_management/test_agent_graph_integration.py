@@ -1,14 +1,14 @@
 """Integration tests for agent graph with context management."""
 
+from unittest.mock import Mock, patch
+
 import pytest
-from unittest.mock import Mock, patch, MagicMock
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
+from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langchain_core.tools import StructuredTool
 
-from openchatbi.agent_graph import _build_graph_core, agent_llm_call, build_agent_graph_sync, build_agent_graph_async
-from openchatbi.context_manager import ContextManager
+from openchatbi.agent_graph import _build_graph_core, agent_llm_call, build_agent_graph_async, build_agent_graph_sync
 from openchatbi.context_config import ContextConfig
-
+from openchatbi.context_manager import ContextManager
 from openchatbi.graph_state import AgentState
 
 
@@ -100,6 +100,7 @@ class TestAgentGraphIntegration:
             patch("openchatbi.agent_graph.show_schema", create_mock_tool("show_schema")),
             patch("openchatbi.agent_graph.run_python_code", create_mock_tool("run_python_code")),
             patch("openchatbi.agent_graph.save_report", create_mock_tool("save_report")),
+            patch("openchatbi.agent_graph.timeseries_forecast", create_mock_tool("timeseries_forecast")),
             patch("openchatbi.agent_graph.get_sql_tools") as mock_get_sql_tools,
             patch("openchatbi.agent_graph.build_sql_graph") as mock_sql_graph,
             patch("openchatbi.agent_graph.get_memory_tools") as mock_memory_tools,
@@ -146,6 +147,7 @@ class TestAgentGraphIntegration:
             patch("openchatbi.agent_graph.show_schema", create_mock_tool("show_schema")),
             patch("openchatbi.agent_graph.run_python_code", create_mock_tool("run_python_code")),
             patch("openchatbi.agent_graph.save_report", create_mock_tool("save_report")),
+            patch("openchatbi.agent_graph.timeseries_forecast", create_mock_tool("timeseries_forecast")),
             patch("openchatbi.agent_graph.get_sql_tools") as mock_get_sql_tools,
             patch("openchatbi.agent_graph.build_sql_graph") as mock_sql_graph,
             patch("openchatbi.agent_graph.get_memory_tools") as mock_memory_tools,

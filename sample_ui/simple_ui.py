@@ -11,7 +11,7 @@ from langgraph.types import Command
 from openchatbi import config
 from openchatbi.agent_graph import build_agent_graph_sync
 from openchatbi.tool.memory import get_sync_memory_store
-from openchatbi.utils import log, get_report_download_response
+from openchatbi.utils import get_report_download_response, log
 from sample_ui.style import custom_css
 
 # Session state storage: session_id -> state

@@ -14,18 +14,19 @@ it provides chat agents and workflows that support natural language to SQL conve
 3. **Data Visualization**: Generate intuitive data visualizations (via plotly)
 4. **Data Catalog Management**: Automatically discovers and indexes database table structures, supports flexible catalog 
    storage backends, and easily maintains business explanations for tables and columns as well as optimizes Prompts.
-5. **Knowledge Base Integration**: Answer complex questions by combining catalog based knowledge retrival and external
-   knowledge base retrival (via MCP tools)
+5. **Time Series Forecasting**: Forecasting models deployed in-house that can be called as tools
 6. **Code Execution**: Execute Python code for data analysis and visualization
 7. **Interactive Problem-Solving**: Proactively ask users for more context when information is incomplete
 8. **Persistent Memory**: Conversation management and user characteristic memory based on LangGraph checkpointing
 9. **MCP Support**: Integration with MCP tools by configuration
-10. **Web UI Interface**: Provide 2 sample UI: simple and streaming web interfaces using Gradio and Streamlit, easy to
+10. **Knowledge Base Integration**: Answer complex questions by combining catalog based knowledge retrival and external
+   knowledge base retrival (via MCP tools)
+11. **Web UI Interface**: Provide 2 sample UI: simple and streaming web interfaces using Gradio and Streamlit, easy to
    integrate with other web applications
 
 ## Roadmap
 
-1. **Time Series Forecasting**: Forecasting models deployed in-house
+1. **Anomaly Detection Algorithm**: Time series anomaly detection
 2. **Root Cause Analysis Algorithm**: Multi-dimensional drill-down capabilities for anomaly investigation
 
 # Getting started
@@ -219,6 +220,7 @@ OpenChatBI supports sophisticated customization through prompt engineering and c
 - **Prompt Engineering Configuration**: Customize system prompts, business glossaries, and data warehouse introductions
 - **Data Catalog Management**: Configure table metadata, column descriptions, and SQL generation rules
 - **Business Rules**: Define table selection criteria and domain-specific SQL constraints
+- **Forecasting Service**: Configure the forecasting service url and prompt based on your own deployment 
 
 For detailed configuration options and examples, see the [Advanced Features](#advanced-features) section.
 
@@ -264,16 +266,21 @@ openchatbi/
 │   ├── constants.py            # Application constants
 │   ├── agent_graph.py          # Main LangGraph workflow
 │   ├── graph_state.py          # State definition for workflows
+│   ├── context_config.py       # Context management configuration
+│   ├── context_manager.py      # Context window and token management
+│   ├── text_segmenter.py       # Text segmentation utilities
 │   ├── utils.py                # Utility functions
 │   ├── catalog/                # Data catalog management
 │   │   ├── __init__.py         # Package initialization
 │   │   ├── catalog_loader.py   # Catalog loading logic
 │   │   ├── catalog_store.py    # Catalog storage interface
-│   │   ├── entry.py            # Catalog entry points
 │   │   ├── factory.py          # Catalog factory patterns
 │   │   ├── helper.py           # Catalog helper functions
+│   │   ├── retrival_helper.py  # Retrieval helper utilities
 │   │   ├── schema_retrival.py  # Schema retrieval logic
-│   │   └── token_service.py    # Token service integration
+│   │   ├── token_service.py    # Token service integration
+│   │   └── store/              # Catalog storage implementations
+│   │       └── file_system.py  # File system-based catalog storage
 │   ├── code/                   # Code execution framework
 │   │   ├── __init__.py         # Package initialization
 │   │   ├── executor_base.py    # Base executor interface
@@ -290,7 +297,8 @@ openchatbi/
 │   │   ├── system_prompt.py    # System prompt management
 │   │   ├── summary_prompt.md   # Summary conversation prompts
 │   │   ├── table_selection_prompt.md # Table selection prompts
-│   │   └── text2sql_prompt.md  # Text-to-SQL prompts
+│   │   ├── text2sql_prompt.md  # Text-to-SQL prompts
+│   │   └── sql_dialect/        # SQL dialect-specific prompts
 │   ├── text2sql/               # Text-to-SQL conversion pipeline
 │   │   ├── __init__.py         # Package initialization
 │   │   ├── data.py             # Data and retriever for Text-to-SQL
@@ -306,7 +314,8 @@ openchatbi/
 │       ├── mcp_tools.py        # MCP (Model Context Protocol) integration
 │       ├── run_python_code.py  # Configurable Python code execution
 │       ├── save_report.py      # Report saving functionality
-│       └── search_knowledge.py # Knowledge base search
+│       ├── search_knowledge.py # Knowledge base search
+│       └── timeseries_forecast.py # Time series forecasting tool
 ├── sample_api/                 # API implementations
 │   └── async_api.py            # Asynchronous FastAPI example
 ├── sample_ui/                  # Web interface implementations
@@ -325,6 +334,9 @@ openchatbi/
 │   ├── sql_example.yaml        # SQL examples for retrieval
 │   ├── table_selection_example.csv # Table selection examples
 │   └── tracking_orders.sqlite  # Sample SQLite database
+├── timeseries_forecasting/     # Time series forecasting service
+│   ├── README.md               # Forecasting service documentation
+│   └── ...                     # Forecasting service implementation
 ├── tests/                      # Test suite
 │   ├── __init__.py             # Package initialization
 │   ├── conftest.py             # Test configuration
@@ -489,6 +501,9 @@ The file system catalog store organizes metadata across multiple files for maint
          ORDER BY date;
   ```
 
+### Time Series Forecasting Service Setup
+1. Setup forecasting docker container, see [README](timeseries_forecasting/README.md)
+2. Config the `timeseries_forecast` tool prompt 
 
 ### Python Code Execution Configuration
 
@@ -534,7 +549,6 @@ For production deployments or when running untrusted code, the Docker executor p
 - Network isolation for security
 - Automatic container cleanup
 - Resource isolation from host system
-
 
 ## Development & Testing
 

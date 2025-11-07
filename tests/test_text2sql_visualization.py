@@ -1,7 +1,6 @@
 """Tests for text2sql visualization functionality."""
 
 import pytest
-from unittest.mock import Mock, patch
 
 from openchatbi.text2sql.visualization import ChartType, VisualizationConfig, VisualizationDSL, VisualizationService
 

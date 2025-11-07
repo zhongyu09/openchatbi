@@ -1,10 +1,10 @@
 """State classes for OpenChatBI graph execution."""
 
-from typing import Any, Annotated
+from typing import Annotated, Any
 
+from langchain_core.messages import AIMessage, HumanMessage
 from langgraph.graph import MessagesState
 from langgraph.types import Send
-from langchain_core.messages import AIMessage, HumanMessage
 
 
 def add_history_messages(left: list, right: list):

@@ -26,6 +26,7 @@ def get_default_graph():
         return None
 
     from langgraph.checkpoint.memory import MemorySaver
+
     from openchatbi.agent_graph import build_agent_graph_sync
     from openchatbi.tool.memory import get_sync_memory_store
 

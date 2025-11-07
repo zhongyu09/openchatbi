@@ -1,11 +1,12 @@
 """Tests for message-based context management operations."""
 
-import pytest
 from unittest.mock import Mock, patch
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 
-from openchatbi.context_manager import ContextManager
+import pytest
+from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
+
 from openchatbi.context_config import ContextConfig
+from openchatbi.context_manager import ContextManager
 
 
 class TestMessageBasedContextManagement:

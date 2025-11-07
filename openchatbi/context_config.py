@@ -1,6 +1,7 @@
 """Configuration for context management settings."""
 
 from dataclasses import dataclass
+
 from openchatbi import config
 
 

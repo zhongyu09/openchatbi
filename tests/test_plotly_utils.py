@@ -1,17 +1,11 @@
 """Tests for plotly utilities in the UI."""
 
-import pytest
 import plotly.graph_objects as go
+import pytest
+
 from sample_ui.plotly_utils import (
-    create_plotly_chart,
-    create_line_chart,
-    create_bar_chart,
-    create_pie_chart,
-    create_scatter_chart,
-    create_histogram_chart,
-    create_box_chart,
-    create_table_chart,
     create_empty_chart,
+    create_plotly_chart,
     visualization_dsl_to_gradio_plot,
 )
 

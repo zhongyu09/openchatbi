@@ -1,5 +1,6 @@
 import sys
 from io import StringIO
+
 from RestrictedPython import compile_restricted, safe_globals, utility_builtins
 from RestrictedPython.Guards import safe_builtins, safer_getattr
 

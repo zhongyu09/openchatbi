@@ -1,13 +1,12 @@
 """Edge cases for context management."""
 
-import pytest
-import time
 from unittest.mock import Mock, patch
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
-from langchain_core.tools import StructuredTool
 
-from openchatbi.context_manager import ContextManager
+import pytest
+from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
+
 from openchatbi.context_config import ContextConfig
+from openchatbi.context_manager import ContextManager
 
 
 class TestContextManagementEdgeCases:
@@ -18,7 +17,7 @@ class TestContextManagementEdgeCases:
         """Configuration for edge case testing."""
         return ContextConfig(
             enabled=True,
-            summary_trigger_tokens=80,
+            summary_trigger_tokens=800,
             keep_recent_messages=2,
             max_tool_output_length=50,
         )

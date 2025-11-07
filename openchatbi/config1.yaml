@@ -1,0 +1,95 @@
+organization: FreeWheel
+dialect: presto
+bi_config_file: example/bi.yaml
+
+python_executor: docker
+
+# Visualization configuration
+# Options: "rule" (rule-based), "llm" (LLM-based), or null (skip visualization)
+visualization_mode: llm
+# Catalog store configuration
+catalog_store:
+  store_type: file_system
+  data_path: ./example
+
+# Data warehouse configuration
+data_warehouse_config1:
+  uri: "mysql+pymysql://do_write:do_write_*_o@dataoperation-dev.cqxcbaw21fel.us-east-1.rds.amazonaws.com:3306/aggregator"
+  include_tables:
+    - deal_risk_level
+    - placement_risk_level
+  database_name: "aggregator"  # database name to use in catalog
+
+data_warehouse_config:
+  uri: "presto://{user_name}@dataplus-presto-gateway.data.modplus.aws.fwmrm.net:8080/db/aggregate"
+  include_tables:
+    - f_domain_demand_portfolio_hourly  # null means include all tables, or specify yaml list
+  database_name: "db.aggregate"  # database name to use in catalog
+  token_service: "https://tokens.dev.aws.fwmrm.net:8080/v1"
+  user_name: sa_wave_applications
+  password: rY8s#%dYMx
+  header_extra_params:
+    x-presto-client-tags: LQS
+
+# LLM configurations
+default_llm1:
+  class: langchain_openai.AzureChatOpenAI
+  params:
+    openai_api_key: 9efad9d72fc54b728fb10ceba29db40d
+    azure_endpoint: https://data-app-gpt.openai.azure.com
+    deployment_name: gpt-4o
+    api_version: "2024-02-01"
+    temperature: 0.02
+    max_tokens: 8192
+    timeout: 300
+
+default_llm:
+  class: langchain_openai.AzureChatOpenAI
+  params:
+    openai_api_key: 6LZcTSWEg89GNZ5SC1kLSW9IpdUeoEW7zkYEHRG7b2a39MKeeXSDJQQJ99BAACHYHv6XJ3w3AAABACOGxYbY
+    azure_endpoint: https://data-app-useast2.openai.azure.com
+    deployment_name: gpt-4.1
+    api_version: "2024-02-01"
+    temperature: 0.02
+    max_tokens: 8192
+    timeout: 300
+
+default_llm3:
+  class: langchain_openai.ChatOpenAI
+  params:
+    openai_api_base: "http://10.23.2.102:4000"
+    api_key: sk-litellm-static-key
+    model: claude-sonnet-4-20250514
+    temperature: 0.02
+    max_tokens: 8192
+    timeout: 300
+
+default_llm2:
+  class: langchain_anthropic.ChatAnthropic
+  params:
+    base_url: "http://10.23.2.102:4000"
+    api_key: sk-litellm-static-key
+    model: bedrock/us.anthropic.claude-sonnet-4-20250514-v1:0
+    temperature: 0.02
+    max_tokens: 8192
+    timeout: 300
+
+embedding_model:
+  class: langchain_openai.AzureOpenAIEmbeddings
+  params:
+    openai_api_key: 9efad9d72fc54b728fb10ceba29db40d
+    azure_endpoint: https://data-app-gpt.openai.azure.com
+    deployment: text-embedding-3-large
+    api_version: "2024-02-01"
+    chunk_size: 1024
+
+text2sql_llm:
+  class: langchain_openai.AzureChatOpenAI
+  params:
+    openai_api_key: 6LZcTSWEg89GNZ5SC1kLSW9IpdUeoEW7zkYEHRG7b2a39MKeeXSDJQQJ99BAACHYHv6XJ3w3AAABACOGxYbY
+    azure_endpoint: https://data-app-useast2.openai.azure.com
+    deployment_name: gpt-4.1
+    api_version: "2024-02-01"
+    temperature: 0.02
+    max_tokens: 8192
+    timeout: 300

@@ -18,9 +18,9 @@ from openchatbi import config
 from openchatbi.agent_graph import build_agent_graph_async
 from openchatbi.llm.llm import get_default_llm
 from openchatbi.tool.memory import cleanup_async_memory_store, get_async_memory_tools, setup_async_memory_store
-from openchatbi.utils import get_text_from_message_chunk, log, get_report_download_response
+from openchatbi.utils import get_report_download_response, get_text_from_message_chunk, log
+from sample_ui.plotly_utils import create_inline_chart_markdown, visualization_dsl_to_gradio_plot
 from sample_ui.style import custom_css
-from sample_ui.plotly_utils import visualization_dsl_to_gradio_plot, create_inline_chart_markdown
 
 # Session state storage: user_session_id -> state
 session_interrupt = defaultdict(bool)

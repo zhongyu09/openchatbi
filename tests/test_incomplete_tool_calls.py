@@ -1,11 +1,12 @@
 """Tests for incomplete tool call recovery functionality."""
 
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
+
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
 from openchatbi.agent_graph import agent_llm_call
-from openchatbi.utils import recover_incomplete_tool_calls
 from openchatbi.graph_state import AgentState
+from openchatbi.utils import recover_incomplete_tool_calls
 
 
 class TestIncompleteToolCallRecovery:

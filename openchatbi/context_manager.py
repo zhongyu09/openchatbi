@@ -3,7 +3,6 @@
 import json
 import re
 import uuid
-from typing import List
 
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage, ToolMessage
@@ -69,7 +68,7 @@ class ContextManager:
         """Rough token estimation (1 token ≈ 4 characters for most languages)."""
         return len(text) // 4
 
-    def estimate_message_tokens(self, messages: List[BaseMessage]) -> int:
+    def estimate_message_tokens(self, messages: list[BaseMessage]) -> int:
         """Estimate total tokens in a list of messages."""
         total = 0
         for msg in messages:
@@ -160,7 +159,7 @@ class ContextManager:
     # CONVERSATION SUMMARIZATION METHODS
     # ============================================================================
 
-    def summarize_conversation(self, messages: List[BaseMessage]) -> str:
+    def summarize_conversation(self, messages: list[BaseMessage]) -> str:
         """Create a summary of conversation history."""
         if not self.config.enable_conversation_summary:
             return ""
@@ -202,7 +201,7 @@ class ContextManager:
             return text[:truncate_len] + "... [truncated]"
         return text
 
-    def _format_messages_for_summary(self, messages: List[BaseMessage]) -> str:
+    def _format_messages_for_summary(self, messages: list[BaseMessage]) -> str:
         """Format messages for summary generation."""
         formatted = []
         max_messages = self.config.summary_max_messages
@@ -213,7 +212,7 @@ class ContextManager:
                 formatted.append(f"<user> {msg.content} </user>")
             elif isinstance(msg, AIMessage):
                 content = msg.content or ""
-                formatted.append(f"<assistant>")
+                formatted.append("<assistant>")
                 if isinstance(content, str):
                     formatted.append(self._truncate_text(content))
                 elif isinstance(content, list):
@@ -225,7 +224,7 @@ class ContextManager:
                                 formatted.append(self._truncate_text(item["text"]))
                             elif item["type"] == "tool_use":
                                 formatted.append(json.dumps(item))
-                formatted.append(f"</assistant>")
+                formatted.append("</assistant>")
             elif isinstance(msg, ToolMessage):
                 formatted.append(
                     f"<tool_result> tool_call_id: {msg.tool_call_id},  "
@@ -240,7 +239,7 @@ class ContextManager:
     # CONTEXT MANAGEMENT IMPLEMENTATION METHODS
     # ============================================================================
 
-    def _compress_historical_tool_messages(self, messages: List[BaseMessage]) -> None:
+    def _compress_historical_tool_messages(self, messages: list[BaseMessage]) -> None:
         """Compress historical (not recent) tool messages in place."""
         # Find a safe split point
         recent_start_index = self._find_safe_split_point(messages)
@@ -267,7 +266,7 @@ class ContextManager:
                             f"Compressed historical tool message: {len(original_content)} -> {len(trimmed_content)} chars"
                         )
 
-    def _apply_conversation_summarization(self, messages: List[BaseMessage]) -> None:
+    def _apply_conversation_summarization(self, messages: list[BaseMessage]) -> None:
         """Apply conversation summarization by modifying messages list in place."""
         if not self.config.enable_conversation_summary:
             return
@@ -299,7 +298,7 @@ class ContextManager:
 
             log(f"Applied conversation summary, removed {len(historical_messages)} historical messages")
 
-    def _find_safe_split_point(self, messages: List[BaseMessage]) -> int:
+    def _find_safe_split_point(self, messages: list[BaseMessage]) -> int:
         """Find a safe split point that start at HumanMessage
 
         Returns the index where recent messages should start (everything before this index is historical).

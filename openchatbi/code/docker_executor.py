@@ -1,16 +1,16 @@
-import docker
-import tempfile
 import os
-import subprocess
 import shutil
+import subprocess
+import tempfile
 from pathlib import Path
-from typing import Tuple
+
+import docker
 from docker.errors import ContainerError
 
 from openchatbi.code.executor_base import ExecutorBase
 
 
-def check_docker_status() -> Tuple[bool, str]:
+def check_docker_status() -> tuple[bool, str]:
     """
     Check Docker installation and status without initializing DockerExecutor.
 
@@ -118,7 +118,7 @@ class DockerExecutor(ExecutorBase):
             )
             print(f"Docker image '{self.image_name}' built successfully.")
 
-    def run_code(self, code: str) -> Tuple[bool, str]:
+    def run_code(self, code: str) -> tuple[bool, str]:
         """Execute Python code in a Docker container."""
         try:
             # Create a temporary file with the code

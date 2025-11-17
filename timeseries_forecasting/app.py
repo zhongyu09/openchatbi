@@ -32,8 +32,8 @@ class ForecastRequest(BaseModel):
         example=[100, 102, 98, 105, 107, 103, 99, 101],
     )
     forecast_window: int = Field(default=24, ge=1, le=200, description="Number of future points to predict")
-    input_len: int | None = Field(default=None, ge=1, description="Optional input length limit")
-    frequency: str = Field(default="H", description="Frequency of the time series (H=hourly, D=daily, etc.)")
+    input_len: int | None = Field(default=None, description="Optional input length limit")
+    frequency: str = Field(default="hourly", description="Frequency of the time series (hourly, daily, etc.)")
     target_column: str = Field(default="value", description="Column name for structured data")
 
 

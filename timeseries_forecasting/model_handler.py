@@ -71,7 +71,7 @@ class TransformerModelHandler:
         time_series_data: list,
         forecast_window: int = 24,
         input_len: int | None = None,
-        frequency: str = "H",
+        frequency: str = "hourly",
         target_column: str = "value",
     ) -> tuple[torch.Tensor, dict[str, Any]]:
         """
@@ -224,7 +224,7 @@ class TransformerModelHandler:
         time_series_data: list,
         forecast_window: int = 24,
         input_len: int | None = None,
-        frequency: str = "H",
+        frequency: str = "hourly",
         target_column: str = "value",
     ) -> dict[str, Any]:
         """
@@ -261,7 +261,7 @@ class TransformerModelHandler:
             result = {
                 "predictions": predictions,
                 "forecast_window": metadata.get("forecast_window", 24),
-                "frequency": metadata.get("frequency", "H"),
+                "frequency": metadata.get("frequency", "hourly"),
                 "status": "success",
             }
 

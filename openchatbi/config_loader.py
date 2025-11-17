@@ -59,6 +59,9 @@ class Config(BaseModel):
     # Context Management Configuration
     context_config: dict[str, Any] = {}
 
+    # Time Series Service Configuration
+    timeseries_forecasting_service_url: str = "http://localhost:8765"
+
     @classmethod
     def from_dict(cls, config: dict[str, Any]) -> "Config":
         """Creates a Config instance from a dictionary.
@@ -122,7 +125,7 @@ class ConfigLoader:
         import yaml
 
         try:
-            with open(config_file, "r", encoding="utf-8") as file:
+            with open(config_file, encoding="utf-8") as file:
                 config_data = yaml.safe_load(file)
                 if config_data is None:
                     config_data = {}
@@ -142,11 +145,11 @@ class ConfigLoader:
         Processes a configuration dictionary.
         """
         if "default_llm" not in config_data:
-            raise ValueError(f"Missing LLM config key: default_llm")
+            raise ValueError("Missing LLM config key: default_llm")
         if "embedding_model" not in config_data:
-            raise ValueError(f"Missing LLM config key: embedding_model")
+            raise ValueError("Missing LLM config key: embedding_model")
         if "data_warehouse_config" not in config_data:
-            raise ValueError(f"Missing Data Warehouse config key: data_warehouse_config")
+            raise ValueError("Missing Data Warehouse config key: data_warehouse_config")
 
         # Load BI configuration
         if "bi_config_file" in config_data:
@@ -210,7 +213,7 @@ class ConfigLoader:
         bi_config_data = {}
 
         try:
-            with open(bi_config_file, "r", encoding="utf-8") as file:
+            with open(bi_config_file, encoding="utf-8") as file:
                 bi_config_data = yaml.safe_load(file) or {}
         except FileNotFoundError:
             log(f"Warning: BI config file '{bi_config_file}' not found. Ignore load BI config from yaml file.")

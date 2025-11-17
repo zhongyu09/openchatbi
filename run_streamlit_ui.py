@@ -8,9 +8,9 @@ Usage:
 This will start the Streamlit server on http://localhost:8501
 """
 
+import os
 import subprocess
 import sys
-import os
 
 
 def main():

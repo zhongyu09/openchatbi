@@ -24,6 +24,7 @@ OpenChatBI Documentation
    Code Execution <code>
    LLM Integration <llm>
    Tools and Utilities <tools>
+   Time Series Forecasting Service <timeseries>
 
 Indices and tables
 ==================

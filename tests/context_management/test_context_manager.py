@@ -1,12 +1,12 @@
 """Unit tests for ContextManager class."""
 
-import pytest
 from unittest.mock import Mock, patch
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
-from langchain_core.tools import StructuredTool
 
-from openchatbi.context_manager import ContextManager
+import pytest
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
+
 from openchatbi.context_config import ContextConfig
+from openchatbi.context_manager import ContextManager
 
 
 class TestContextManager:
@@ -26,7 +26,7 @@ class TestContextManager:
         """Default context configuration for testing."""
         return ContextConfig(
             enabled=True,
-            summary_trigger_tokens=800,
+            summary_trigger_tokens=900,
             keep_recent_messages=3,
             max_tool_output_length=200,
             max_sql_result_rows=5,

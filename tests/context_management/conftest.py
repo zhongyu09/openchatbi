@@ -1,7 +1,8 @@
 """Pytest configuration and fixtures for context management tests."""
 
-import pytest
 from unittest.mock import Mock
+
+import pytest
 from langchain_core.messages import AIMessage
 
 from openchatbi.context_config import ContextConfig
@@ -63,7 +64,7 @@ def disabled_config():
 @pytest.fixture
 def sample_conversation():
     """Sample conversation for testing."""
-    from langchain_core.messages import HumanMessage, AIMessage, ToolMessage, SystemMessage
+    from langchain_core.messages import HumanMessage, ToolMessage
 
     return [
         HumanMessage(content="Can you analyze our sales data?"),

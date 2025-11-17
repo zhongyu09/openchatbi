@@ -4,7 +4,6 @@ import asyncio
 import sys
 import traceback
 import uuid
-from typing import List
 from pathlib import Path
 
 import plotly.graph_objects as go
@@ -421,7 +420,7 @@ def render_content_with_downloads(content: str) -> None:
 
 
 def display_message_with_thinking(
-    role: str, content: str, thinking_steps: List[str] = None, plot_figure: go.Figure = None
+    role: str, content: str, thinking_steps: list[str] = None, plot_figure: go.Figure = None
 ):
     """Display a message with collapsible thinking section"""
     with st.chat_message(role):

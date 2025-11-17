@@ -2,7 +2,6 @@
 
 import re
 import string
-from typing import List
 
 
 class SimpleSegmenter:
@@ -19,7 +18,7 @@ class SimpleSegmenter:
         # Create regex pattern to split on any separator
         self.split_pattern = "[" + re.escape(all_separators) + "]+"
 
-    def cut(self, text: str) -> List[str]:
+    def cut(self, text: str) -> list[str]:
         """Segment text into tokens by splitting on punctuation and whitespace.
 
         Args:

@@ -3,8 +3,8 @@
 from rank_bm25 import BM25Okapi
 
 from openchatbi.llm.llm import get_embedding_model
-from openchatbi.utils import log, create_vector_db
 from openchatbi.text_segmenter import _segmenter
+from openchatbi.utils import create_vector_db, log
 
 
 def get_columns_metadata(catalog):

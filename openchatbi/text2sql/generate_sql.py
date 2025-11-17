@@ -1,6 +1,6 @@
 import datetime
 from collections.abc import Callable
-from typing import Any, Tuple, Dict
+from typing import Any
 
 import pandas as pd
 from langchain_core.language_models import BaseChatModel
@@ -105,7 +105,7 @@ def create_sql_nodes(
         log(f"Examples using selected tables: {examples}")
         return "\n".join(examples)
 
-    def _analyze_dataframe_schema(df: pd.DataFrame) -> Dict[str, Any]:
+    def _analyze_dataframe_schema(df: pd.DataFrame) -> dict[str, Any]:
         """Analyze DataFrame to understand column types and characteristics."""
         try:
             schema_info = {
@@ -141,7 +141,7 @@ def create_sql_nodes(
         except Exception as e:
             return {"error": f"Failed to analyze data schema: {str(e)}"}
 
-    def _execute_sql(sql: str) -> Tuple[dict, str]:
+    def _execute_sql(sql: str) -> tuple[dict, str]:
         """Executes the generated SQL query and returns the result with schema analysis.
 
         Args:

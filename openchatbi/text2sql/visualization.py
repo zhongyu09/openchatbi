@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 from enum import Enum
 from io import StringIO
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import pandas as pd
 from langchain_core.language_models import BaseChatModel
@@ -30,16 +30,16 @@ class VisualizationConfig:
     """Configuration for generating visualization DSL."""
 
     chart_type: ChartType
-    x_column: Optional[str] = None
-    y_column: Optional[str] = None
-    color_column: Optional[str] = None
-    size_column: Optional[str] = None
-    title: Optional[str] = None
-    x_title: Optional[str] = None
-    y_title: Optional[str] = None
+    x_column: str | None = None
+    y_column: str | None = None
+    color_column: str | None = None
+    size_column: str | None = None
+    title: str | None = None
+    x_title: str | None = None
+    y_title: str | None = None
     show_legend: bool = True
-    width: Optional[int] = None
-    height: Optional[int] = None
+    width: int | None = None
+    height: int | None = None
 
 
 @dataclass
@@ -47,11 +47,11 @@ class VisualizationDSL:
     """Plotly-friendly DSL for data visualization."""
 
     chart_type: str
-    data_columns: List[str]
-    config: Dict[str, Any]
-    layout: Dict[str, Any]
+    data_columns: list[str]
+    config: dict[str, Any]
+    layout: dict[str, Any]
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
         return {
             "chart_type": self.chart_type,
@@ -76,7 +76,7 @@ class VisualizationService:
         "table": ChartType.TABLE,
     }
 
-    def __init__(self, llm: Optional[BaseChatModel] = None):
+    def __init__(self, llm: BaseChatModel | None = None):
         """Initialize visualization service.
 
         Args:
@@ -84,7 +84,7 @@ class VisualizationService:
         """
         self.llm = llm
 
-    def _get_chart_type_by_rule(self, question: str, schema_info: Dict[str, Any]) -> ChartType:
+    def _get_chart_type_by_rule(self, question: str, schema_info: dict[str, Any]) -> ChartType:
         """Recommend chart type based on user question and data schema using rules."""
         question_lower = question.lower()
 
@@ -127,7 +127,7 @@ class VisualizationService:
             return ChartType.BAR
 
     def generate_visualization_dsl(
-        self, question: str, schema_info: Dict[str, Any], chart_type: Optional[ChartType] = None
+        self, question: str, schema_info: dict[str, Any], chart_type: ChartType | None = None
     ) -> VisualizationDSL:
         """Generate visualization DSL based on question and schema info."""
         if "error" in schema_info:
@@ -243,7 +243,7 @@ class VisualizationService:
                 chart_type="table", data_columns=columns, config={"columns": columns}, layout={"title": "Data Table"}
             )
 
-    def _llm_recommend_chart_type(self, question: str, schema_info: Dict[str, Any], data_sample: str) -> ChartType:
+    def _llm_recommend_chart_type(self, question: str, schema_info: dict[str, Any], data_sample: str) -> ChartType:
         """Use LLM to recommend chart type based on question and data analysis.
 
         Args:
@@ -276,8 +276,8 @@ class VisualizationService:
             return self._get_chart_type_by_rule(question, schema_info)
 
     def generate_visualization(
-        self, question: str, schema_info: Dict[str, Any], csv_data: str, chart_type: Optional[ChartType] = None
-    ) -> Optional[VisualizationDSL]:
+        self, question: str, schema_info: dict[str, Any], csv_data: str, chart_type: ChartType | None = None
+    ) -> VisualizationDSL | None:
         """Generate visualization using the configured analysis method.
 
         Args:

@@ -1,8 +1,8 @@
 """Test runner script for context management tests."""
 
-import sys
-import subprocess
 import argparse
+import subprocess
+import sys
 from pathlib import Path
 
 

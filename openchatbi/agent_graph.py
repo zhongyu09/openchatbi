@@ -314,7 +314,7 @@ def _build_graph_core(
         search_memory_tool,
         save_report,
     ]
-    if check_forecast_service_health:
+    if check_forecast_service_health():
         normal_tools.append(timeseries_forecast)
     else:
         logger.warning("Time series forecasting service is not healthy. Skipping timeseries_forecast tool.")

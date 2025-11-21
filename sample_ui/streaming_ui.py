@@ -46,6 +46,7 @@ app = FastAPI(lifespan=lifespan)
 
 # ---------- Gradio UI functions ----------
 
+
 def get_or_create_event_loop():
     """Get or create an independent event loop"""
     global global_event_loop
@@ -105,7 +106,7 @@ async def _async_respond_helper(message, chat_history, user_id, session_id):
             if event_value.get("llm_node"):
                 message_obj = event_value["llm_node"].get("messages")[0]
                 if message_obj and isinstance(message_obj, AIMessage) and message_obj.tool_calls:
-                    token = f"\nUse tool: {", ".join(tool["name"] for tool in message_obj.tool_calls)}\n"
+                    token = f"\nUse tool: {', '.join(tool['name'] for tool in message_obj.tool_calls)}\n"
                 else:
                     token = "\n"
             elif event_value.get("information_extraction"):

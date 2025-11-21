@@ -1,5 +1,6 @@
-"""Streaming UI for OpenChatBI with real-time chat interface."""
+"""Gradio-based Streaming UI for OpenChatBI with real-time chat interface."""
 
+import asyncio
 import sys
 from collections import defaultdict
 from contextlib import asynccontextmanager
@@ -11,111 +12,64 @@ from langchain_core.messages import AIMessage
 
 sys.modules["sqlite3"] = sqlite3
 
-from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from langgraph.types import Command
 
-from openchatbi import config
-from openchatbi.agent_graph import build_agent_graph_async
-from openchatbi.llm.llm import get_default_llm
-from openchatbi.tool.memory import cleanup_async_memory_store, get_async_memory_tools, setup_async_memory_store
 from openchatbi.utils import get_report_download_response, get_text_from_message_chunk, log
+from sample_ui.async_graph_manager import AsyncGraphManager
 from sample_ui.plotly_utils import create_inline_chart_markdown, visualization_dsl_to_gradio_plot
 from sample_ui.style import custom_css
 
 # Session state storage: user_session_id -> state
 session_interrupt = defaultdict(bool)
 
-
-class CheckpointerManager:
-    """Manages AsyncSqliteSaver lifecycle properly"""
-
-    def __init__(self):
-        self.checkpointer = None
-        self.graph = None
-        self._context_manager = None
-
-    async def initialize(self):
-        """Initialize checkpointer and graph"""
-        if self.checkpointer is None:
-            try:
-                # Setup async memory first
-                await setup_async_memory_store()
-
-                self._context_manager = AsyncSqliteSaver.from_conn_string("checkpoints.db")
-                self.checkpointer = await self._context_manager.__aenter__()
-
-                # Get async memory store and tools
-                from openchatbi.tool.memory import get_async_memory_store
-
-                async_store = await get_async_memory_store()
-                async_memory_tools = await get_async_memory_tools(get_default_llm())
-
-                # Build graph with async memory tools
-                self.graph = await build_agent_graph_async(
-                    config.get().catalog_store,
-                    checkpointer=self.checkpointer,
-                    memory_store=async_store,
-                    memory_tools=async_memory_tools,
-                )
-                log("Checkpointer initialized successfully")
-            except Exception as e:
-                log(f"Failed to initialize checkpointer: {e}")
-                raise
-
-    async def cleanup(self):
-        """Cleanup checkpointer resources"""
-        if self.checkpointer is not None and self._context_manager is not None:
-            try:
-                await self._context_manager.__aexit__(None, None, None)
-                log("Checkpointer cleaned up successfully")
-            except Exception as e:
-                log(f"Error during checkpointer cleanup: {e}")
-            finally:
-                self.checkpointer = None
-                self.graph = None
-                self._context_manager = None
-
-        # Also cleanup async memory store
-        try:
-            await cleanup_async_memory_store()
-            log("Async memory store cleaned up successfully")
-        except Exception as e:
-            log(f"Error during async memory store cleanup: {e}")
+# Global event loop for async operations (similar to Streamlit approach)
+global_event_loop = None
 
 
-# Global checkpointer manager
-checkpointer_manager = CheckpointerManager()
+# Global graph manager (similar to Streamlit approach)
+graph_manager = AsyncGraphManager()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Async context manager for FastAPI lifespan"""
     # Startup
-    await checkpointer_manager.initialize()
+    await graph_manager.initialize()
     yield
     # Shutdown
-    await checkpointer_manager.cleanup()
+    await graph_manager.cleanup()
 
 
 # ---------- FastAPI ----------
 app = FastAPI(lifespan=lifespan)
 
 
-# ---------- Gradio UI ----------
-async def respond(message, chat_history, user_id, session_id="default"):
+# ---------- Gradio UI functions ----------
+
+def get_or_create_event_loop():
+    """Get or create an independent event loop"""
+    global global_event_loop
+
+    if global_event_loop is None or global_event_loop.is_closed():
+        global_event_loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(global_event_loop)
+
+    return global_event_loop
+
+
+async def _async_respond_helper(message, chat_history, user_id, session_id):
     """
-    Asynchronous callback for Gradio Chatbot with streaming updates.
-    This function processes user input and streams responses from the LangGraph agent.
-    Returns: message_input, chat_history, plot_figure, chart_panel_visibility
+    Helper async function that contains the actual async logic.
+    This will be run in an independent event loop.
+    Collects all responses and returns them as a list.
     """
-    # Add a placeholder in chat history
-    chat_history.append((message, ""))
-    plot_figure = None
-    chart_panel_update = gr.update()
-    yield "", chat_history, plot_figure, chart_panel_update  # Stream updates to UI
+    responses = []  # Collect all yield values
 
     user_session_id = f"{user_id}-{session_id}"
     full_response = ""
+    plot_figure = None
+    chart_panel_update = gr.update()
+
     if session_interrupt[user_session_id]:
         stream_input = Command(resume=message)
     else:
@@ -124,18 +78,18 @@ async def respond(message, chat_history, user_id, session_id="default"):
     config = {"configurable": {"thread_id": user_session_id, "user_id": user_id}}
 
     # Ensure graph is available
-    if checkpointer_manager.graph is None:
+    if not graph_manager._initialized:
         try:
-            await checkpointer_manager.initialize()
+            await graph_manager.initialize()
         except Exception as e:
             log(f"Failed to initialize graph: {e}")
             chat_history[-1] = (chat_history[-1][0], f"Error: Failed to initialize system - {str(e)}")
-            yield "", chat_history, plot_figure, chart_panel_update
-            return
+            responses.append(("", chat_history, plot_figure, chart_panel_update))
+            return responses
 
     data_csv = None
     # Asynchronously iterate through LangGraph stream
-    async for _namespace, event_type, event_value in checkpointer_manager.graph.astream(
+    async for _namespace, event_type, event_value in graph_manager.graph.astream(
         stream_input, config=config, stream_mode=["updates", "messages"], subgraphs=True, debug=True
     ):
         token = ""
@@ -149,15 +103,15 @@ async def respond(message, chat_history, user_id, session_id="default"):
         else:
             # Process intermediate graph node updates
             if event_value.get("llm_node"):
-                message = event_value["llm_node"].get("messages")[0]
-                if message and isinstance(message, AIMessage) and message.tool_calls:
-                    token = f"\nUse tool: {", ".join(tool["name"] for tool in message.tool_calls)}\n"
+                message_obj = event_value["llm_node"].get("messages")[0]
+                if message_obj and isinstance(message_obj, AIMessage) and message_obj.tool_calls:
+                    token = f"\nUse tool: {", ".join(tool["name"] for tool in message_obj.tool_calls)}\n"
                 else:
                     token = "\n"
             elif event_value.get("information_extraction"):
-                message = event_value["information_extraction"].get("messages")[0]
-                if message.tool_calls:
-                    token = f"Use tool: {message.tool_calls[0]['name']}\n"
+                message_obj = event_value["information_extraction"].get("messages")[0]
+                if message_obj.tool_calls:
+                    token = f"Use tool: {message_obj.tool_calls[0]['name']}\n"
                 else:
                     token = f"Rewrite question: {event_value['information_extraction'].get('rewrite_question')}\n"
             elif event_value.get("table_selection"):
@@ -181,21 +135,21 @@ async def respond(message, chat_history, user_id, session_id="default"):
                         chat_history[-1] = (chat_history[-1][0], full_response)
                         # Auto-show chart panel when plot is generated
                         chart_panel_update = gr.update(visible=True)
-                        yield "", chat_history, plot_figure, chart_panel_update
+                        responses.append(("", chat_history, plot_figure, chart_panel_update))
                     except Exception as e:
                         log(f"Visualization generation error: {str(e)}")
                         full_response += f"\n\n⚠️ Visualization error: {str(e)}"
                         chat_history[-1] = (chat_history[-1][0], full_response)
-                        yield "", chat_history, plot_figure, chart_panel_update
+                        responses.append(("", chat_history, plot_figure, chart_panel_update))
 
-        # Update chat history with new tokens and yield updated UI
+        # Update chat history with new tokens and collect response
         if token:
             full_response += token
             chat_history[-1] = (chat_history[-1][0], full_response)
-            yield "", chat_history, plot_figure, chart_panel_update  # Stream updates to UI
+            responses.append(("", chat_history, plot_figure, chart_panel_update))
 
     # Get final state and check for visualization data
-    state = await checkpointer_manager.graph.aget_state(config)
+    state = await graph_manager.graph.aget_state(config)
     final_state_values = state.values
 
     if state.interrupts:
@@ -206,14 +160,47 @@ async def respond(message, chat_history, user_id, session_id="default"):
         full_response += output_content
         chat_history[-1] = (chat_history[-1][0], full_response)
         session_interrupt[user_session_id] = True
-        yield "", chat_history, plot_figure, chart_panel_update
+        responses.append(("", chat_history, plot_figure, chart_panel_update))
     else:
         session_interrupt[user_session_id] = False
 
+    return responses
+
+
+def respond(message, chat_history, user_id, session_id="default"):
+    """
+    Synchronous callback for Gradio Chatbot with streaming updates.
+
+    This function processes user input and streams responses from the LangGraph agent.
+    Returns: message_input, chat_history, plot_figure, chart_panel_visibility
+    """
+    # Add a placeholder in chat history
+    chat_history.append((message, ""))
+    plot_figure = None
+    chart_panel_update = gr.update()
+    yield "", chat_history, plot_figure, chart_panel_update  # Stream updates to UI
+
+    # Get or create independent event loop
+    loop = get_or_create_event_loop()
+
+    # Run the async helper in the independent event loop
+    try:
+        responses = loop.run_until_complete(_async_respond_helper(message, chat_history, user_id, session_id))
+
+        # Yield all collected responses
+        for response in responses:
+            yield response
+
+    except Exception as e:
+        log(f"Error in respond: {e}")
+        import traceback
+
+        traceback.print_exc()
+        chat_history[-1] = (chat_history[-1][0], f"Error: {str(e)}")
+        yield "", chat_history, plot_figure, chart_panel_update
+
 
 # ---------- Memory Management Functions ----------
-
-
 def list_user_memories(user_id: str) -> str:
     """List all memories for a specific user."""
     try:

@@ -129,6 +129,9 @@ python test_forecasting.py --url http://localhost:8765
 ### Docker Run Options
 
 ```bash
+# Basic run
+docker run -p 8765:8765 timeseries-forecasting
+
 # With volume mount for models
 docker run -p 8765:8765 \
   -v /path/to/model:/app/hf_model \

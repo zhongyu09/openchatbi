@@ -148,7 +148,7 @@ def timeseries_forecast(
     reasoning: str,
     input_data: list[float | int | dict[str, Any]],
     forecast_window: int = 24,
-    frequency: str = "H",
+    frequency: str = "hourly",
     input_length: int | None = None,
     target_column: str = "value",
 ) -> str:

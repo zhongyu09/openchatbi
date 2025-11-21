@@ -39,7 +39,10 @@ context_config:
   preserve_tool_errors: true    # Always preserve error messages in full
   preserve_recent_sql: true     # Preserve SQL content (less aggressive compression)
 
-# Time series service configuration
+# Time Series Forecasting Service Configuration
+# URL for the time series forecasting service endpoint, adjust based on your deployment scenario:
+# - Local development (OpenChatBI on host, Forecasting service in Docker): "http://localhost:8765"
+# - Remote service: "http://your-service-host:8765"
 timeseries_forecasting_service_url: "http://localhost:8765"
 
 # Catalog store configuration

@@ -502,8 +502,55 @@ The file system catalog store organizes metadata across multiple files for maint
   ```
 
 ### Time Series Forecasting Service Setup
-1. Setup forecasting docker container, see [README](timeseries_forecasting/README.md)
-2. Config the `timeseries_forecast` tool prompt 
+
+OpenChatBI can integrate with a time series forecasting service for advanced predictive analytics. Follow these steps to set up the service:
+
+#### 1. Build and Run the Forecasting Service
+
+See detailed instructions in [timeseries_forecasting/README.md](timeseries_forecasting/README.md)
+
+Quick start:
+```bash
+cd timeseries_forecasting
+./build_and_run.sh
+```
+
+#### 2. Configure Tool Usage Rules
+
+In your `bi.yaml`, add constraints for the timeseries_forecast tool, e.g. if you are using `timer-base-84m` model:
+```yaml
+extra_tool_use_rule: |
+  - timeseries_forecast tool requires at least 96 time points in input data. If no enough input data, set input_len to 96 to pad with zeros.
+```
+
+#### 3. Configure Service URL
+
+In your `config.yaml`:
+```yaml
+# Time Series Forecasting Service Configuration
+timeseries_forecasting_service_url: "http://localhost:8765"
+```
+
+**Important**: Adjust the URL based on your deployment scenario:
+- **Local development** (OpenChatBI on host, Forecasting service in Docker): `http://localhost:8765`
+- **Remote service**: `http://your-service-host:8765`
+
+
+#### 4. Verify Service Health
+
+Test the service is accessible:
+```bash
+curl http://localhost:8765/health
+```
+
+Expected response:
+```json
+{
+  "status": "healthy",
+  "model_initialized": true,
+  "uptime_seconds": 123.45
+}
+``` 
 
 ### Python Code Execution Configuration
 

@@ -7,8 +7,10 @@ from typing import Any
 import uvicorn
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import JSONResponse
-from model_handler import TransformerModelHandler, get_model_handler
 from pydantic import BaseModel, Field
+from starlette.requests import Request
+
+from model_handler import TransformerModelHandler, get_model_handler
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -148,7 +150,7 @@ async def predict(request: ForecastRequest):
         return JSONResponse(status_code=e.status_code, content=ErrorResponse(error=str(e), status="error").model_dump())
     except Exception as e:
         logger.error(f"Prediction error: {str(e)}")
-        return ErrorResponse(error=str(e), status="error")
+        return JSONResponse(status_code=500, content=ErrorResponse(error=str(e), status="error").model_dump())
 
 
 @app.get("/model/info")
@@ -184,16 +186,22 @@ async def root():
 
 # Error handlers
 @app.exception_handler(HTTPException)
-async def http_exception_handler(request, exc):
+async def http_exception_handler(request: Request, exc: HTTPException):
     """Handle HTTP exceptions."""
-    return {"error": exc.detail, "status": "error", "status_code": exc.status_code}
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"status": "error", "message": exc.detail},
+    )
 
 
 @app.exception_handler(Exception)
-async def general_exception_handler(request, exc):
+async def general_exception_handler(request: Request, exc: Exception):
     """Handle general exceptions."""
     logger.error(f"Unhandled exception: {str(exc)}")
-    return {"error": "Internal server error", "status": "error", "status_code": 500}
+    return JSONResponse(
+        status_code=500,
+        content={"status": "error", "message": "Internal server error"},
+    )
 
 
 if __name__ == "__main__":

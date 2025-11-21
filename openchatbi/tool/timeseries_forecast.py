@@ -45,8 +45,12 @@ def _check_service_health(service_url: str) -> bool:
 
 
 def check_forecast_service_health() -> bool:
-    service_url = config.get().timeseries_forecasting_service_url
-    return _check_service_health(service_url)
+    try:
+        service_url = config.get().timeseries_forecasting_service_url
+        return _check_service_health(service_url)
+    except ValueError:
+        # Configuration not loaded yet (e.g., in tests)
+        return False
 
 
 def _call_timeseries_service(

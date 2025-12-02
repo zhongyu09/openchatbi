@@ -201,6 +201,21 @@ class ContextManager:
             return text[:truncate_len] + "... [truncated]"
         return text
 
+    def _truncate_text_or_list(self, content):
+        results = []
+        if isinstance(content, str):
+            results.append(self._truncate_text(content))
+        elif isinstance(content, list):
+            for item in content:
+                if isinstance(item, str):
+                    results.append(self._truncate_text(item))
+                elif isinstance(item, dict):
+                    if item["type"] == "text":
+                        results.append(self._truncate_text(item["text"]))
+                    elif item["type"] == "tool_use":
+                        results.append(json.dumps(item))
+        return results
+
     def _format_messages_for_summary(self, messages: list[BaseMessage]) -> str:
         """Format messages for summary generation."""
         formatted = []
@@ -213,24 +228,14 @@ class ContextManager:
             elif isinstance(msg, AIMessage):
                 content = msg.content or ""
                 formatted.append("<assistant>")
-                if isinstance(content, str):
-                    formatted.append(self._truncate_text(content))
-                elif isinstance(content, list):
-                    for item in content:
-                        if isinstance(item, str):
-                            formatted.append(self._truncate_text(item))
-                        elif isinstance(item, dict):
-                            if item["type"] == "text":
-                                formatted.append(self._truncate_text(item["text"]))
-                            elif item["type"] == "tool_use":
-                                formatted.append(json.dumps(item))
+                formatted.extend(self._truncate_text_or_list(content))
                 formatted.append("</assistant>")
             elif isinstance(msg, ToolMessage):
                 formatted.append(
                     f"<tool_result> tool_call_id: {msg.tool_call_id},  "
                     f"tool: {msg.name}, "
                     f"status: {msg.status}, "
-                    f"result: {self._truncate_text(msg.content)} </tool_result>"
+                    f"result: {self._truncate_text_or_list(msg.content)} </tool_result>"
                 )
 
         return "\n".join(formatted)

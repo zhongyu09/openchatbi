@@ -158,7 +158,8 @@ class TestMemoryTools:
         mock_manage_tool.return_value = mock_manage
         mock_search_tool.return_value = mock_search
 
-        manage_tool, search_tool = get_memory_tools(mock_llm, sync_mode=True)
+        memory_tools = get_memory_tools(mock_llm, sync_mode=True)
+        manage_tool, search_tool = memory_tools[0], memory_tools[1]
 
         assert manage_tool == mock_manage
         assert search_tool == mock_search
@@ -167,27 +168,11 @@ class TestMemoryTools:
 
     @patch("openchatbi.tool.memory.create_manage_memory_tool")
     @patch("openchatbi.tool.memory.create_search_memory_tool")
-    def test_get_memory_tools_async_mode(self, mock_search_tool, mock_manage_tool):
-        """Test getting memory tools in async mode."""
-        mock_llm = FakeListChatModel(responses=["test"])
-
-        mock_manage = Mock()
-        mock_search = Mock()
-        mock_manage_tool.return_value = mock_manage
-        mock_search_tool.return_value = mock_search
-
-        manage_tool, search_tool = get_memory_tools(mock_llm, sync_mode=False)
-
-        assert manage_tool == mock_manage
-        assert search_tool == mock_search
-        mock_manage_tool.assert_called_once_with(namespace=("memories", "{user_id}"), store=None)
-        mock_search_tool.assert_called_once_with(namespace=("memories", "{user_id}"), store=None)
-
-    @patch("openchatbi.tool.memory.create_manage_memory_tool")
-    @patch("openchatbi.tool.memory.create_search_memory_tool")
-    def test_get_memory_tools_with_openai_llm(self, mock_search_tool, mock_manage_tool):
+    @patch("openchatbi.tool.memory.config.get")
+    def test_get_memory_tools_with_openai_llm(self, mock_config, mock_search_tool, mock_manage_tool):
         """Test getting memory tools with OpenAI LLM (requires structured tool wrapper)."""
         mock_llm = Mock(spec=ChatOpenAI)
+        mock_config.return_value.embedding_model = Mock()
 
         mock_manage = Mock()
         mock_search = Mock()
@@ -199,7 +184,8 @@ class TestMemoryTools:
             mock_wrapped_search = Mock()
             mock_wrapper.side_effect = [mock_wrapped_manage, mock_wrapped_search]
 
-            manage_tool, search_tool = get_memory_tools(mock_llm)
+            memory_tools = get_memory_tools(mock_llm, sync_mode=True)
+            manage_tool, search_tool = memory_tools[0], memory_tools[1]
 
             assert manage_tool == mock_wrapped_manage
             assert search_tool == mock_wrapped_search
@@ -208,11 +194,13 @@ class TestMemoryTools:
     @pytest.mark.asyncio
     @patch("openchatbi.tool.memory.get_async_memory_store")
     @patch("openchatbi.tool.memory.get_memory_tools")
-    async def test_get_async_memory_tools(self, mock_get_tools, mock_get_store):
+    @patch("openchatbi.tool.memory.config.get")
+    async def test_get_async_memory_tools(self, mock_config, mock_get_tools, mock_get_store):
         """Test getting async memory tools."""
         mock_llm = FakeListChatModel(responses=["test"])
         mock_store = Mock()
         mock_get_store.return_value = mock_store
+        mock_config.return_value.embedding_model = Mock()
 
         mock_manage = Mock()
         mock_search = Mock()

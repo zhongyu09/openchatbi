@@ -275,7 +275,7 @@ def _build_graph_core(
     sync_mode: bool,
     checkpointer: Checkpointer,
     memory_store: BaseStore,
-    memory_tools: tuple[Callable, Callable] | None,
+    memory_tools: list[Callable] | None,
     mcp_tools: list,
     enable_context_management: bool = True,
 ) -> CompiledStateGraph:
@@ -286,7 +286,7 @@ def _build_graph_core(
         sync_mode: Whether to use synchronous mode for tools and operations
         checkpointer: The Checkpointer for state persistence
         memory_store: The BaseStore to use for long-term memory
-        memory_tools: Tuple of (manage_memory_tool, search_memory_tool)
+        memory_tools: List of memory tools (manage_memory_tool, search_memory_tool)
         mcp_tools: Pre-initialized MCP tools
         enable_context_management: Whether to enable context management
 
@@ -297,12 +297,8 @@ def _build_graph_core(
     call_sql_graph_tool = get_sql_tools(sql_graph=sql_graph, sync_mode=sync_mode)
 
     # Use provided memory tools or create them
-    if memory_tools:
-        manage_memory_tool, search_memory_tool = memory_tools
-    else:
-        manage_memory_tool, search_memory_tool = get_memory_tools(
-            get_default_llm(), sync_mode=sync_mode, store=memory_store
-        )
+    if not memory_tools:
+        memory_tools = get_memory_tools(get_default_llm(), sync_mode=sync_mode, store=memory_store)
 
     log(str(mcp_tools))
     normal_tools = [
@@ -310,10 +306,10 @@ def _build_graph_core(
         show_schema,
         call_sql_graph_tool,
         run_python_code,
-        manage_memory_tool,
-        search_memory_tool,
         save_report,
     ]
+    if memory_tools:
+        normal_tools.extend(memory_tools)
     if check_forecast_service_health():
         normal_tools.append(timeseries_forecast)
     else:
@@ -408,7 +404,7 @@ async def build_agent_graph_async(
     catalog: CatalogStore,
     checkpointer: Checkpointer = None,
     memory_store: BaseStore = None,
-    memory_tools: tuple[Callable, Callable] = None,
+    memory_tools: list[Callable] = None,
     enable_context_management: bool = True,
 ) -> CompiledStateGraph:
     """Build the main agent graph with all nodes and edges (async version).
@@ -420,7 +416,7 @@ async def build_agent_graph_async(
         catalog: Catalog store containing schema information.
         checkpointer: The Checkpointer for state persistence (short memory). If None, no short memory.
         memory_store: The BaseStore to use for long-term memory. If None, will auto assign according to sync_mode.
-        memory_tools: Tuple of (manage_memory_tool, search_memory_tool). If None, creates async tools.
+        memory_tools: List of memory tools (manage_memory_tool, search_memory_tool). If None, creates async tools.
         enable_context_management: Whether to enable context management for long conversations.
 
     Returns:

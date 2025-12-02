@@ -42,8 +42,11 @@ class UserProfile(BaseModel):
     jargon: str | None = None
 
 
-def get_sync_memory_store() -> SqliteStore:
+def get_sync_memory_store() -> SqliteStore | None:
     global sync_memory_store
+    embedding_model = config.get().embedding_model
+    if not embedding_model:
+        return None
     if sync_memory_store is None:
         # For backwards compatibility and sync operations
         conn = sqlite3.connect("memory.db", check_same_thread=False)
@@ -52,7 +55,7 @@ def get_sync_memory_store() -> SqliteStore:
             conn,
             index={
                 "dims": 1536,
-                "embed": config.get().embedding_model,
+                "embed": embedding_model,
                 "fields": ["text"],  # specify which fields to embed
             },
         )
@@ -63,16 +66,19 @@ def get_sync_memory_store() -> SqliteStore:
     return sync_memory_store
 
 
-async def get_async_memory_store() -> AsyncSqliteStore:
+async def get_async_memory_store() -> AsyncSqliteStore | None:
     """Get or create the async memory store."""
     global async_memory_store, async_store_context_manager
+    embedding_model = config.get().embedding_model
+    if not embedding_model:
+        return None
     if async_memory_store is None:
         # AsyncSqliteStore.from_conn_string returns an async context manager
         async_store_context_manager = AsyncSqliteStore.from_conn_string(
             "memory.db",
             index={
                 "dims": 1536,
-                "embed": config.get().embedding_model,
+                "embed": embedding_model,
                 "fields": ["text"],  # specify which fields to embed
             },
         )
@@ -156,14 +162,15 @@ class StructuredToolWithRequired(StructuredTool):
 
 def get_memory_tools(
     llm: BaseChatModel, sync_mode: bool = False, store: Any | None = None
-) -> tuple[StructuredTool, StructuredTool]:
+) -> list[StructuredTool] | None:
     # Get the appropriate store based on mode
     if not store:
         if sync_mode:
             store = get_sync_memory_store()
         else:
-            # For async mode, pass None to let langmem handle store internally
             store = None
+    if not store:
+        return None
 
     # create langmem manage memory tool with {user_id} template
     manage_memory_tool = create_manage_memory_tool(namespace=("memories", "{user_id}"), store=store)
@@ -172,10 +179,10 @@ def get_memory_tools(
     if isinstance(llm, BaseChatOpenAI):
         manage_memory_tool = StructuredToolWithRequired(manage_memory_tool)
         search_memory_tool = StructuredToolWithRequired(search_memory_tool)
-    return manage_memory_tool, search_memory_tool
+    return [manage_memory_tool, search_memory_tool]
 
 
-async def get_async_memory_tools(llm: BaseChatModel) -> tuple[StructuredTool, StructuredTool]:
+async def get_async_memory_tools(llm: BaseChatModel) -> list[StructuredTool]:
     """Get memory tools configured with async store."""
     async_store = await get_async_memory_store()
     return get_memory_tools(llm, sync_mode=False, store=async_store)

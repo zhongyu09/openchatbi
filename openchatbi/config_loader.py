@@ -32,7 +32,7 @@ class Config(BaseModel):
 
     # LLM Configurations
     default_llm: BaseChatModel | MagicMock
-    embedding_model: BaseModel | MagicMock
+    embedding_model: BaseModel | MagicMock | None = None
     text2sql_llm: BaseChatModel | MagicMock | None = None
 
     # BI Configuration
@@ -147,7 +147,7 @@ class ConfigLoader:
         if "default_llm" not in config_data:
             raise ValueError("Missing LLM config key: default_llm")
         if "embedding_model" not in config_data:
-            raise ValueError("Missing LLM config key: embedding_model")
+            log("WARN: Missing LLM config key: embedding_model, will use BM25 based retrival only")
         if "data_warehouse_config" not in config_data:
             raise ValueError("Missing Data Warehouse config key: data_warehouse_config")
 

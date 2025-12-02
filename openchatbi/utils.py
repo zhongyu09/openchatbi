@@ -4,15 +4,19 @@ import json
 import sys
 import uuid
 from pathlib import Path
+from typing import Any
 
 from fastapi import HTTPException
 from fastapi.responses import FileResponse
 from langchain_chroma import Chroma
+from langchain_core.documents import Document
 from langchain_core.messages import AIMessage, AIMessageChunk, RemoveMessage, ToolMessage
 from langchain_core.vectorstores import VectorStore
+from rank_bm25 import BM25Okapi
 from regex import regex
 
 from openchatbi.graph_state import AgentState
+from openchatbi.text_segmenter import _segmenter
 
 
 def log(args) -> None:
@@ -160,6 +164,10 @@ def create_vector_db(
     Returns:
         Chroma: Vector database instance.
     """
+    # fallback to Simple vector store using BM25 if no embedding model configured
+    if not embedding:
+        return SimpleStore(texts, metadatas)
+
     chroma_dir = "./.chroma_db"
     client = Chroma(
         collection_name,
@@ -274,3 +282,222 @@ def recover_incomplete_tool_calls(state: AgentState) -> list:
 
     log(f"Recovered {len(recovery_messages)} incomplete tool calls")
     return operations
+
+
+class SimpleStore(VectorStore):
+    """Simple vector store using BM25 for text retrieval without embeddings."""
+
+    def __init__(
+        self,
+        texts: list[str],
+        metadatas: list[dict] | None = None,
+        ids: list[str] | None = None,
+    ):
+        """Initialize SimpleStore with texts.
+
+        Args:
+            texts: List of text documents to store.
+            metadatas: Optional list of metadata dicts for each document.
+            ids: Optional list of IDs for each document.
+        """
+        self.texts = texts
+        self.metadatas = metadatas or [{} for _ in texts]
+        self.ids = ids or [str(uuid.uuid4()) for _ in texts]
+
+        # Create Document objects
+        self.documents = [
+            Document(id=doc_id, page_content=text, metadata=meta)
+            for doc_id, text, meta in zip(self.ids, self.texts, self.metadatas)
+        ]
+
+        # Tokenize texts and create BM25 index
+        self.tokenized_corpus = [self._tokenize(text) for text in texts]
+        # BM25Okapi doesn't support empty corpus, so set to None if empty
+        self.bm25 = BM25Okapi(self.tokenized_corpus) if texts else None
+
+    def _tokenize(self, text: str) -> list[str]:
+        """Tokenize text for BM25 indexing using TextSegmenter.
+
+        Args:
+            text: Text to tokenize.
+
+        Returns:
+            List of tokens.
+        """
+        return _segmenter.cut(text)
+
+    def similarity_search(self, query: str, k: int = 4, **kwargs: Any) -> list[Document]:
+        """Search for documents similar to the query using BM25.
+
+        Args:
+            query: Query text.
+            k: Number of documents to return.
+            **kwargs: Additional arguments (unused).
+
+        Returns:
+            List of most similar Document objects.
+        """
+        if not self.texts:
+            return []
+
+        # Tokenize query
+        tokenized_query = self._tokenize(query)
+
+        # Get BM25 scores
+        scores = self.bm25.get_scores(tokenized_query)
+
+        # Get top-k indices
+        top_k = min(k, len(scores))
+        top_k_indices = sorted(range(len(scores)), key=lambda i: scores[i], reverse=True)[:top_k]
+
+        # Return corresponding documents
+        return [self.documents[i] for i in top_k_indices]
+
+    def similarity_search_with_score(self, query: str, k: int = 4, **kwargs: Any) -> list[tuple[Document, float]]:
+        """Search for documents similar to the query with BM25 scores.
+
+        Args:
+            query: Query text.
+            k: Number of documents to return.
+            **kwargs: Additional arguments (unused).
+
+        Returns:
+            List of (Document, score) tuples.
+        """
+        if not self.texts:
+            return []
+
+        # Tokenize query
+        tokenized_query = self._tokenize(query)
+
+        # Get BM25 scores
+        scores = self.bm25.get_scores(tokenized_query)
+
+        # Get top-k items
+        top_k = min(k, len(scores))
+        top_k_items = sorted(enumerate(scores), key=lambda x: x[1], reverse=True)[:top_k]
+
+        # Return (Document, score) tuples
+        return [(self.documents[i], score) for i, score in top_k_items]
+
+    def _select_relevance_score_fn(self):
+        """Return relevance score function for BM25.
+
+        BM25 scores are already relevance scores, so return identity function.
+        """
+        return lambda score: score
+
+    def add_texts(
+        self,
+        texts: list[str],
+        metadatas: list[dict] | None = None,
+        *,
+        ids: list[str] | None = None,
+        **kwargs: Any,
+    ) -> list[str]:
+        """Add texts to the store.
+
+        Args:
+            texts: Texts to add.
+            metadatas: Optional metadata for each text.
+            ids: Optional IDs for each text.
+            **kwargs: Additional arguments (unused).
+
+        Returns:
+            List of IDs of added texts.
+        """
+
+        if metadatas is None:
+            metadatas = [{} for _ in texts]
+
+        if ids is None:
+            ids = [str(uuid.uuid4()) for _ in texts]
+
+        # Add to existing data
+        self.texts.extend(texts)
+        self.metadatas.extend(metadatas)
+        self.ids.extend(ids)
+
+        # Create new Document objects
+        new_documents = [
+            Document(id=doc_id, page_content=text, metadata=meta) for doc_id, text, meta in zip(ids, texts, metadatas)
+        ]
+        self.documents.extend(new_documents)
+
+        # Update BM25 index
+        new_tokenized = [self._tokenize(text) for text in texts]
+        self.tokenized_corpus.extend(new_tokenized)
+        self.bm25 = BM25Okapi(self.tokenized_corpus)
+
+        return ids
+
+    def delete(self, ids: list[str] | None = None, **kwargs: Any) -> bool | None:
+        """Delete documents by IDs.
+
+        Args:
+            ids: List of document IDs to delete.
+            **kwargs: Additional arguments (unused).
+
+        Returns:
+            True if deletion successful, False otherwise.
+        """
+        if ids is None:
+            return False
+
+        # Find indices to delete
+        indices_to_delete = [i for i, doc_id in enumerate(self.ids) if doc_id in ids]
+
+        if not indices_to_delete:
+            return False
+
+        # Remove items in reverse order to maintain indices
+        for idx in sorted(indices_to_delete, reverse=True):
+            del self.texts[idx]
+            del self.metadatas[idx]
+            del self.ids[idx]
+            del self.documents[idx]
+            del self.tokenized_corpus[idx]
+
+        # Rebuild BM25 index
+        if self.tokenized_corpus:
+            self.bm25 = BM25Okapi(self.tokenized_corpus)
+        else:
+            self.bm25 = None
+
+        return True
+
+    def get_by_ids(self, ids: list[str], /) -> list[Document]:
+        """Get documents by their IDs.
+
+        Args:
+            ids: List of document IDs to retrieve.
+
+        Returns:
+            List of Document objects.
+        """
+        id_to_doc = {doc.id: doc for doc in self.documents}
+        return [id_to_doc[doc_id] for doc_id in ids if doc_id in id_to_doc]
+
+    @classmethod
+    def from_texts(
+        cls,
+        texts: list[str],
+        embedding: Any = None,  # Unused but required by interface
+        metadatas: list[dict] | None = None,
+        *,
+        ids: list[str] | None = None,
+        **kwargs: Any,
+    ) -> "SimpleStore":
+        """Create SimpleStore from texts.
+
+        Args:
+            texts: List of texts.
+            embedding: Unused (SimpleStore doesn't use embeddings).
+            metadatas: Optional metadata for each text.
+            ids: Optional IDs for each text.
+            **kwargs: Additional arguments (unused).
+
+        Returns:
+            SimpleStore instance.
+        """
+        return cls(texts, metadatas, ids)

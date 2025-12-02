@@ -14,8 +14,9 @@ Join the Slack channel to discuss: https://join.slack.com/t/openchatbicommunity/
 2. **Automatic SQL Generation**: Convert natural language queries into SQL statements using advanced text2sql workflows
    with schema linking and well organized prompt engineering
 3. **Data Visualization**: Generate intuitive data visualizations (via plotly)
-4. **Data Catalog Management**: Automatically discovers and indexes database table structures, supports flexible catalog 
-   storage backends, and easily maintains business explanations for tables and columns as well as optimizes Prompts.
+4. **Data Catalog Management**: Automatically discovers and indexes database table structures, supports flexible catalog
+   storage backends with vector-based or BM25-based retrieval, and easily maintains business explanations for tables
+   and columns as well as optimizes Prompts.
 5. **Time Series Forecasting**: Forecasting models deployed in-house that can be called as tools
 6. **Code Execution**: Execute Python code for data analysis and visualization
 7. **Interactive Problem-Solving**: Proactively ask users for more context when information is incomplete
@@ -40,7 +41,10 @@ Join the Slack channel to discuss: https://join.slack.com/t/openchatbicommunity/
 - Python 3.11 or higher
 - Access to a supported LLM provider (OpenAI, Anthropic, etc.)
 - Data Warehouse (Database) credentials (like Presto, PostgreSQL, MySQL, etc.)
-- Docker (optional, required only for `docker` executor mode)
+- (Optional) Embedding model for vector-based retrieval - if not available, BM25-based retrieval will be used
+- (Optional) Docker - required only for `docker` executor mode
+
+**Note on Chinese Text Segmentation**: For better Chinese text retrieval, `jieba` is used for word segmentation. However, `jieba` is not compatible with Python 3.12+. On Python 3.12 and higher, the system automatically falls back to simple punctuation-based segmentation for Chinese text.
 
 ### Installation
 
@@ -85,7 +89,10 @@ sudo apt-get install libsqlite3-dev
 
 ### Run Demo
 
-Run demo using **example dataset** from spider dataset, you need to provide "YOUR OPENAI API KEY" or change config to other LLM.
+Run demo using **example dataset** from spider dataset. You need to provide "YOUR OPENAI API KEY" or change config to use other LLM providers.
+
+**Note**: The demo example includes embedding model configuration. If you want to run without an embedding model, you can remove the `embedding_model` section in the config - BM25 retrieval will be used automatically.
+
 ```bash
 cp example/config.yaml openchatbi/config.yaml
 sed -i 's/YOUR_API_KEY_HERE/[YOUR OPENAI API KEY]/g' openchatbi/config.yaml
@@ -105,6 +112,7 @@ Or create an empty YAML file.
 2. **Configure your LLMs:**
 
 ```yaml
+# Required: Primary LLM for general tasks
 default_llm:
   class: langchain_openai.ChatOpenAI
   params:
@@ -112,6 +120,9 @@ default_llm:
     model: gpt-4.1
     temperature: 0.02
     max_tokens: 8192
+
+# Optional: Embedding model for vector-based retrieval and memory tools
+# If not configured, BM25-based retrieval will be used, and the memory tools will not work
 embedding_model:
   class: langchain_openai.OpenAIEmbeddings
   params:
@@ -201,8 +212,8 @@ Document(https://python.langchain.com/api_reference/reference.html#integrations)
 `chat_models`. You can configure different LLMs for different tasks:
 
 - `default_llm`: Primary language model for general tasks
-- `embedding_model`: Model for embedding generation
-- `text2sql_llm`: Specialized model for SQL generation
+- `embedding_model`: (Optional) Model for embedding generation. If not configured, BM25-based text retrieval will be used as fallback, and the memory tools will not work
+- `text2sql_llm`: (Optional) Specialized model for SQL generation. If not configured, uses `default_llm`
 
 Commonly used LLM providers and their corresponding classes and installation commands:
 
@@ -231,7 +242,7 @@ For detailed configuration options and examples, see the [Advanced Features](#ad
 OpenChatBI is built using a modular architecture with clear separation of concerns:
 
 1. **LangGraph Workflows**: Core orchestration using state machines for complex multi-step processes
-2. **Catalog Management**: Flexible data catalog system supporting multiple storage backends
+2. **Catalog Management**: Flexible data catalog system with intelligent retrieval (vector-based or BM25 fallback)
 3. **Text2SQL Pipeline**: Advanced natural language to SQL conversion with schema linking
 4. **Code Execution**: Sandboxed Python execution environment for data analysis
 5. **Tool Integration**: Extensible tool system for human interaction and knowledge search
@@ -241,6 +252,7 @@ OpenChatBI is built using a modular architecture with clear separation of concer
 
 - **Frameworks**: LangGraph, LangChain, FastAPI, Gradio/Streamlit
 - **Large Language Models**: Azure OpenAI (GPT-4), Anthropic Claude, OpenAI GPT models
+- **Text Retrieval**: Vector-based (with embedding models) or BM25-based (fallback without embeddings)
 - **Databases**: Presto, Trino, MySQL with SQLAlchemy support
 - **Code Execution**: Local Python, RestrictedPython, Docker containerization
 - **Development**: Python 3.11+, with modern tooling (Black, Ruff, MyPy, Pytest)
@@ -270,8 +282,8 @@ openchatbi/
 │   ├── graph_state.py          # State definition for workflows
 │   ├── context_config.py       # Context management configuration
 │   ├── context_manager.py      # Context window and token management
-│   ├── text_segmenter.py       # Text segmentation utilities
-│   ├── utils.py                # Utility functions
+│   ├── text_segmenter.py       # Text segmentation with jieba support
+│   ├── utils.py                # Utility functions and SimpleStore (BM25-based retrieval)
 │   ├── catalog/                # Data catalog management
 │   │   ├── __init__.py         # Package initialization
 │   │   ├── catalog_loader.py   # Catalog loading logic

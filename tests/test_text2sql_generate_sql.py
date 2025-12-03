@@ -80,7 +80,7 @@ class TestText2SQLGenerateSQL:
         )
 
         with patch("openchatbi.text2sql.generate_sql.sql_example_retriever") as mock_retriever:
-            mock_retriever.get_relevant_documents.return_value = []
+            mock_retriever.invoke.return_value = []
 
             result = generate_node(state)
 
@@ -175,7 +175,7 @@ class TestText2SQLGenerateSQL:
         )
 
         with patch("openchatbi.text2sql.generate_sql.sql_example_retriever") as mock_retriever:
-            mock_retriever.get_relevant_documents.return_value = []
+            mock_retriever.invoke.return_value = []
 
             result = regenerate_node(state)
 
@@ -247,7 +247,7 @@ class TestText2SQLGenerateSQL:
         mock_document.page_content = "How many users are there?"
 
         with patch("openchatbi.text2sql.generate_sql.sql_example_retriever") as mock_retriever:
-            mock_retriever.get_relevant_documents.return_value = [mock_document]
+            mock_retriever.invoke.return_value = [mock_document]
 
             with patch(
                 "openchatbi.text2sql.generate_sql.sql_example_dicts",
@@ -293,7 +293,7 @@ class TestText2SQLGenerateSQL:
         )
 
         with patch("openchatbi.text2sql.generate_sql.sql_example_retriever") as mock_retriever:
-            mock_retriever.get_relevant_documents.return_value = []
+            mock_retriever.invoke.return_value = []
 
             result = regenerate_node(state)
 

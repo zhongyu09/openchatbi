@@ -93,7 +93,7 @@ def create_sql_nodes(
             str: Formatted string of relevant SQL examples.
         """
         tables = [d["table"] for d in tables_columns]
-        relevant_questions = sql_example_retriever.get_relevant_documents(question)
+        relevant_questions = sql_example_retriever.invoke(question)
         # log(f"Retrieved examples for question: {question} \n Relevant questions: {relevant_questions}")
         # filter examples that only use the selected tables
         examples = []

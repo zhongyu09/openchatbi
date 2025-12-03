@@ -532,37 +532,34 @@ class SimpleStore(VectorStore):
 
         # Get initial candidates using BM25 similarity search
         candidates = self.similarity_search_with_score(query, k=fetch_k, **kwargs)
-        
+
         if not candidates:
             return []
-        
+
         if len(candidates) <= k:
             return [doc for doc, _ in candidates]
-        
+
         # Normalize BM25 scores to [0, 1] for proper MMR calculation
         scores = [score for _, score in candidates]
         min_score = min(scores) if scores else 0
         max_score = max(scores) if scores else 1
         score_range = max_score - min_score if max_score > min_score else 1
-        
-        normalized_candidates = [
-            (doc, (score - min_score) / score_range) 
-            for doc, score in candidates
-        ]
-        
+
+        normalized_candidates = [(doc, (score - min_score) / score_range) for doc, score in candidates]
+
         # MMR implementation following standard algorithm
         selected = []
         remaining = list(range(len(normalized_candidates)))
-        
+
         # Select documents iteratively using MMR formula
         while len(selected) < k and remaining:
-            best_mmr_score = float('-inf')
+            best_mmr_score = float("-inf")
             best_idx = -1
             best_remaining_idx = -1
-            
+
             for i, doc_idx in enumerate(remaining):
                 candidate_doc, relevance_score = normalized_candidates[doc_idx]
-                
+
                 # Calculate maximum similarity to already selected documents
                 max_similarity = 0.0
                 if selected:
@@ -570,37 +567,36 @@ class SimpleStore(VectorStore):
                         self._calculate_similarity(candidate_doc, normalized_candidates[sel_idx][0])
                         for sel_idx in selected
                     )
-                
+
                 # Standard MMR formula: λ * Sim(q, d) - (1-λ) * max(Sim(d, s)) for s in selected
                 mmr_score = lambda_mult * relevance_score - (1 - lambda_mult) * max_similarity
-                
+
                 if mmr_score > best_mmr_score:
                     best_mmr_score = mmr_score
                     best_idx = doc_idx
                     best_remaining_idx = i
-            
+
             if best_idx != -1:
                 selected.append(best_idx)
                 remaining.pop(best_remaining_idx)
-        
+
         return [normalized_candidates[idx][0] for idx in selected]
 
     def _calculate_similarity(self, doc1: Document, doc2: Document) -> float:
         """Calculate similarity between two documents using Jaccard similarity.
-        
+
         Args:
             doc1: First document.
             doc2: Second document.
-            
+
         Returns:
             Similarity score between 0 and 1 (higher means more similar).
         """
         tokens1 = set(self._tokenize(doc1.page_content))
         tokens2 = set(self._tokenize(doc2.page_content))
-        
+
         # Calculate Jaccard similarity
         intersection = len(tokens1 & tokens2)
         union = len(tokens1 | tokens2)
-        
-        return intersection / union if union > 0 else 0.0
 
+        return intersection / union if union > 0 else 0.0

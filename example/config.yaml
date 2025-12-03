@@ -19,6 +19,7 @@ data_warehouse_config:
   database_name: ""
 
 # LLM configurations
+# Use OpenAI LLM, replace YOUR_API_KEY_HERE with your actual API key
 default_llm:
   class: langchain_openai.ChatOpenAI
   params:
@@ -33,3 +34,12 @@ embedding_model:
     api_key: YOUR_API_KEY_HERE
     model: text-embedding-3-large
     chunk_size: 1024
+
+# If you cannot access to OpenAI or other cloud LLM provider,
+# uncomment the following lines instead to use Ollama local LLM
+#default_llm:
+#  class: langchain_ollama.ChatOllama
+#  params:
+#    model: gpt-oss:20b
+#    temperature: 0.01
+#    num_predict: 8192

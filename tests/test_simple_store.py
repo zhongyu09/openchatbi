@@ -207,3 +207,113 @@ class TestSimpleStore:
             assert any("机器学习" in doc.page_content for doc in cn_results) or any(
                 "数据科学" in doc.page_content for doc in cn_results
             )
+
+    def test_similarity_search_by_vector(self, simple_store):
+        """Test similarity_search_by_vector method."""
+        # Test with dummy embedding vector
+        dummy_embedding = [0.1, 0.2, 0.3, 0.4, 0.5]
+        results = simple_store.similarity_search_by_vector(dummy_embedding, k=2)
+        
+        assert len(results) == 2
+        assert all(hasattr(doc, "page_content") for doc in results)
+        
+        # Test k parameter bounds
+        results = simple_store.similarity_search_by_vector(dummy_embedding, k=10)
+        assert len(results) == 4  # Should return all documents
+        
+        # Test empty store
+        empty_store = SimpleStore([])
+        results = empty_store.similarity_search_by_vector(dummy_embedding, k=5)
+        assert results == []
+
+    def test_max_marginal_relevance_search_by_vector(self, simple_store):
+        """Test max_marginal_relevance_search_by_vector method."""
+        dummy_embedding = [0.1, 0.2, 0.3, 0.4, 0.5]
+        
+        # Test basic functionality
+        results = simple_store.max_marginal_relevance_search_by_vector(
+            dummy_embedding, k=2, fetch_k=4, lambda_mult=0.5
+        )
+        assert len(results) == 2
+        assert all(hasattr(doc, "page_content") for doc in results)
+        
+        # Test with k >= fetch_k
+        results = simple_store.max_marginal_relevance_search_by_vector(
+            dummy_embedding, k=4, fetch_k=3
+        )
+        assert len(results) == 3  # Should return fetch_k documents
+        
+        # Test diversity (lambda_mult = 0 should prioritize diversity)
+        results_diverse = simple_store.max_marginal_relevance_search_by_vector(
+            dummy_embedding, k=2, fetch_k=4, lambda_mult=0.0
+        )
+        assert len(results_diverse) == 2
+        
+        # Test empty store
+        empty_store = SimpleStore([])
+        results = empty_store.max_marginal_relevance_search_by_vector(dummy_embedding, k=2)
+        assert results == []
+
+    def test_max_marginal_relevance_search(self, simple_store):
+        """Test max_marginal_relevance_search method."""
+        query = "programming language"
+        
+        # Test basic MMR search
+        results = simple_store.max_marginal_relevance_search(
+            query, k=2, fetch_k=4, lambda_mult=0.5
+        )
+        assert len(results) == 2
+        assert all(hasattr(doc, "page_content") for doc in results)
+        
+        # Test relevance-focused search (lambda_mult = 1.0)
+        results_relevant = simple_store.max_marginal_relevance_search(
+            query, k=3, fetch_k=4, lambda_mult=1.0
+        )
+        assert len(results_relevant) == 3
+        
+        # Test diversity-focused search (lambda_mult = 0.0)
+        results_diverse = simple_store.max_marginal_relevance_search(
+            query, k=3, fetch_k=4, lambda_mult=0.0
+        )
+        assert len(results_diverse) == 3
+        
+        # Verify different lambda values produce different results
+        # (unless there are ties in scoring)
+        assert len(results_relevant) == len(results_diverse)
+        
+        # Test with k >= fetch_k
+        results = simple_store.max_marginal_relevance_search(
+            query, k=5, fetch_k=3, lambda_mult=0.5
+        )
+        assert len(results) == 3  # Should return fetch_k documents
+        
+        # Test empty query
+        results = simple_store.max_marginal_relevance_search("", k=2)
+        assert len(results) <= 2
+        
+        # Test empty store
+        empty_store = SimpleStore([])
+        results = empty_store.max_marginal_relevance_search(query, k=2)
+        assert results == []
+
+    def test_calculate_similarity(self, simple_store):
+        """Test _calculate_similarity method."""
+        # Get two documents
+        doc1 = simple_store.documents[0]  # "Python is a programming language"
+        doc2 = simple_store.documents[1]  # "Machine learning is a subset of AI"
+        doc3 = simple_store.documents[0]  # Same as doc1
+        
+        # Test similarity between different documents
+        similarity_diff = simple_store._calculate_similarity(doc1, doc2)
+        assert 0.0 <= similarity_diff <= 1.0
+        
+        # Test similarity between identical documents
+        similarity_same = simple_store._calculate_similarity(doc1, doc3)
+        assert similarity_same == 1.0
+        
+        # Test with empty documents
+        from langchain_core.documents import Document
+        empty_doc1 = Document(page_content="", metadata={})
+        empty_doc2 = Document(page_content="", metadata={})
+        similarity_empty = simple_store._calculate_similarity(empty_doc1, empty_doc2)
+        assert similarity_empty == 0.0  # Empty sets have 0 Jaccard similarity

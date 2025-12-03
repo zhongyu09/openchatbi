@@ -1,6 +1,6 @@
 [project]
 name = "openchatbi"
-version = "0.2.0"
+version = "0.2.1"
 description = "OpenChatBI - Natural language business intelligence powered by LLMs for intuitive data analysis and SQL generation"
 authors = [
     { name = "Yu Zhong", email = "zhongyu8@gmail.com" },

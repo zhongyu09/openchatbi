@@ -2,9 +2,12 @@ import functools
 import sys
 from typing import Any
 
-import pysqlite3 as sqlite3
+try:
+    import pysqlite3 as sqlite3
+except ImportError:  # pragma: no cover
+    import sqlite3
 
-# make sure langgraph sqlite connector uses pysqlite3
+# Make sure langgraph sqlite connector uses the same sqlite module.
 sys.modules["sqlite3"] = sqlite3
 
 from langchain.tools import StructuredTool

@@ -10,18 +10,53 @@ from openchatbi.tool.ask_human import AskHuman
 from openchatbi.utils import log
 
 
-def get_embedding_model():
-    """Get embedding model from config."""
+def list_llm_providers() -> list[str]:
+    """List configured LLM provider names (if any)."""
+    try:
+        providers = getattr(config.get(), "llm_providers", None) or {}
+    except ValueError:
+        return []
+    return sorted(providers.keys())
+
+
+def _get_provider_config(provider: str | None):
+    cfg = config.get()
+    providers = getattr(cfg, "llm_providers", None) or {}
+    if not provider:
+        provider = getattr(cfg, "llm_provider", None)
+    if not provider:
+        return None
+    if provider not in providers:
+        raise ValueError(f"Unknown llm_provider '{provider}'. Available: {sorted(providers.keys())}")
+    return providers[provider]
+
+
+def get_embedding_model(provider: str | None = None):
+    """Get embedding model from config (optionally scoped to a provider)."""
+    provider_cfg = _get_provider_config(provider)
+    if provider_cfg and getattr(provider_cfg, "embedding_model", None) is not None:
+        return provider_cfg.embedding_model
     return config.get().embedding_model
 
 
-def get_default_llm():
-    """Get default LLM from config."""
+def get_default_llm(provider: str | None = None):
+    """Get default LLM from config (optionally scoped to a provider)."""
+    provider_cfg = _get_provider_config(provider)
+    if provider_cfg:
+        return provider_cfg.default_llm
     return config.get().default_llm
 
 
-def get_text2sql_llm():
-    """Get text2sql LLM from config."""
+def get_llm(provider: str | None = None):
+    """Get the chat model to use (alias for `get_default_llm`)."""
+    return get_default_llm(provider)
+
+
+def get_text2sql_llm(provider: str | None = None):
+    """Get text2sql LLM from config (optionally scoped to a provider)."""
+    provider_cfg = _get_provider_config(provider)
+    if provider_cfg:
+        return provider_cfg.text2sql_llm or provider_cfg.default_llm
     return config.get().text2sql_llm or get_default_llm()
 
 

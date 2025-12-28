@@ -60,7 +60,6 @@ dependencies = [
     "langmem>=0.0.29",
     "sqlalchemy>=2.0.41,<3.0.0",
     "sqlalchemy-trino>=0.5.0",
-    "pysqlite3>=0.5.4",
     "aiosqlite>=0.21.0",
     "pyhive[presto]>=0.7.0",
     "rank-bm25>=0.2.2,<1.0.0",
@@ -257,4 +256,3 @@ exclude_lines = [
     "class .*\\bProtocol\\):",
     "@(abc\\.)?abstractmethod",
 ]
-

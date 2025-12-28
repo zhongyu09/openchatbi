@@ -226,6 +226,55 @@ class TestConfigLoader:
         assert config.embedding_model == mock_embedding_instance
         assert config.text2sql_llm == mock_instance2
 
+    def test_load_config_with_llm_providers_selected_by_default_llm(self, temp_dir):
+        """Test loading configuration using llm_providers with default_llm provider selector."""
+        config_data = {
+            "organization": "TestOrg",
+            "dialect": "presto",
+            "default_llm": "openai",
+            "llm_providers": {
+                "openai": {
+                    "default_llm": {"class": "langchain_openai.ChatOpenAI", "params": {"model": "gpt-4"}},
+                    "embedding_model": {
+                        "class": "langchain_openai.OpenAIEmbeddings",
+                        "params": {"model": "text-embedding-ada-002"},
+                    },
+                },
+                "anthropic": {
+                    "default_llm": {"class": "langchain_anthropic.ChatAnthropic", "params": {"model": "claude"}},
+                },
+            },
+            "data_warehouse_config": {"uri": "sqlite:///:memory:", "include_tables": None, "database_name": "test_db"},
+        }
+
+        config_file = temp_dir / "test_config.yaml"
+        with open(config_file, "w") as f:
+            yaml.dump(config_data, f)
+
+        loader = ConfigLoader()
+
+        with (
+            patch("langchain_openai.ChatOpenAI") as mock_openai,
+            patch("langchain_openai.OpenAIEmbeddings") as mock_embeddings,
+            patch("langchain_anthropic.ChatAnthropic") as mock_anthropic,
+        ):
+            from langchain_core.language_models import BaseChatModel
+
+            mock_openai_instance = MagicMock(spec=BaseChatModel)
+            mock_anthropic_instance = MagicMock(spec=BaseChatModel)
+            mock_embedding_instance = MagicMock()
+            mock_openai.return_value = mock_openai_instance
+            mock_anthropic.return_value = mock_anthropic_instance
+            mock_embeddings.return_value = mock_embedding_instance
+
+            loader.load(str(config_file))
+
+        config = loader.get()
+        assert config.llm_provider == "openai"
+        assert config.default_llm == mock_openai_instance
+        assert config.embedding_model == mock_embedding_instance
+        assert set(config.llm_providers.keys()) == {"openai", "anthropic"}
+
     def test_set_config(self):
         """Test setting configuration from dictionary."""
         config_dict = {

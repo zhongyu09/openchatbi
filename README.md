@@ -68,7 +68,7 @@ git clone git@github.com:zhongyu09/openchatbi
 uv sync --group dev
 ```
 
-4. If you have issues when installing pysqlite3, try to install sqlite first:
+Optional: If you want to use `pysqlite3` (newer SQLite builds), you can install it manually. If build fails, install SQLite first:
 
 On macOS, try to install sqlite using Homebrew:
 ```bash
@@ -112,23 +112,28 @@ Or create an empty YAML file.
 2. **Configure your LLMs:**
 
 ```yaml
-# Required: Primary LLM for general tasks
-default_llm:
-  class: langchain_openai.ChatOpenAI
-  params:
-    api_key: YOUR_API_KEY_HERE
-    model: gpt-4.1
-    temperature: 0.02
-    max_tokens: 8192
+# Select which provider to use
+default_llm: openai
 
-# Optional: Embedding model for vector-based retrieval and memory tools
-# If not configured, BM25-based retrieval will be used, and the memory tools will not work
-embedding_model:
-  class: langchain_openai.OpenAIEmbeddings
-  params:
-    api_key: YOUR_API_KEY_HERE
-    model: text-embedding-3-large
-    chunk_size: 1024
+# Define one or more providers
+llm_providers:
+  openai:
+    default_llm:
+      class: langchain_openai.ChatOpenAI
+      params:
+        api_key: YOUR_API_KEY_HERE
+        model: gpt-4.1
+        temperature: 0.02
+        max_tokens: 8192
+
+    # Optional: Embedding model for vector-based retrieval and memory tools
+    # If not configured, BM25-based retrieval will be used, and the memory tools will not work
+    embedding_model:
+      class: langchain_openai.OpenAIEmbeddings
+      params:
+        api_key: YOUR_API_KEY_HERE
+        model: text-embedding-3-large
+        chunk_size: 1024
 ```
 
 3. **Configure your data warehouse:**
@@ -214,6 +219,12 @@ Document(https://python.langchain.com/api_reference/reference.html#integrations)
 - `default_llm`: Primary language model for general tasks
 - `embedding_model`: (Optional) Model for embedding generation. If not configured, BM25-based text retrieval will be used as fallback, and the memory tools will not work
 - `text2sql_llm`: (Optional) Specialized model for SQL generation. If not configured, uses `default_llm`
+
+Multiple providers (optional):
+
+- Configure multiple providers under `llm_providers` and select with `default_llm: <provider_name>`.
+- In `sample_ui/streamlit_ui.py`, a provider dropdown appears when `llm_providers` is configured.
+- In `sample_api/async_api.py`, pass `provider` in the `/chat/stream` request body.
 
 Commonly used LLM providers and their corresponding classes and installation commands:
 

@@ -7,7 +7,10 @@ import uuid
 from pathlib import Path
 
 import plotly.graph_objects as go
-import pysqlite3 as sqlite3
+try:
+    import pysqlite3 as sqlite3
+except ImportError:  # pragma: no cover
+    import sqlite3
 import streamlit as st
 from langchain_core.messages import AIMessage
 
@@ -15,6 +18,8 @@ sys.modules["sqlite3"] = sqlite3
 
 from langgraph.types import Command
 
+from openchatbi import config as openchatbi_config
+from openchatbi.llm.llm import list_llm_providers
 from openchatbi.utils import get_text_from_message_chunk, log
 from sample_ui.plotly_utils import visualization_dsl_to_gradio_plot
 from sample_ui.async_graph_manager import AsyncGraphManager
@@ -34,7 +39,7 @@ if "event_loop" not in st.session_state:
 
 
 async def process_user_message_stream(
-    message: str, user_id: str, session_id: str, thinking_container, response_container
+    message: str, user_id: str, session_id: str, llm_provider: str | None, thinking_container, response_container
 ):
     """
     Process user message through the OpenChatBI graph with real-time updates
@@ -47,6 +52,7 @@ async def process_user_message_stream(
     # Initialize graph if needed
     if not st.session_state.graph_manager._initialized:
         await st.session_state.graph_manager.initialize()
+    graph = await st.session_state.graph_manager.get_graph(llm_provider)
 
     user_session_id = f"{user_id}-{session_id}"
 
@@ -75,7 +81,7 @@ async def process_user_message_stream(
     update_display()
 
     # Stream through the graph
-    async for _namespace, event_type, event_value in st.session_state.graph_manager.graph.astream(
+    async for _namespace, event_type, event_value in graph.astream(
         stream_input, config=config, stream_mode=["updates", "messages"], subgraphs=True, debug=True
     ):
         if event_type == "messages":
@@ -152,7 +158,7 @@ async def process_user_message_stream(
                 update_display()
 
     # Check for interrupts in final state
-    state = await st.session_state.graph_manager.graph.aget_state(config)
+    state = await graph.aget_state(config)
     if state.interrupts:
         log(f"State interrupts: {state.interrupts}")
         output_content = state.interrupts[0].value.get("text", "")
@@ -391,6 +397,22 @@ with st.sidebar:
     user_id = st.text_input("User ID", value="default", help="Unique identifier for the user session")
     session_id = st.text_input("Session ID", value="default", help="Session identifier for conversation continuity")
 
+    # Optional multi-provider support
+    llm_provider = None
+    provider_options = list_llm_providers()
+    if provider_options:
+        try:
+            default_provider = getattr(openchatbi_config.get(), "llm_provider", None)
+        except Exception:
+            default_provider = None
+        default_index = provider_options.index(default_provider) if default_provider in provider_options else 0
+        llm_provider = st.selectbox(
+            "LLM Provider",
+            options=provider_options,
+            index=default_index,
+            help="Select which configured LLM provider to use for this session",
+        )
+
     st.markdown("---")
     st.markdown(
         """
@@ -484,7 +506,9 @@ if prompt := st.chat_input("Ask me anything about your data..."):
             loop = st.session_state.event_loop
             final_response, plot_figure, thinking_steps, full_chronological_content, final_answer = (
                 loop.run_until_complete(
-                    process_user_message_stream(prompt, user_id, session_id, thinking_container, response_container)
+                    process_user_message_stream(
+                        prompt, user_id, session_id, llm_provider, thinking_container, response_container
+                    )
                 )
             )
 

@@ -2912,7 +2912,6 @@ dependencies = [
     { name = "pandas" },
     { name = "plotly" },
     { name = "pyhive", extra = ["presto"] },
-    { name = "pysqlite3" },
     { name = "python-levenshtein" },
     { name = "rank-bm25" },
     { name = "requests" },
@@ -3003,7 +3002,6 @@ requires-dist = [
     { name = "plotly", specifier = ">=5.17.0,<6.0.0" },
     { name = "pre-commit", marker = "extra == 'dev'", specifier = ">=4.0.1,<5.0.0" },
     { name = "pyhive", extras = ["presto"], specifier = ">=0.7.0" },
-    { name = "pysqlite3", specifier = ">=0.5.4" },
     { name = "pytest", marker = "extra == 'test'", specifier = ">=7.4.0,<9.0.0" },
     { name = "pytest-asyncio", marker = "extra == 'test'", specifier = ">=0.23.8,<1.0.0" },
     { name = "pytest-cov", marker = "extra == 'test'", specifier = ">=6.0.0,<7.0.0" },
@@ -3906,12 +3904,6 @@ sdist = { url = "https://files.pythonhosted.org/packages/0f/49/4cea918a08f02817a
 wheels = [
     { url = "https://files.pythonhosted.org/packages/5a/dc/491b7661614ab97483abf2056be1deee4dc2490ecbf7bff9ab5cdbac86e1/pyreadline3-3.5.4-py3-none-any.whl", hash = "sha256:eaf8e6cc3c49bcccf145fc6067ba8643d1df34d604a1ec0eccbf7a18e6d3fae6", size = 83178, upload-time = "2024-09-19T02:40:08.598Z" },
 ]
-
-[[package]]
-name = "pysqlite3"
-version = "0.5.4"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/33/cb/ef7d041dbecfbf47f9241d7cb6328311fd80fe15bd61a6253d9ab36e9d6d/pysqlite3-0.5.4.tar.gz", hash = "sha256:fbc69bfdc0cb43a5badd5403b126d5151371b5037e0397ba9802bb440c5b0021", size = 40743, upload-time = "2024-10-12T12:11:55.537Z" }
 
 [[package]]
 name = "pytest"

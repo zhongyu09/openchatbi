@@ -11,6 +11,16 @@ from openchatbi.catalog.factory import create_catalog_store
 from openchatbi.utils import log
 
 
+class LLMProviderConfig(BaseModel):
+    """Resolved LLM objects for a single provider."""
+
+    model_config = {"arbitrary_types_allowed": True}
+
+    default_llm: BaseChatModel | MagicMock
+    embedding_model: BaseModel | MagicMock | None = None
+    text2sql_llm: BaseChatModel | MagicMock | None = None
+
+
 class Config(BaseModel):
     """Configuration model for the OpenChatBI application.
 
@@ -34,6 +44,9 @@ class Config(BaseModel):
     default_llm: BaseChatModel | MagicMock
     embedding_model: BaseModel | MagicMock | None = None
     text2sql_llm: BaseChatModel | MagicMock | None = None
+    # Multiple LLM providers (optional)
+    llm_provider: str | None = None
+    llm_providers: dict[str, LLMProviderConfig] = {}
 
     # BI Configuration
     bi_config: dict[str, Any] = {}
@@ -140,13 +153,50 @@ class ConfigLoader:
         self._process_config_dict(config_data)
         self._config = Config.from_dict(config_data)
 
-    def _process_config_dict(self, config_data: Config) -> None:
+    def _process_config_dict(self, config_data: dict[str, Any]) -> None:
         """
         Processes a configuration dictionary.
         """
-        if "default_llm" not in config_data:
+        self._process_llm_providers(config_data)
+
+        providers = config_data.get("llm_providers", {})
+        selected_provider = None
+
+        default_llm_value = config_data.get("default_llm")
+        if isinstance(default_llm_value, str):
+            # Simplified multi-provider config: default_llm: <provider_name>
+            if not providers:
+                raise ValueError("default_llm is a provider name but llm_providers is missing.")
+            selected_provider = default_llm_value
+        elif providers:
+            # Backwards-compat: allow selecting provider via llm_provider
+            legacy_provider = config_data.get("llm_provider")
+            if isinstance(legacy_provider, str):
+                selected_provider = legacy_provider
+            elif "default_llm" not in config_data:
+                # Pick the first provider in config order for backwards-compatible YAML behavior
+                selected_provider = next(iter(providers.keys()), None)
+            elif isinstance(default_llm_value, dict):
+                raise ValueError(
+                    "When using llm_providers, set default_llm to a provider name (e.g. default_llm: openai), "
+                    "not a class config."
+                )
+
+        if providers:
+            if not selected_provider or selected_provider not in providers:
+                raise ValueError(
+                    f"Unknown LLM provider '{selected_provider}'. Available: {sorted(providers.keys())}"
+                )
+            # Store selected provider for runtime lookups (UI/API can still override per-request)
+            config_data["llm_provider"] = selected_provider
+            # Populate top-level LLM objects for legacy call sites
+            config_data["default_llm"] = providers[selected_provider].default_llm
+            config_data.setdefault("embedding_model", providers[selected_provider].embedding_model)
+            config_data.setdefault("text2sql_llm", providers[selected_provider].text2sql_llm)
+        elif "default_llm" not in config_data:
             raise ValueError("Missing LLM config key: default_llm")
-        if "embedding_model" not in config_data:
+
+        if not config_data.get("embedding_model"):
             log("WARN: Missing LLM config key: embedding_model, will use BM25 based retrival only")
         if "data_warehouse_config" not in config_data:
             raise ValueError("Missing Data Warehouse config key: data_warehouse_config")
@@ -175,21 +225,55 @@ class ConfigLoader:
         config_data["catalog_store"] = catalog_store
 
         for config_key in self.llm_configs:
-            if config_key not in config_data or "class" not in config_data[config_key]:
+            config_item = config_data.get(config_key)
+            if not isinstance(config_item, dict) or "class" not in config_item:
                 continue
-            try:
-                class_path = config_data[config_key]["class"]
-                if "." not in class_path:
-                    raise ValueError(f"Invalid class path format: {class_path}")
-                module_name, class_name = class_path.rsplit(".", 1)
-                module = importlib.import_module(module_name)
-                llm_cls = getattr(module, class_name)
-                params = config_data[config_key].get("params", {})
-                config_data[config_key] = llm_cls(**params)
-            except (ImportError, AttributeError, ValueError, TypeError) as e:
-                raise RuntimeError(
-                    f"Failed to load {config_key} class '{config_data[config_key]['class']}': {e}"
-                ) from e
+            config_data[config_key] = self._instantiate_from_config_dict(config_item, config_key=config_key)
+
+    def _instantiate_from_config_dict(self, config_item: dict[str, Any], *, config_key: str) -> Any:
+        try:
+            class_path = config_item["class"]
+            if "." not in class_path:
+                raise ValueError(f"Invalid class path format: {class_path}")
+            module_name, class_name = class_path.rsplit(".", 1)
+            module = importlib.import_module(module_name)
+            llm_cls = getattr(module, class_name)
+            params = config_item.get("params", {})
+            return llm_cls(**params)
+        except (ImportError, AttributeError, ValueError, TypeError) as e:
+            raise RuntimeError(f"Failed to load {config_key} class '{config_item.get('class', '')}': {e}") from e
+
+    def _process_llm_providers(self, config_data: dict[str, Any]) -> None:
+        """Resolve llm_providers into instantiated provider configs (if present)."""
+        raw_providers = config_data.get("llm_providers")
+        if not raw_providers:
+            return
+        if not isinstance(raw_providers, dict):
+            raise ValueError("llm_providers must be a mapping of provider_name -> config")
+
+        providers: dict[str, LLMProviderConfig] = {}
+        for provider_name, provider_cfg in raw_providers.items():
+            if isinstance(provider_cfg, LLMProviderConfig):
+                providers[str(provider_name)] = provider_cfg
+                continue
+            if not isinstance(provider_cfg, dict):
+                raise ValueError(f"llm_providers.{provider_name} must be a mapping")
+
+            resolved_cfg: dict[str, Any] = dict(provider_cfg)
+            for config_key in self.llm_configs:
+                config_item = resolved_cfg.get(config_key)
+                if not isinstance(config_item, dict) or "class" not in config_item:
+                    continue
+                resolved_cfg[config_key] = self._instantiate_from_config_dict(
+                    config_item, config_key=f"llm_providers.{provider_name}.{config_key}"
+                )
+
+            if "default_llm" not in resolved_cfg or resolved_cfg["default_llm"] is None:
+                raise ValueError(f"llm_providers.{provider_name} missing default_llm")
+
+            providers[str(provider_name)] = LLMProviderConfig(**resolved_cfg)
+
+        config_data["llm_providers"] = providers
 
     def load_bi_config(self, bi_config_file: str) -> dict[str, Any]:
         """Load BI configuration from a YAML file.

@@ -25,7 +25,7 @@ from openchatbi.constants import datetime_format
 from openchatbi.context_config import get_context_config
 from openchatbi.context_manager import ContextManager
 from openchatbi.graph_state import AgentState, InputState, OutputState
-from openchatbi.llm.llm import call_llm_chat_model_with_retry, get_default_llm
+from openchatbi.llm.llm import call_llm_chat_model_with_retry, get_llm
 from openchatbi.prompts.system_prompt import get_agent_prompt_template
 from openchatbi.text2sql.sql_graph import build_sql_graph
 from openchatbi.tool.ask_human import AskHuman
@@ -278,6 +278,7 @@ def _build_graph_core(
     memory_tools: list[Callable] | None,
     mcp_tools: list,
     enable_context_management: bool = True,
+    llm_provider: str | None = None,
 ) -> CompiledStateGraph:
     """Core graph building logic shared by both sync and async versions.
 
@@ -293,12 +294,12 @@ def _build_graph_core(
     Returns:
         CompiledStateGraph: Compiled agent graph ready for execution
     """
-    sql_graph = build_sql_graph(catalog, checkpointer, memory_store)
+    sql_graph = build_sql_graph(catalog, checkpointer, memory_store, llm_provider=llm_provider)
     call_sql_graph_tool = get_sql_tools(sql_graph=sql_graph, sync_mode=sync_mode)
 
     # Use provided memory tools or create them
     if not memory_tools:
-        memory_tools = get_memory_tools(get_default_llm(), sync_mode=sync_mode, store=memory_store)
+        memory_tools = get_memory_tools(get_llm(llm_provider), sync_mode=sync_mode, store=memory_store)
 
     log(str(mcp_tools))
     normal_tools = [
@@ -319,7 +320,7 @@ def _build_graph_core(
     # Initialize context manager if enabled
     context_manager = None
     if enable_context_management:
-        context_manager = ContextManager(llm=get_default_llm(), config=get_context_config())
+        context_manager = ContextManager(llm=get_llm(llm_provider), config=get_context_config())
 
     tool_node = ToolNode(normal_tools)
 
@@ -327,7 +328,9 @@ def _build_graph_core(
     graph = StateGraph(AgentState, input_schema=InputState, output_schema=OutputState)
 
     # Add nodes to the graph
-    graph.add_node("llm_node", agent_llm_call(get_default_llm(), normal_tools + [AskHuman], context_manager))
+    graph.add_node(
+        "llm_node", agent_llm_call(get_llm(llm_provider), normal_tools + [AskHuman], context_manager)
+    )
     graph.add_node("ask_human", ask_human)
     graph.add_node("use_tool", tool_node)
 
@@ -374,6 +377,7 @@ def build_agent_graph_sync(
     checkpointer: Checkpointer = None,
     memory_store: BaseStore = None,
     enable_context_management: bool = True,
+    llm_provider: str | None = None,
 ) -> CompiledStateGraph:
     """Build the main agent graph with all nodes and edges (sync version).
 
@@ -397,6 +401,7 @@ def build_agent_graph_sync(
         memory_tools=None,  # Always None for sync version - creates its own
         mcp_tools=mcp_tools,
         enable_context_management=enable_context_management,
+        llm_provider=llm_provider,
     )
 
 
@@ -406,6 +411,7 @@ async def build_agent_graph_async(
     memory_store: BaseStore = None,
     memory_tools: list[Callable] = None,
     enable_context_management: bool = True,
+    llm_provider: str | None = None,
 ) -> CompiledStateGraph:
     """Build the main agent graph with all nodes and edges (async version).
 
@@ -433,4 +439,5 @@ async def build_agent_graph_async(
         memory_tools=memory_tools,
         mcp_tools=mcp_tools,
         enable_context_management=enable_context_management,
+        llm_provider=llm_provider,
     )

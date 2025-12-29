@@ -60,30 +60,40 @@ data_warehouse_config:
   user_name: TOKEN_SERVICE_USER_NAME
   password: TOKEN_SERVICE_PASSWORD
 
-# LLM configurations
-default_llm:
-  class: langchain_openai.ChatOpenAI
-  params:
-    api_key: YOUR_API_KEY_HERE
-    model: gpt-4.1
-    temperature: 0.01
-    max_tokens: 8192
-
-embedding_model:
-  class: langchain_openai.OpenAIEmbeddings
-  params:
-    api_key: YOUR_API_KEY_HERE
-    model: text-embedding-3-large
-    chunk_size: 1024
-
-# Optional
-text2sql_llm:
-  class: langchain_openai.ChatOpenAI
-  params:
-    api_key: YOUR_API_KEY_HERE
-    model: gpt-4.1
-    temperature: 0.0
-    max_tokens: 8192
+# LLM configurations (multiple providers)
+#
+# 1) Define providers under `llm_providers`
+# 2) Select which one to use by setting `default_llm: <provider_name>`
+default_llm: openai
+llm_providers:
+  openai:
+    default_llm:
+      class: langchain_openai.ChatOpenAI
+      params:
+        api_key: YOUR_API_KEY_HERE
+        model: gpt-4.1
+        temperature: 0.01
+        max_tokens: 8192
+    embedding_model:
+      class: langchain_openai.OpenAIEmbeddings
+      params:
+        api_key: YOUR_API_KEY_HERE
+        model: text-embedding-3-large
+        chunk_size: 1024
+    # Optional
+    text2sql_llm:
+      class: langchain_openai.ChatOpenAI
+      params:
+        api_key: YOUR_API_KEY_HERE
+        model: gpt-4.1
+        temperature: 0.0
+        max_tokens: 8192
+  # anthropic:
+  #   default_llm:
+  #     class: langchain_anthropic.ChatAnthropic
+  #     params:
+  #       api_key: YOUR_API_KEY_HERE
+  #       model: claude-3-5-sonnet-latest
 
 # MCP (Model Context Protocol) server configurations
 mcp_servers:

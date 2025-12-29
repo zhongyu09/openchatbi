@@ -6,7 +6,10 @@ from collections import defaultdict
 from contextlib import asynccontextmanager
 
 import gradio as gr
-import pysqlite3 as sqlite3
+try:
+    import pysqlite3 as sqlite3
+except ImportError:  # pragma: no cover
+    import sqlite3
 from fastapi import FastAPI
 from langchain_core.messages import AIMessage
 

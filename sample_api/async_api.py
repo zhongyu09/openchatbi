@@ -1,5 +1,7 @@
 """Async API for streaming chat responses from OpenChatBI."""
 
+import asyncio
+from typing import Any
 from collections import defaultdict
 from contextlib import asynccontextmanager
 
@@ -15,19 +17,31 @@ from openchatbi.utils import get_report_download_response
 # Session state storage: session_id -> state
 sessions = defaultdict(dict)
 
-# Global graph instance
-graph = None
+# Graphs keyed by provider name
+graphs: dict[str, Any] = {}
+graphs_lock = asyncio.Lock()
+
+
+async def get_or_build_graph(provider: str | None):
+    """Get (or lazily build) a graph for the requested provider."""
+    key = provider or "__default__"
+    if key in graphs:
+        return graphs[key]
+    async with graphs_lock:
+        if key in graphs:
+            return graphs[key]
+        graphs[key] = await build_agent_graph_async(config.get().catalog_store, llm_provider=provider)
+        return graphs[key]
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Manage application lifespan events."""
     # Startup: Initialize the async graph
-    global graph
-    graph = await build_agent_graph_async(config.get().catalog_store)
+    graphs["__default__"] = await build_agent_graph_async(config.get().catalog_store)
     yield
     # Shutdown: cleanup if needed
-    graph = None
+    graphs.clear()
 
 
 app = FastAPI(lifespan=lifespan)
@@ -39,6 +53,7 @@ class UserRequest(BaseModel):
     input: str
     user_id: str | None = "default"
     session_id: str | None = "default"
+    provider: str | None = None
 
 
 @app.post("/chat/stream")
@@ -46,12 +61,18 @@ async def chat_stream(req: UserRequest):
     """Stream chat responses from the agent graph."""
     user_id = req.user_id or "default"
     session_id = req.session_id or "default"
+    provider = req.provider
 
     # Create user-session ID just like in UI
     user_session_id = f"{user_id}-{session_id}"
 
     stream_input = {"messages": [("user", req.input)]}
     config = {"configurable": {"thread_id": user_session_id, "user_id": user_id}}
+
+    try:
+        graph = await get_or_build_graph(provider)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
     async def event_generator():
         """Generate streaming events from the graph."""

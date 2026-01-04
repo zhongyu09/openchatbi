@@ -49,11 +49,12 @@ def build_column_tables_mapping(catalog):
     return column_tables_mapping
 
 
-def build_columns_retriever(catalog):
+def build_columns_retriever(catalog, vector_db_path: str = None):
     """Build BM25 and vector retrievers for columns.
 
     Args:
         catalog: Catalog store instance.
+        vector_db_path: Path to the vector database file.
 
     Returns:
         tuple: (bm25, vector_db, columns, col_dict)
@@ -69,6 +70,7 @@ def build_columns_retriever(catalog):
         metadatas=columns,
         collection_name="columns",
         collection_metadata={"hnsw:space": "cosine"},
+        chroma_db_path=vector_db_path,
     )
 
     return bm25, vector_db, columns, col_dict

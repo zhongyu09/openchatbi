@@ -4,11 +4,12 @@ from openchatbi.llm.llm import get_embedding_model
 from openchatbi.utils import create_vector_db
 
 
-def init_sql_example_retriever(catalog):
+def init_sql_example_retriever(catalog, vector_db_path: str = None):
     """Initialize SQL example retriever from catalog.
 
     Args:
         catalog: Catalog store containing SQL examples.
+        vector_db_path: Path to the vector database file.
 
     Returns:
         tuple: (retriever, sql_example_dict)
@@ -22,6 +23,7 @@ def init_sql_example_retriever(catalog):
         get_embedding_model(),
         collection_name="text2sql",
         collection_metadata={"hnsw:space": "cosine"},
+        chroma_db_path=vector_db_path,
     )
     retriever = vector_db.as_retriever(
         search_type="mmr", search_kwargs={"distance_metric": "cosine", "fetch_k": 30, "k": 10}
@@ -29,11 +31,12 @@ def init_sql_example_retriever(catalog):
     return retriever, sql_example_dict
 
 
-def init_table_selection_example_dict(catalog):
+def init_table_selection_example_dict(catalog, vector_db_path: str = None):
     """Initialize table selection example retriever from catalog.
 
     Args:
         catalog: Catalog store containing table selection examples.
+        vector_db_path: Path to the vector database file.
 
     Returns:
         tuple: (retriever, table_selection_example_dict)
@@ -50,6 +53,7 @@ def init_table_selection_example_dict(catalog):
         get_embedding_model(),
         collection_name="table_selection_example",
         collection_metadata={"hnsw:space": "cosine"},
+        chroma_db_path=vector_db_path,
     )
     retriever = vector_db.as_retriever(
         search_type="mmr", search_kwargs={"distance_metric": "cosine", "fetch_k": 30, "k": 10}

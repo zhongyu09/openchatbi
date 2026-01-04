@@ -20,7 +20,7 @@ else:
     _catalog_store = None
 
 if _catalog_store:
-    bm25, vector_db, columns, col_dict = build_columns_retriever(_catalog_store)
+    bm25, vector_db, columns, col_dict = build_columns_retriever(_catalog_store, config.get().vector_db_path)
     column_tables_mapping = build_column_tables_mapping(_catalog_store)
 else:
     bm25, vector_db, columns, col_dict = None, None, [], {}

@@ -1,0 +1,1 @@
+{"tool":"search_knowledge","args":{"knowledge_bases":["columns"],"query_list":["OpenChatBI"],"reasoning":"Look up relevant knowledge","with_table_list":false},"ok":true,"result":{"columns":"# Relevant Columns and Description:\n## openchatbi\n- Column Category: metric\n- Display Name: OpenChatBI\n- Description \"Project overview\""}}

@@ -1,0 +1,5 @@
+id: t1
+description: "basic BI flow with a single search_knowledge tool call"
+input:
+  prompt: "OpenChatBI"
+cassette: cassettes/t1.jsonl

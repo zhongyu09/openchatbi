@@ -151,6 +151,7 @@ def create_vector_db(
     collection_name: str = "langchain",
     metadatas=None,
     collection_metadata: dict = None,
+    chroma_db_path: str = None,
 ) -> VectorStore:
     """Create or reuse a Chroma vector database.
 
@@ -160,6 +161,7 @@ def create_vector_db(
         collection_name (str): Name of the collection.
         metadatas: Metadata for each document.
         collection_metadata (dict): Collection-level metadata.
+        chroma_db_path (str): Path to chroma database file.
 
     Returns:
         Chroma: Vector database instance.
@@ -168,26 +170,52 @@ def create_vector_db(
     if not embedding:
         return SimpleStore(texts, metadatas)
 
-    chroma_dir = "./.chroma_db"
+    chroma_dir = chroma_db_path or "./.chroma_db"
     client = Chroma(
         collection_name,
         persist_directory=chroma_dir,
         embedding_function=embedding,
         collection_metadata=collection_metadata,
     )
+    use_cache = False
+    existing_docs = None
     try:
         # Try to get documents to check if collection exists and has content
         existing_docs = client.get()
         if not existing_docs["documents"]:
             print(f"Init new client from text for {collection_name}...")
-            client = _create_chroma_from_texts(
-                texts, embedding, collection_name, metadatas, collection_metadata, chroma_dir
-            )
         else:
-            print(f"Re-use collection for {collection_name}")
+            # Check if cached texts match the input texts
+            cached_texts = existing_docs["documents"]
+            # Compare texts: check count first, then content
+            if len(cached_texts) != len(texts):
+                print(
+                    f"Texts count mismatch for {collection_name} "
+                    f"(cached: {len(cached_texts)}, input: {len(texts)}). Recreating collection..."
+                )
+            else:
+                # Compare content by sorting both lists to handle order differences
+                sorted_cached = sorted(cached_texts)
+                sorted_input = sorted(texts)
+                if sorted_cached != sorted_input:
+                    print(
+                        f"Cache content mismatch for {collection_name}. Recreating collection..."
+                    )
+                else:
+                    print(f"Re-use collection for {collection_name}")
+                    use_cache = True
     except Exception:
         # If collection doesn't exist or any error, create new one
         print(f"Init new client from text for {collection_name}...")
+    if not use_cache:
+        # Clear existing collection before recreating to avoid data duplication
+        if existing_docs and existing_docs["documents"]:
+            try:
+                client.reset_collection()
+                print(f"Cleared existing collection {collection_name} before recreating...")
+            except Exception as e:
+                # If reset fails, log and continue with recreation
+                print(f"Warning: Failed to clear collection {collection_name}: {e}")
         client = _create_chroma_from_texts(
             texts, embedding, collection_name, metadatas, collection_metadata, chroma_dir
         )
@@ -231,7 +259,7 @@ def recover_incomplete_tool_calls(state: AgentState) -> list:
     handled_tool_call_ids = set()
 
     # Look for ToolMessages that respond to these tool calls
-    for msg in messages[last_ai_index + 1 :]:
+    for msg in messages[last_ai_index + 1:]:
         if isinstance(msg, ToolMessage) and msg.tool_call_id in tool_call_ids:
             handled_tool_call_ids.add(msg.tool_call_id)
 
@@ -253,7 +281,7 @@ def recover_incomplete_tool_calls(state: AgentState) -> list:
 
     # Build operations to insert recovery messages in correct position
     operations = []
-    messages_after_ai = messages[last_ai_index + 1 :]
+    messages_after_ai = messages[last_ai_index + 1:]
 
     # Collect IDs that will be removed
     removed_ids = set()

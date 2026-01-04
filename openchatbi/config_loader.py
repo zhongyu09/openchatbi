@@ -57,6 +57,9 @@ class Config(BaseModel):
     # Catalog Store
     catalog_store: Any = None
 
+    # Path to the vector database file
+    vector_db_path: str = None
+
     # MCP Servers Configuration
     mcp_servers: list[dict[str, Any]] = []
 

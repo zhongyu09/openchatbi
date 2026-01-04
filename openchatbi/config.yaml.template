@@ -60,6 +60,9 @@ data_warehouse_config:
   user_name: TOKEN_SERVICE_USER_NAME
   password: TOKEN_SERVICE_PASSWORD
 
+# Vector database (chroma) path
+# vector_db_path: ./.chroma_db
+
 # LLM configurations (multiple providers)
 #
 # 1) Define providers under `llm_providers`

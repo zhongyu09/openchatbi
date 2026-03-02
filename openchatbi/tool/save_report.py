@@ -14,7 +14,8 @@ class SaveReportInput(BaseModel):
     content: str = Field(description="The content of the report to save")
     title: str = Field(description="The title of the report (will be used in filename)")
     file_format: str = Field(
-        description="The file format/extension, only support 'md', 'csv', 'txt', 'json', 'html', 'xml'")
+        description="The file format/extension, only support 'md', 'csv', 'txt', 'json', 'html', 'xml'"
+    )
 
 
 @tool("save_report", args_schema=SaveReportInput, return_direct=False, infer_schema=True)
@@ -29,7 +30,7 @@ def save_report(content: str, title: str, file_format: str = "md") -> str:
     Returns:
         str: Success message with download link or error message
     """
-    allowed_formats = {'md', 'csv', 'txt', 'json', 'html', 'xml'}
+    allowed_formats = {"md", "csv", "txt", "json", "html", "xml"}
     if file_format not in allowed_formats:
         raise ValueError(f"Unsupported file format: {file_format}")
 

@@ -7,6 +7,7 @@ import uuid
 from pathlib import Path
 
 import plotly.graph_objects as go
+
 try:
     import pysqlite3 as sqlite3
 except ImportError:  # pragma: no cover

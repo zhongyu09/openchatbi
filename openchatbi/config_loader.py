@@ -187,9 +187,7 @@ class ConfigLoader:
 
         if providers:
             if not selected_provider or selected_provider not in providers:
-                raise ValueError(
-                    f"Unknown LLM provider '{selected_provider}'. Available: {sorted(providers.keys())}"
-                )
+                raise ValueError(f"Unknown LLM provider '{selected_provider}'. Available: {sorted(providers.keys())}")
             # Store selected provider for runtime lookups (UI/API can still override per-request)
             config_data["llm_provider"] = selected_provider
             # Populate top-level LLM objects for legacy call sites

@@ -198,9 +198,7 @@ def create_vector_db(
                 sorted_cached = sorted(cached_texts)
                 sorted_input = sorted(texts)
                 if sorted_cached != sorted_input:
-                    print(
-                        f"Cache content mismatch for {collection_name}. Recreating collection..."
-                    )
+                    print(f"Cache content mismatch for {collection_name}. Recreating collection...")
                 else:
                     print(f"Re-use collection for {collection_name}")
                     use_cache = True
@@ -259,7 +257,7 @@ def recover_incomplete_tool_calls(state: AgentState) -> list:
     handled_tool_call_ids = set()
 
     # Look for ToolMessages that respond to these tool calls
-    for msg in messages[last_ai_index + 1:]:
+    for msg in messages[last_ai_index + 1 :]:
         if isinstance(msg, ToolMessage) and msg.tool_call_id in tool_call_ids:
             handled_tool_call_ids.add(msg.tool_call_id)
 
@@ -281,7 +279,7 @@ def recover_incomplete_tool_calls(state: AgentState) -> list:
 
     # Build operations to insert recovery messages in correct position
     operations = []
-    messages_after_ai = messages[last_ai_index + 1:]
+    messages_after_ai = messages[last_ai_index + 1 :]
 
     # Collect IDs that will be removed
     removed_ids = set()

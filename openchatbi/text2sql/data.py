@@ -14,8 +14,9 @@ else:
 
 if _catalog_store:
     sql_example_retriever, sql_example_dicts = init_sql_example_retriever(_catalog_store, config.get().vector_db_path)
-    table_selection_retriever, table_selection_example_dict = init_table_selection_example_dict(_catalog_store,
-        config.get().vector_db_path)
+    table_selection_retriever, table_selection_example_dict = init_table_selection_example_dict(
+        _catalog_store, config.get().vector_db_path
+    )
 else:
     sql_example_retriever, sql_example_dicts = None, {}
     table_selection_retriever, table_selection_example_dict = None, {}

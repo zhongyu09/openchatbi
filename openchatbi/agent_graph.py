@@ -328,9 +328,7 @@ def _build_graph_core(
     graph = StateGraph(AgentState, input_schema=InputState, output_schema=OutputState)
 
     # Add nodes to the graph
-    graph.add_node(
-        "llm_node", agent_llm_call(get_llm(llm_provider), normal_tools + [AskHuman], context_manager)
-    )
+    graph.add_node("llm_node", agent_llm_call(get_llm(llm_provider), normal_tools + [AskHuman], context_manager))
     graph.add_node("ask_human", ask_human)
     graph.add_node("use_tool", tool_node)
 

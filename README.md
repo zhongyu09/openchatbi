@@ -683,3 +683,47 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - **Author**: Yu Zhong ([zhongyu8@gmail.com](mailto:zhongyu8@gmail.com))
 - **Repository**: [github.com/zhongyu09/openchatbi](https://github.com/zhongyu09/openchatbi)
 - **Issues**: [Report bugs and feature requests](https://github.com/zhongyu09/openchatbi/issues)
+
+
+## FAQ
+
+### Q: How do I connect to my database?
+
+A: OpenChatBI supports multiple database dialects including Presto, PostgreSQL, MySQL, and more. Configure your data warehouse in `openchatbi/config.yaml`:
+
+```yaml
+dialect: presto
+data_warehouse_config:
+  uri: "presto://user@host:8080/catalog/schema"
+  include_tables:
+    - your_table_name
+  database_name: "catalog.schema"
+```
+
+### Q: Can I use local LLMs instead of OpenAI?
+
+A: Yes! OpenChatBI supports any LangChain-compatible LLM provider. Configure your preferred provider in the `llm_providers` section of your config file.
+
+### Q: How does the text2sql conversion work?
+
+A: OpenChatBI uses LangGraph workflows with schema linking and prompt engineering to convert natural language queries into SQL. The system automatically discovers table structures and maintains business explanations for better accuracy.
+
+### Q: What embedding models are supported?
+
+A: Any LangChain-compatible embedding model can be used. If no embedding model is configured, the system automatically falls back to BM25-based retrieval for text search.
+
+### Q: How do I enable MCP tools?
+
+A: Configure MCP tools in your config file under the `mcp` section. OpenChatBI supports integration with any MCP-compatible tool server.
+
+### Q: Why is Chinese text segmentation not working?
+
+A: The `jieba` library for Chinese word segmentation is not compatible with Python 3.12+. On Python 3.12+, the system automatically uses punctuation-based segmentation. For better Chinese text retrieval, use Python 3.11.
+
+### Q: How do I run OpenChatBI with Docker?
+
+A: Use the provided Docker configuration. Set `executor_mode: docker` in your config and ensure Docker is running on your system.
+
+### Q: Can I customize the web UI?
+
+A: Yes! OpenChatBI provides both Streamlit and Gradio sample UIs. You can modify the sample UI code or integrate with your own web application using the LangGraph API.

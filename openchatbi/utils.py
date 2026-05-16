@@ -333,7 +333,7 @@ class SimpleStore(VectorStore):
         # Create Document objects
         self.documents = [
             Document(id=doc_id, page_content=text, metadata=meta)
-            for doc_id, text, meta in zip(self.ids, self.texts, self.metadatas)
+            for doc_id, text, meta in zip(self.ids, self.texts, self.metadatas, strict=False)
         ]
 
         # Tokenize texts and create BM25 index
@@ -446,7 +446,7 @@ class SimpleStore(VectorStore):
 
         # Create new Document objects
         new_documents = [
-            Document(id=doc_id, page_content=text, metadata=meta) for doc_id, text, meta in zip(ids, texts, metadatas)
+            Document(id=doc_id, page_content=text, metadata=meta) for doc_id, text, meta in zip(ids, texts, metadatas, strict=False)
         ]
         self.documents.extend(new_documents)
 

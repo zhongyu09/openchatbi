@@ -17,9 +17,9 @@ class LLMProviderConfig(BaseModel):
 
     model_config = {"arbitrary_types_allowed": True}
 
-    default_llm: BaseChatModel | MagicMock
-    embedding_model: BaseModel | MagicMock | None = None
-    text2sql_llm: BaseChatModel | MagicMock | None = None
+    default_llm: MagicMock | BaseChatModel
+    embedding_model: MagicMock | BaseModel | None = None
+    text2sql_llm: MagicMock | BaseChatModel | None = None
 
 
 class Config(BaseModel):
@@ -42,9 +42,9 @@ class Config(BaseModel):
     dialect: str = "presto"
 
     # LLM Configurations
-    default_llm: BaseChatModel | MagicMock
-    embedding_model: BaseModel | MagicMock | None = None
-    text2sql_llm: BaseChatModel | MagicMock | None = None
+    default_llm: MagicMock | BaseChatModel
+    embedding_model: MagicMock | BaseModel | None = None
+    text2sql_llm: MagicMock | BaseChatModel | None = None
     # Multiple LLM providers (optional)
     llm_provider: str | None = None
     llm_providers: dict[str, LLMProviderConfig] = {}
@@ -154,9 +154,9 @@ class ConfigLoader:
             log(f"Configuration file not found: {config_file}, leave config un-loaded.")
             return
         except yaml.YAMLError as e:
-            raise ValueError(f"Invalid YAML in configuration file {config_file}: {e}")
+            raise ValueError(f"Invalid YAML in configuration file {config_file}: {e}") from e
         except Exception as e:
-            raise RuntimeError(f"Failed to read configuration file {config_file}: {e}")
+            raise RuntimeError(f"Failed to read configuration file {config_file}: {e}") from e
 
         self._process_config_dict(config_data)
         self._config = Config.from_dict(config_data)

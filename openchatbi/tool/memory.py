@@ -2,6 +2,8 @@ import functools
 import sys
 from typing import Any
 
+# langgraph's sqlite modules must see the selected sqlite module before import.
+# ruff: noqa: E402, I001
 try:
     import pysqlite3 as sqlite3
 except ImportError:  # pragma: no cover
@@ -10,7 +12,7 @@ except ImportError:  # pragma: no cover
 # Make sure langgraph sqlite connector uses the same sqlite module.
 sys.modules["sqlite3"] = sqlite3
 
-from langchain.tools import StructuredTool
+from langchain_core.tools import StructuredTool
 from langchain_core.language_models import BaseChatModel
 from langchain_openai.chat_models.base import BaseChatOpenAI
 from langgraph.store.sqlite import SqliteStore
@@ -151,7 +153,7 @@ class StructuredToolWithRequired(StructuredTool):
         )
 
     @functools.cached_property
-    def tool_call_schema(self) -> "ArgsSchema":
+    def tool_call_schema(self) -> Any:
         tcs = super().tool_call_schema
         try:
             if tcs.model_config:

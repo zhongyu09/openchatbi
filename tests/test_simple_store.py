@@ -51,7 +51,7 @@ class TestSimpleStore:
         assert store.metadatas == sample_metadatas
         assert store.ids == ids
         # Check documents are created correctly
-        for doc, text, meta, doc_id in zip(store.documents, sample_texts, sample_metadatas, ids):
+        for doc, text, meta, doc_id in zip(store.documents, sample_texts, sample_metadatas, ids, strict=False):
             assert doc.page_content == text
             assert doc.metadata == meta
             assert doc.id == doc_id

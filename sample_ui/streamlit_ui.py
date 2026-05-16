@@ -22,8 +22,8 @@ from langgraph.types import Command
 from openchatbi import config as openchatbi_config
 from openchatbi.llm.llm import list_llm_providers
 from openchatbi.utils import get_text_from_message_chunk, log
-from sample_ui.plotly_utils import visualization_dsl_to_gradio_plot
 from sample_ui.async_graph_manager import AsyncGraphManager
+from sample_ui.plotly_utils import visualization_dsl_to_gradio_plot
 
 # Configuration
 st.set_page_config(page_title="OpenChatBI - Streamlit Interface", page_icon="💬", layout="wide")

@@ -46,6 +46,13 @@ Join the Slack channel to discuss: https://join.slack.com/t/openchatbicommunity/
 
 **Note on Chinese Text Segmentation**: For better Chinese text retrieval, `jieba` is used for word segmentation. However, `jieba` is not compatible with Python 3.12+. On Python 3.12 and higher, the system automatically falls back to simple punctuation-based segmentation for Chinese text.
 
+### LangGraph Version Compatibility
+
+OpenChatBI has upgraded its agent runtime to **LangGraph v1** and currently targets `langgraph==1.1.10`.
+This upgrade also brings in the LangChain 1.x ecosystem and related compatibility changes.
+
+If you do **not** want to depend on LangGraph v1, please use OpenChatBI `v0.2.2` or an earlier release.
+
 ### Installation
 
 1. **Using uv (recommended):**

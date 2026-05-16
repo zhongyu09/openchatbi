@@ -1,9 +1,9 @@
 """Async API for streaming chat responses from OpenChatBI."""
 
 import asyncio
-from typing import Any
 from collections import defaultdict
 from contextlib import asynccontextmanager
+from typing import Any
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import StreamingResponse

@@ -7,10 +7,9 @@ from typing import Any
 import uvicorn
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import JSONResponse
+from model_handler import TransformerModelHandler, get_model_handler
 from pydantic import BaseModel, Field
 from starlette.requests import Request
-
-from model_handler import TransformerModelHandler, get_model_handler
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)

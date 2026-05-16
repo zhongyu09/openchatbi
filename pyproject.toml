@@ -1,6 +1,6 @@
 [project]
 name = "openchatbi"
-version = "0.2.2"
+version = "0.3.0"
 description = "OpenChatBI - Natural language business intelligence powered by LLMs for intuitive data analysis and SQL generation"
 authors = [
     { name = "Yu Zhong", email = "zhongyu8@gmail.com" },
@@ -50,7 +50,7 @@ requires-python = ">=3.11,<4.0"
 
 dependencies = [
     "requests>=2.31.0,<3.0.0",
-    "langgraph>=0.4.7,<1.0.0",
+    "langgraph==1.1.10",
     "langchain-openai>=0.3.18,<1.0.0",
     "langchain-anthropic>=0.3.13,<1.0.0",
     "langchain-community>=0.3.27,<1.0.0",
@@ -233,6 +233,7 @@ filterwarnings = [
     "error",
     "ignore::UserWarning",
     "ignore::DeprecationWarning",
+    "ignore::langchain_core._api.deprecation.LangChainPendingDeprecationWarning",
 ]
 
 [tool.coverage.run]

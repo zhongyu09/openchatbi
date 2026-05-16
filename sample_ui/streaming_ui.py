@@ -1,5 +1,8 @@
 """Gradio-based Streaming UI for OpenChatBI with real-time chat interface."""
 
+# langgraph's sqlite modules must see the selected sqlite module before import.
+# ruff: noqa: E402
+
 import asyncio
 import sys
 from collections import defaultdict
@@ -155,7 +158,6 @@ async def _async_respond_helper(message, chat_history, user_id, session_id):
 
     # Get final state and check for visualization data
     state = await graph_manager.graph.aget_state(config)
-    final_state_values = state.values
 
     if state.interrupts:
         log(f"state.interrupts: {state.interrupts}")
@@ -193,8 +195,7 @@ def respond(message, chat_history, user_id, session_id="default"):
         responses = loop.run_until_complete(_async_respond_helper(message, chat_history, user_id, session_id))
 
         # Yield all collected responses
-        for response in responses:
-            yield response
+        yield from responses
 
     except Exception as e:
         log(f"Error in respond: {e}")
@@ -290,6 +291,7 @@ with gr.Blocks(css=custom_css, theme=gr.themes.Soft()) as demo:
                     chatbot = gr.Chatbot(
                         elem_id="chatbot",
                         label="Chat",
+                        type="tuples",
                         bubble_full_width=False,
                         height=500,
                         show_label=False,
@@ -312,7 +314,7 @@ with gr.Blocks(css=custom_css, theme=gr.themes.Soft()) as demo:
                     show_chart_btn = gr.Button("📊 Show Chart Panel", variant="secondary")
                     gr.Markdown(
                         """
-                    **Instructions**  
+                    **Instructions**
                     - Type a data question and press Enter
                     - Supports streaming output (real-time display)
                     - Click chart links in chat to view interactive charts
@@ -331,9 +333,14 @@ with gr.Blocks(css=custom_css, theme=gr.themes.Soft()) as demo:
                 return gr.update(visible=False)
 
             # Register async submit handler for message input with plot output
-            msg.submit(respond, [msg, chatbot, user_box, session_box], [msg, chatbot, plot, chart_panel])
-            show_chart_btn.click(show_chart_panel, outputs=[chart_panel])
-            hide_chart_btn.click(hide_chart_panel, outputs=[chart_panel])
+            msg.submit(
+                respond,
+                [msg, chatbot, user_box, session_box],
+                [msg, chatbot, plot, chart_panel],
+                show_api=False,
+            )
+            show_chart_btn.click(show_chart_panel, outputs=[chart_panel], show_api=False)
+            hide_chart_btn.click(hide_chart_panel, outputs=[chart_panel], show_api=False)
 
         with gr.TabItem("🧠 Memory Store"):
             gr.Markdown("### Long-term Memory Viewer")
@@ -351,7 +358,12 @@ with gr.Blocks(css=custom_css, theme=gr.themes.Soft()) as demo:
                     load_memories_btn = gr.Button("🔍 Load Memories", variant="primary")
 
             # Event handler for loading memories
-            load_memories_btn.click(fn=list_user_memories, inputs=[memory_user_input], outputs=[memory_display])
+            load_memories_btn.click(
+                fn=list_user_memories,
+                inputs=[memory_user_input],
+                outputs=[memory_display],
+                show_api=False,
+            )
 
 
 # ---------- API Endpoints ----------

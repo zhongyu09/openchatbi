@@ -1,6 +1,6 @@
 """Tool for running python code."""
 
-from langchain.tools import tool
+from langchain_core.tools import tool
 from pydantic import BaseModel, Field
 
 from openchatbi.code.docker_executor import DockerExecutor, check_docker_status

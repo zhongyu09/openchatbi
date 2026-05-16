@@ -1,10 +1,12 @@
 """Tests for text2sql SQL generation functionality."""
 
+from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 import pytest
 from langchain_core.messages import AIMessage
 
+from openchatbi.constants import SQL_RESULT_LIMIT
 from openchatbi.graph_state import SQLGraphState
 from openchatbi.text2sql.generate_sql import create_sql_nodes, should_execute_sql, should_retry_sql
 
@@ -42,6 +44,7 @@ class TestText2SQLGenerateSQL:
         mock_connection = Mock()
         mock_result = Mock()
         mock_result.fetchall.return_value = [("1", "John"), ("2", "Jane")]
+        mock_result.fetchmany.return_value = [("1", "John"), ("2", "Jane")]
         mock_result.keys.return_value = ["id", "name"]
         mock_connection.execute.return_value = mock_result
 
@@ -124,6 +127,71 @@ class TestText2SQLGenerateSQL:
 
         assert result["sql_execution_result"] == SQL_SUCCESS
         assert "data" in result
+
+    def test_execute_sql_node_applies_result_limit(self, mock_llm, mock_catalog):
+        """Test SQL execution limits rows returned to the agent."""
+        _, execute_node, _, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
+
+        state = SQLGraphState(messages=[], sql="SELECT * FROM users")
+
+        with patch("openchatbi.text2sql.generate_sql.config") as mock_config:
+            mock_config.get.side_effect = ValueError
+            result = execute_node(state)
+
+        mock_engine = mock_catalog.get_sql_engine.return_value
+        mock_connection = mock_engine.connect.return_value.__enter__.return_value
+        mock_result = mock_connection.execute.return_value
+        executed_sql = str(mock_connection.execute.call_args.args[0])
+
+        assert f"LIMIT {SQL_RESULT_LIMIT}" in executed_sql
+        mock_result.fetchmany.assert_called_once_with(SQL_RESULT_LIMIT)
+        mock_result.fetchall.assert_not_called()
+        assert f"limited to first {SQL_RESULT_LIMIT} rows" in result["messages"][0].content
+
+    def test_execute_sql_node_uses_configured_result_limit(self, mock_llm, mock_catalog):
+        """Test SQL execution uses the configured row limit."""
+        _, execute_node, _, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
+        state = SQLGraphState(messages=[], sql="SELECT * FROM users")
+
+        with patch("openchatbi.text2sql.generate_sql.config") as mock_config:
+            mock_config.get.return_value = SimpleNamespace(
+                enable_sql_result_limit=True,
+                sql_result_limit=5,
+            )
+            result = execute_node(state)
+
+        mock_engine = mock_catalog.get_sql_engine.return_value
+        mock_connection = mock_engine.connect.return_value.__enter__.return_value
+        mock_result = mock_connection.execute.return_value
+        executed_sql = str(mock_connection.execute.call_args.args[0])
+
+        assert "LIMIT 5" in executed_sql
+        mock_result.fetchmany.assert_called_once_with(5)
+        mock_result.fetchall.assert_not_called()
+        assert "limited to first 5 rows" in result["messages"][0].content
+
+    def test_execute_sql_node_can_disable_result_limit(self, mock_llm, mock_catalog):
+        """Test SQL execution can opt out of the configured row limit."""
+        _, execute_node, _, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
+        state = SQLGraphState(messages=[], sql="SELECT * FROM users")
+
+        with patch("openchatbi.text2sql.generate_sql.config") as mock_config:
+            mock_config.get.return_value = SimpleNamespace(
+                enable_sql_result_limit=False,
+                sql_result_limit=5,
+            )
+            result = execute_node(state)
+
+        mock_engine = mock_catalog.get_sql_engine.return_value
+        mock_connection = mock_engine.connect.return_value.__enter__.return_value
+        mock_result = mock_connection.execute.return_value
+        executed_sql = str(mock_connection.execute.call_args.args[0])
+
+        assert "openchatbi_limited_result" not in executed_sql
+        assert "LIMIT 5" not in executed_sql
+        mock_result.fetchall.assert_called_once()
+        mock_result.fetchmany.assert_not_called()
+        assert "limited to first" not in result["messages"][0].content
 
     def test_execute_sql_node_empty_sql(self, mock_llm, mock_catalog):
         """Test SQL execution with empty SQL."""

@@ -8,10 +8,12 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from sqlalchemy import text
 from sqlalchemy.exc import DatabaseError, OperationalError, ProgrammingError, TimeoutError
 
+from openchatbi import config
 from openchatbi.catalog import CatalogStore
 from openchatbi.constants import (
     SQL_EXECUTE_TIMEOUT,
     SQL_NA,
+    SQL_RESULT_LIMIT,
     SQL_SUCCESS,
     SQL_SYNTAX_ERROR,
     SQL_UNKNOWN_ERROR,
@@ -29,6 +31,26 @@ Column(Name, Type, Display Name, Description):
 {}
 ]
 """
+
+
+def _limit_sql_query(sql: str, limit: int = SQL_RESULT_LIMIT) -> str:
+    """Wrap a query so Text2SQL never executes an unbounded result set."""
+    normalized_sql = sql.strip().rstrip(";").strip()
+    return f"SELECT * FROM (\n{normalized_sql}\n) AS openchatbi_limited_result LIMIT {limit}"
+
+
+def _get_sql_result_limit_config() -> tuple[bool, int]:
+    """Read SQL result limit settings, defaulting to safe bounded execution."""
+    try:
+        cfg = config.get()
+    except ValueError:
+        return True, SQL_RESULT_LIMIT
+
+    enabled = getattr(cfg, "enable_sql_result_limit", True)
+    limit = getattr(cfg, "sql_result_limit", SQL_RESULT_LIMIT)
+    if not isinstance(limit, int) or limit <= 0:
+        limit = SQL_RESULT_LIMIT
+    return bool(enabled), limit
 
 
 def create_sql_nodes(
@@ -150,11 +172,13 @@ def create_sql_nodes(
         Returns:
             Tuple[dict, str]: A tuple containing (schema_info, CSV string).
         """
+        limit_enabled, result_limit = _get_sql_result_limit_config()
+        execute_sql = _limit_sql_query(sql, result_limit) if limit_enabled else sql
         with catalog.get_sql_engine().connect() as connection:
-            result = connection.execute(text(sql))
+            result = connection.execute(text(execute_sql))
 
-            # Fetch all rows from the result
-            rows = result.fetchall()
+            # Keep the agent context bounded even if a backend ignores or rewrites the LIMIT.
+            rows = result.fetchmany(result_limit) if limit_enabled else result.fetchall()
 
             # Get column names
             columns = list(result.keys())
@@ -164,6 +188,8 @@ def create_sql_nodes(
 
             # Analyze data schema
             schema_info = _analyze_dataframe_schema(df)
+            if limit_enabled:
+                schema_info["result_limit"] = result_limit
 
             # Format as CSV
             csv_data = df.to_csv(index=False)
@@ -230,7 +256,11 @@ def create_sql_nodes(
 
         try:
             schema_info, csv_result = _execute_sql(sql_query)
-            result = f"```sql\n{sql_query}\n```\nSQL Result:\n```csv\n{csv_result}\n```"
+            if "result_limit" in schema_info:
+                result_label = f"SQL Result (limited to first {schema_info['result_limit']} rows)"
+            else:
+                result_label = "SQL Result"
+            result = f"```sql\n{sql_query}\n```\n{result_label}:\n```csv\n{csv_result}\n```"
             return {
                 "sql_execution_result": SQL_SUCCESS,
                 "schema_info": schema_info,

@@ -2,6 +2,11 @@ organization: The Company
 dialect: presto
 bi_config_file: example/bi.yaml
 
+# SQL Execution Result Limit Configuration
+# Enabled by default to avoid fetching unbounded query results into memory and agent context.
+# enable_sql_result_limit: true
+# sql_result_limit: 10000
+
 # Python Code Execution Configuration
 # Options: "local", "restricted_local", "docker"
 # - local: Run code in the current Python process (fastest, least secure)

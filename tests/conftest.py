@@ -1,5 +1,6 @@
 """Pytest configuration and shared fixtures."""
 
+import os
 import tempfile
 from collections.abc import Generator
 from pathlib import Path
@@ -10,6 +11,10 @@ import pytest
 from langchain_core.language_models import FakeListChatModel
 from langchain_core.messages import AIMessage, HumanMessage
 from sqlalchemy import create_engine
+
+# Avoid loading a developer's local OpenChatBI configuration during test collection.
+os.environ.setdefault("CONFIG_FILE", str(Path(tempfile.gettempdir()) / "openchatbi-test-missing.yaml"))
+os.environ.setdefault("OPENCHATBI_TEST_MODE", "true")
 
 from openchatbi.catalog.store.file_system import FileSystemCatalogStore
 from openchatbi.config_loader import ConfigLoader

@@ -8,6 +8,7 @@ from langchain_core.language_models import BaseChatModel
 from pydantic import BaseModel
 
 from openchatbi.catalog.factory import create_catalog_store
+from openchatbi.constants import SQL_RESULT_LIMIT
 from openchatbi.utils import log
 
 
@@ -71,6 +72,10 @@ class Config(BaseModel):
 
     # Visualization Configuration
     visualization_mode: str | None = "rule"  # Options: "rule", "llm", None (skip visualization)
+
+    # SQL Execution Result Limit Configuration
+    enable_sql_result_limit: bool = True
+    sql_result_limit: int = SQL_RESULT_LIMIT
 
     # Context Management Configuration
     context_config: dict[str, Any] = {}

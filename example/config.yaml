@@ -2,6 +2,10 @@ organization: MyCompany
 dialect: sqlite
 bi_config_file: example/bi.yaml
 
+# SQL Execution Result Limit Configuration
+enable_sql_result_limit: true
+sql_result_limit: 10000
+
 python_executor: docker
 
 # Visualization configuration

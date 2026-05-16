@@ -148,6 +148,15 @@ data_warehouse_config:
   database_name: "catalog.schema"
 ```
 
+4. **Configure SQL result limit:**
+
+Text2SQL query results are limited by default to avoid loading unbounded result sets into memory or the agent context. You can adjust the limit or disable it in `config.yaml`:
+
+```yaml
+enable_sql_result_limit: true
+sql_result_limit: 10000
+```
+
 ### Running the Application
 
 1. **Invoking LangGraph:**

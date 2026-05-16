@@ -6,6 +6,7 @@ import pytest
 import yaml
 
 from openchatbi.config_loader import Config, ConfigLoader
+from openchatbi.constants import SQL_RESULT_LIMIT
 
 
 class TestConfigLoader:
@@ -23,6 +24,8 @@ class TestConfigLoader:
         assert config.dialect == "presto"
         assert config.default_llm == mock_llm
         assert config.embedding_model == mock_embedding
+        assert config.enable_sql_result_limit is True
+        assert config.sql_result_limit == SQL_RESULT_LIMIT
 
     def test_config_from_dict(self):
         """Test creating Config from dictionary."""

@@ -84,6 +84,13 @@ class VisualizationService:
         """
         self.llm = llm
 
+    @staticmethod
+    def _is_single_numeric_scalar_result(schema_info: dict[str, Any]) -> bool:
+        """Return True when the query result is a single numeric KPI value."""
+        columns = schema_info.get("columns", [])
+        numeric_cols = schema_info.get("numeric_columns", [])
+        return schema_info.get("row_count") == 1 and len(columns) == 1 and len(numeric_cols) == 1
+
     def _get_chart_type_by_rule(self, question: str, schema_info: dict[str, Any]) -> ChartType:
         """Recommend chart type based on user question and data schema using rules."""
         question_lower = question.lower()
@@ -93,6 +100,9 @@ class VisualizationService:
         categorical_cols = schema_info.get("categorical_columns", [])
         datetime_cols = schema_info.get("datetime_columns", [])
         row_count = schema_info.get("row_count", 0)
+
+        if self._is_single_numeric_scalar_result(schema_info):
+            return ChartType.TABLE
 
         # Question-based heuristics
         if any(keyword in question_lower for keyword in ["trend", "over time", "timeline", "time series"]):
@@ -289,6 +299,9 @@ class VisualizationService:
         Returns:
             VisualizationDSL or None: Generated visualization configuration, or None if skipped
         """
+        if self._is_single_numeric_scalar_result(schema_info):
+            return None
+
         # Use existing DSL generation if chart type is already specified
         if chart_type is not None:
             return self.generate_visualization_dsl(question, schema_info, chart_type)

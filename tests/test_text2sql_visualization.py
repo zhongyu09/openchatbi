@@ -1,5 +1,7 @@
 """Tests for text2sql visualization functionality."""
 
+from unittest.mock import Mock
+
 import pytest
 
 from openchatbi.text2sql.visualization import ChartType, VisualizationConfig, VisualizationDSL, VisualizationService
@@ -126,6 +128,39 @@ class TestVisualizationService:
         chart_type = service._get_chart_type_by_rule(question, schema)
 
         assert chart_type == ChartType.HISTOGRAM
+
+    def test_get_chart_type_by_rule_single_numeric_scalar_result(self):
+        """Test that a single aggregate value is treated as tabular data."""
+        question = "How many orders are there?"
+        schema = {
+            "columns": ["order_count"],
+            "numeric_columns": ["order_count"],
+            "categorical_columns": [],
+            "datetime_columns": [],
+            "row_count": 1,
+        }
+
+        service = VisualizationService()
+        chart_type = service._get_chart_type_by_rule(question, schema)
+
+        assert chart_type == ChartType.TABLE
+
+    def test_generate_visualization_skips_single_numeric_scalar_result_with_llm(self):
+        """Test that scalar KPI results skip visualization before calling the LLM."""
+        mock_llm = Mock()
+        schema_info = {
+            "columns": ["order_count"],
+            "numeric_columns": ["order_count"],
+            "categorical_columns": [],
+            "datetime_columns": [],
+            "row_count": 1,
+        }
+
+        service = VisualizationService(mock_llm)
+        dsl = service.generate_visualization("How many orders are there?", schema_info, "order_count\n42\n")
+
+        assert dsl is None
+        mock_llm.invoke.assert_not_called()
 
     def test_get_chart_type_by_rule_data_based_priority(self):
         """Test that data characteristics take priority over row count."""

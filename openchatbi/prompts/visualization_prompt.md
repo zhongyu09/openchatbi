@@ -29,6 +29,7 @@ Consider:
 - Data types and structure
 - Number of data points and categories
 - What insights the user is likely seeking
+- If the result is a single-row, single-column aggregate number, such as a total count, total amount, average, minimum, or maximum, choose **table**. Do not choose bar or histogram for a single scalar KPI value.
 
 ## Response Format
 Respond with ONLY the chart type name (line, bar, pie, scatter, histogram, box, heatmap, or table). No explanation needed.

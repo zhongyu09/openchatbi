@@ -69,9 +69,7 @@ def _validate_sql_safety(sql: str) -> tuple[bool, str]:
     if re.match(r"^\s*SELECT\b", sql, flags=re.IGNORECASE):
         return True, ""
 
-    if re.match(r"^\s*WITH\b", sql, flags=re.IGNORECASE) and re.search(
-        r"\bSELECT\b", sql, flags=re.IGNORECASE
-    ):
+    if re.match(r"^\s*WITH\b", sql, flags=re.IGNORECASE) and re.search(r"\bSELECT\b", sql, flags=re.IGNORECASE):
         return True, ""
 
     return False, "Operation not supported. Only SELECT queries are allowed"
@@ -322,9 +320,7 @@ def create_sql_nodes(
             error_type = "SQL security error"
             log(f"{error_type}: {str(e)}")
             previous_errors = list(state.get("previous_sql_errors", []))
-            previous_errors.append(
-                {"sql": sql_query, "error": f"{error_type}: {str(e)}", "error_type": error_type}
-            )
+            previous_errors.append({"sql": sql_query, "error": f"{error_type}: {str(e)}", "error_type": error_type})
             error_result = f"```sql\n{sql_query}\n```\n{error_type}: {str(e)}"
             return {
                 "sql_execution_result": SQL_SECURITY_ERROR,

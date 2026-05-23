@@ -4,7 +4,7 @@ from openchatbi.llm.llm import get_embedding_model
 from openchatbi.utils import create_vector_db
 
 
-def init_sql_example_retriever(catalog, vector_db_path: str = None):
+def _init_sql_example_retriever(catalog, vector_db_path: str = None):
     """Initialize SQL example retriever from catalog.
 
     Args:
@@ -31,7 +31,7 @@ def init_sql_example_retriever(catalog, vector_db_path: str = None):
     return retriever, sql_example_dict
 
 
-def init_table_selection_example_dict(catalog, vector_db_path: str = None):
+def _init_table_selection_example_dict(catalog, vector_db_path: str = None):
     """Initialize table selection example retriever from catalog.
 
     Args:

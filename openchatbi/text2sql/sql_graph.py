@@ -10,7 +10,7 @@ from langgraph.types import Checkpointer, interrupt
 
 from openchatbi import config
 from openchatbi.catalog import CatalogStore
-from openchatbi.constants import SQL_SUCCESS
+from openchatbi.constants import SQL_EXECUTE_TIMEOUT, SQL_SUCCESS
 from openchatbi.graph_state import InputState, SQLGraphState, SQLOutputState
 from openchatbi.llm.llm import get_llm, get_text2sql_llm
 from openchatbi.text2sql.extraction import information_extraction, information_extraction_conditional_edges
@@ -37,7 +37,7 @@ def ask_human(state):
     return {"messages": tool_message, "user_input": user_feedback}
 
 
-def should_generate_visualization_or_retry(state: SQLGraphState) -> str:
+def _should_generate_visualization_or_retry(state: SQLGraphState) -> str:
     """Conditional edge function to determine next action after execute_sql.
 
     Args:
@@ -52,7 +52,7 @@ def should_generate_visualization_or_retry(state: SQLGraphState) -> str:
 
     if execution_result == SQL_SUCCESS:
         return "generate_visualization"
-    elif retry_count < max_retries and execution_result not in ("SQL_EXECUTE_TIMEOUT",):
+    elif retry_count < max_retries and execution_result != SQL_EXECUTE_TIMEOUT:
         return "regenerate_sql"
     else:
         return "end"
@@ -141,7 +141,7 @@ def build_sql_graph(
     # Add conditional edges for execute_sql - either retry, generate visualization, or end
     graph.add_conditional_edges(
         "execute_sql",
-        should_generate_visualization_or_retry,
+        _should_generate_visualization_or_retry,
         {
             "generate_visualization": "generate_visualization",
             "regenerate_sql": "regenerate_sql",

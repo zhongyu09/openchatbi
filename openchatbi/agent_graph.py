@@ -40,7 +40,7 @@ from openchatbi.utils import log, recover_incomplete_tool_calls
 logger = logging.getLogger(__name__)
 
 
-def get_mcp_servers():
+def _get_mcp_servers():
     """Get MCP servers from config with fallback for tests."""
     try:
         return config.get().mcp_servers
@@ -82,7 +82,7 @@ class CallSQLGraphInput(BaseModel):
 
 
 # Description for SQL tools
-TEXT2SQL_TOOL_DESCRIPTION = """Text2SQL tool to generate and execute SQL query and build visualization DSL for UI
+_TEXT2SQL_TOOL_DESCRIPTION = """Text2SQL tool to generate and execute SQL query and build visualization DSL for UI
 based on user's question and context.
 
 Returns:
@@ -168,7 +168,7 @@ def get_sql_tools(sql_graph: CompiledStateGraph, sync_mode: bool = False) -> Cal
         return StructuredTool.from_function(
             func=call_sql_graph_sync,
             name="text2sql",
-            description=TEXT2SQL_TOOL_DESCRIPTION,
+            description=_TEXT2SQL_TOOL_DESCRIPTION,
             args_schema=CallSQLGraphInput,
             return_direct=False,
         )
@@ -176,7 +176,7 @@ def get_sql_tools(sql_graph: CompiledStateGraph, sync_mode: bool = False) -> Cal
         return StructuredTool.from_function(
             coroutine=call_sql_graph_async,
             name="text2sql",
-            description=TEXT2SQL_TOOL_DESCRIPTION,
+            description=_TEXT2SQL_TOOL_DESCRIPTION,
             args_schema=CallSQLGraphInput,
             return_direct=False,
         )
@@ -389,7 +389,7 @@ def build_agent_graph_sync(
         CompiledStateGraph: Compiled agent graph ready for execution.
     """
     # Get MCP tools for sync context
-    mcp_tools = create_mcp_tools_sync(get_mcp_servers())
+    mcp_tools = create_mcp_tools_sync(_get_mcp_servers())
 
     return _build_graph_core(
         catalog=catalog,
@@ -427,7 +427,7 @@ async def build_agent_graph_async(
         CompiledStateGraph: Compiled agent graph ready for execution.
     """
     # Get MCP tools for async context
-    mcp_tools = await get_mcp_tools_async(get_mcp_servers())
+    mcp_tools = await get_mcp_tools_async(_get_mcp_servers())
 
     return _build_graph_core(
         catalog=catalog,

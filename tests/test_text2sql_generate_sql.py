@@ -6,9 +6,10 @@ from unittest.mock import Mock, patch
 import pytest
 from langchain_core.messages import AIMessage
 
-from openchatbi.constants import SQL_RESULT_LIMIT
+from openchatbi.constants import SQL_EXECUTE_TIMEOUT, SQL_RESULT_LIMIT, SQL_SUCCESS
 from openchatbi.graph_state import SQLGraphState
-from openchatbi.text2sql.generate_sql import create_sql_nodes, should_execute_sql, should_retry_sql
+from openchatbi.text2sql.generate_sql import create_sql_nodes, should_execute_sql
+from openchatbi.text2sql.sql_graph import _should_generate_visualization_or_retry
 
 
 class TestText2SQLGenerateSQL:
@@ -414,38 +415,32 @@ class TestText2SQLGenerateSQL:
         assert "sql_retry_count" in result
         assert result["sql_retry_count"] == 2
 
-    def test_should_retry_sql_success(self):
-        """Test retry decision with successful execution."""
-        # Import the constant from the module
-        from openchatbi.constants import SQL_SUCCESS
-
+    def test_should_generate_visualization_or_retry_success(self):
+        """Test routing to visualization with successful execution."""
         state = SQLGraphState(sql_execution_result=SQL_SUCCESS, sql_retry_count=1)
 
-        result = should_retry_sql(state)
-        assert result == "end"
+        result = _should_generate_visualization_or_retry(state)
+        assert result == "generate_visualization"
 
-    def test_should_retry_sql_timeout(self):
-        """Test retry decision with timeout."""
-        # Import the constant from the module
-        from openchatbi.constants import SQL_EXECUTE_TIMEOUT
-
+    def test_should_generate_visualization_or_retry_timeout(self):
+        """Test routing ends on database timeout."""
         state = SQLGraphState(sql_execution_result=SQL_EXECUTE_TIMEOUT, sql_retry_count=1)
 
-        result = should_retry_sql(state)
+        result = _should_generate_visualization_or_retry(state)
         assert result == "end"
 
-    def test_should_retry_sql_retry_needed(self):
-        """Test retry decision when retry is needed."""
+    def test_should_generate_visualization_or_retry_retry_needed(self):
+        """Test routing to SQL regeneration when retry is needed."""
         state = SQLGraphState(sql_execution_result="SYNTAX_ERROR", sql_retry_count=1)
 
-        result = should_retry_sql(state)
+        result = _should_generate_visualization_or_retry(state)
         assert result == "regenerate_sql"
 
-    def test_should_retry_sql_max_retries_reached(self):
-        """Test retry decision when max retries reached."""
+    def test_should_generate_visualization_or_retry_max_retries_reached(self):
+        """Test routing ends when max retries are reached."""
         state = SQLGraphState(sql_execution_result="SYNTAX_ERROR", sql_retry_count=3)
 
-        result = should_retry_sql(state)
+        result = _should_generate_visualization_or_retry(state)
         assert result == "end"
 
     def test_should_execute_sql_with_sql(self):

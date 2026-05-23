@@ -16,7 +16,7 @@ class TestSearchKnowledge:
         query_list = ["user", "information"]
         knowledge_bases = ["columns"]
 
-        with patch("openchatbi.tool.search_knowledge.search_column_from_catalog") as mock_search:
+        with patch("openchatbi.tool.search_knowledge._search_column_from_catalog") as mock_search:
             mock_search.return_value = "user_id: User identifier\nuser_name: User name"
 
             result = search_knowledge.run(
@@ -39,7 +39,7 @@ class TestSearchKnowledge:
         query_list = ["user", "metrics"]
         knowledge_bases = ["columns"]
 
-        with patch("openchatbi.tool.search_knowledge.search_column_from_catalog") as mock_search:
+        with patch("openchatbi.tool.search_knowledge._search_column_from_catalog") as mock_search:
             mock_search.return_value = "user_id: Unique identifier\nmetrics_value: Metric value"
 
             result = search_knowledge.run(
@@ -61,7 +61,7 @@ class TestSearchKnowledge:
         query_list = []
         knowledge_bases = ["columns"]
 
-        with patch("openchatbi.tool.search_knowledge.search_column_from_catalog") as mock_search:
+        with patch("openchatbi.tool.search_knowledge._search_column_from_catalog") as mock_search:
             mock_search.return_value = ""
 
             result = search_knowledge.run(
@@ -83,7 +83,7 @@ class TestSearchKnowledge:
         query_list = ["nonexistent"]
         knowledge_bases = ["columns"]
 
-        with patch("openchatbi.tool.search_knowledge.search_column_from_catalog") as mock_search:
+        with patch("openchatbi.tool.search_knowledge._search_column_from_catalog") as mock_search:
             mock_search.return_value = ""
 
             result = search_knowledge.run(
@@ -105,7 +105,7 @@ class TestSearchKnowledge:
         query_list = ["user", "data", "profile"]
         knowledge_bases = ["columns"]
 
-        with patch("openchatbi.tool.search_knowledge.search_column_from_catalog") as mock_search:
+        with patch("openchatbi.tool.search_knowledge._search_column_from_catalog") as mock_search:
             mock_search.return_value = "user_id: User ID\nuser_name: Name\nprofile_data: Profile"
 
             result = search_knowledge.run(
@@ -128,7 +128,7 @@ class TestSearchKnowledge:
         query_list = ["customer", "client", "user"]
         knowledge_bases = ["columns"]
 
-        with patch("openchatbi.tool.search_knowledge.search_column_from_catalog") as mock_search:
+        with patch("openchatbi.tool.search_knowledge._search_column_from_catalog") as mock_search:
             mock_search.return_value = "customer_id: Customer identifier\nclient_name: Client name"
 
             result = search_knowledge.run(
@@ -149,7 +149,7 @@ class TestSearchKnowledge:
         query_list = ["USER", "Data", "PROFILE"]
         knowledge_bases = ["columns"]
 
-        with patch("openchatbi.tool.search_knowledge.search_column_from_catalog") as mock_search:
+        with patch("openchatbi.tool.search_knowledge._search_column_from_catalog") as mock_search:
             mock_search.return_value = "user_data: User information"
 
             result = search_knowledge.run(
@@ -170,7 +170,7 @@ class TestSearchKnowledge:
         query_list = ["usr", "prof"]
         knowledge_bases = ["columns"]
 
-        with patch("openchatbi.tool.search_knowledge.search_column_from_catalog") as mock_search:
+        with patch("openchatbi.tool.search_knowledge._search_column_from_catalog") as mock_search:
             mock_search.return_value = "user_profile: User profile data"
 
             result = search_knowledge.run(
@@ -190,7 +190,7 @@ class TestSearchKnowledge:
         query_list = ["test"]
         knowledge_bases = ["columns"]
 
-        with patch("openchatbi.tool.search_knowledge.search_column_from_catalog") as mock_search:
+        with patch("openchatbi.tool.search_knowledge._search_column_from_catalog") as mock_search:
             mock_search.side_effect = Exception("Search error")
 
             # Should handle exceptions gracefully
@@ -209,7 +209,7 @@ class TestSearchKnowledge:
         reasoning = "Showing basic schema"
         tables = ["user_data"]
 
-        with patch("openchatbi.tool.search_knowledge.list_table_from_catalog") as mock_list:
+        with patch("openchatbi.tool.search_knowledge._list_table_from_catalog") as mock_list:
             mock_list.return_value = ["Table: user_data\n# Description: User information\n# Columns:\nuser_id: User ID"]
 
             result = show_schema.run({"reasoning": reasoning, "tables": tables})
@@ -224,7 +224,7 @@ class TestSearchKnowledge:
         reasoning = "Showing detailed schema"
         tables = ["user_data", "metrics"]
 
-        with patch("openchatbi.tool.search_knowledge.list_table_from_catalog") as mock_list:
+        with patch("openchatbi.tool.search_knowledge._list_table_from_catalog") as mock_list:
             mock_list.return_value = [
                 "Table: user_data\n# Columns: user_id, name, email",
                 "Table: metrics\n# Columns: metric_id, value, timestamp",
@@ -242,7 +242,7 @@ class TestSearchKnowledge:
         reasoning = "Testing nonexistent table"
         tables = ["nonexistent_table"]
 
-        with patch("openchatbi.tool.search_knowledge.list_table_from_catalog") as mock_list:
+        with patch("openchatbi.tool.search_knowledge._list_table_from_catalog") as mock_list:
             mock_list.return_value = []
 
             result = show_schema.run({"reasoning": reasoning, "tables": tables})
@@ -255,7 +255,7 @@ class TestSearchKnowledge:
         reasoning = "Testing schema errors"
         tables = ["error_table"]
 
-        with patch("openchatbi.tool.search_knowledge.list_table_from_catalog") as mock_list:
+        with patch("openchatbi.tool.search_knowledge._list_table_from_catalog") as mock_list:
             mock_list.side_effect = Exception("Table access error")
 
             with pytest.raises(Exception):
@@ -266,7 +266,7 @@ class TestSearchKnowledge:
         reasoning = "Showing complex schema"
         tables = ["complex_table"]
 
-        with patch("openchatbi.tool.search_knowledge.list_table_from_catalog") as mock_list:
+        with patch("openchatbi.tool.search_knowledge._list_table_from_catalog") as mock_list:
             mock_list.return_value = [
                 "Table: complex_table\n# Description: Complex data structure\n# Columns:\nid: Primary key\ndata: JSON data\ncreated_at: Timestamp"
             ]
@@ -283,7 +283,7 @@ class TestSearchKnowledge:
         query_list = ["revenue", "clicks", "impressions"]
         knowledge_bases = ["columns"]
 
-        with patch("openchatbi.tool.search_knowledge.search_column_from_catalog") as mock_search:
+        with patch("openchatbi.tool.search_knowledge._search_column_from_catalog") as mock_search:
             mock_search.return_value = "revenue: Revenue amount\nclicks: Click count\nimpressions: Impression count"
 
             result = search_knowledge.run(
@@ -305,7 +305,7 @@ class TestSearchKnowledge:
         query_list = ["user", "behavior", "tracking"]
         knowledge_bases = ["columns"]
 
-        with patch("openchatbi.tool.search_knowledge.search_column_from_catalog") as mock_search:
+        with patch("openchatbi.tool.search_knowledge._search_column_from_catalog") as mock_search:
             mock_search.return_value = "user_behavior: User activity tracking\ntracking_id: Tracking identifier"
 
             result = search_knowledge.run(
@@ -326,7 +326,7 @@ class TestSearchKnowledge:
         query_list = ["sum", "count", "average"]
         knowledge_bases = ["columns"]
 
-        with patch("openchatbi.tool.search_knowledge.search_column_from_catalog") as mock_search:
+        with patch("openchatbi.tool.search_knowledge._search_column_from_catalog") as mock_search:
             mock_search.return_value = "total_count: Count aggregation\naverage_value: Average calculation"
 
             result = search_knowledge.run(
@@ -345,7 +345,7 @@ class TestSearchKnowledge:
         reasoning = "Showing schema with examples"
         tables = ["example_table"]
 
-        with patch("openchatbi.tool.search_knowledge.list_table_from_catalog") as mock_list:
+        with patch("openchatbi.tool.search_knowledge._list_table_from_catalog") as mock_list:
             mock_list.return_value = [
                 "Table: example_table\n# Description: Example usage\n## Derived metrics:\nSELECT COUNT(*) FROM example_table"
             ]
@@ -362,7 +362,7 @@ class TestSearchKnowledge:
         query_list = ["performance", "speed", "optimization"]
         knowledge_bases = ["columns"]
 
-        with patch("openchatbi.tool.search_knowledge.search_column_from_catalog") as mock_search:
+        with patch("openchatbi.tool.search_knowledge._search_column_from_catalog") as mock_search:
             mock_search.return_value = "performance_metric: Performance measurement"
 
             result = search_knowledge.run(
@@ -383,7 +383,7 @@ class TestSearchKnowledge:
         query_list = ["user@domain", "data-point", "metric_value"]
         knowledge_bases = ["columns"]
 
-        with patch("openchatbi.tool.search_knowledge.search_column_from_catalog") as mock_search:
+        with patch("openchatbi.tool.search_knowledge._search_column_from_catalog") as mock_search:
             mock_search.return_value = "user_email: User email address\ndata_point: Data measurement"
 
             result = search_knowledge.run(
@@ -403,7 +403,7 @@ class TestSearchKnowledge:
         query_list = ["utilización", "données", "用户"]
         knowledge_bases = ["columns"]
 
-        with patch("openchatbi.tool.search_knowledge.search_column_from_catalog") as mock_search:
+        with patch("openchatbi.tool.search_knowledge._search_column_from_catalog") as mock_search:
             mock_search.return_value = "user_data: International user data"
 
             result = search_knowledge.run(
@@ -423,7 +423,7 @@ class TestSearchKnowledge:
         query_list = ["state", "integration"]
         knowledge_bases = ["columns"]
 
-        with patch("openchatbi.tool.search_knowledge.search_column_from_catalog") as mock_search:
+        with patch("openchatbi.tool.search_knowledge._search_column_from_catalog") as mock_search:
             mock_search.return_value = "state_data: Application state information"
 
             # Test that the tool can be called in the context of agent state

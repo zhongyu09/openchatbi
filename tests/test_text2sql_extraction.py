@@ -8,10 +8,10 @@ from langchain_core.messages import AIMessage, HumanMessage
 
 from openchatbi.graph_state import SQLGraphState
 from openchatbi.text2sql.extraction import (
-    generate_extraction_prompt,
+    _generate_extraction_prompt,
+    _parse_extracted_info_json,
     information_extraction,
     information_extraction_conditional_edges,
-    parse_extracted_info_json,
 )
 
 
@@ -20,7 +20,7 @@ class TestText2SQLExtraction:
 
     def test_generate_extraction_prompt(self):
         """Test extraction prompt generation."""
-        prompt = generate_extraction_prompt()
+        prompt = _generate_extraction_prompt()
 
         # Should replace time placeholder with today's date
         today_str = date.today().strftime("%Y-%m-%d")
@@ -44,7 +44,7 @@ class TestText2SQLExtraction:
 
         with patch("openchatbi.text2sql.extraction.get_text_from_content", return_value=llm_content):
             with patch("openchatbi.text2sql.extraction.extract_json_from_answer", return_value=json_response):
-                result = parse_extracted_info_json(llm_content)
+                result = _parse_extracted_info_json(llm_content)
 
         assert result == json_response
         assert "keywords" in result
@@ -56,7 +56,7 @@ class TestText2SQLExtraction:
 
         with patch("openchatbi.text2sql.extraction.get_text_from_content", return_value=invalid_content):
             with patch("openchatbi.text2sql.extraction.extract_json_from_answer", side_effect=Exception("Parse error")):
-                result = parse_extracted_info_json(invalid_content)
+                result = _parse_extracted_info_json(invalid_content)
 
         assert result == {}
 
@@ -85,7 +85,7 @@ class TestText2SQLExtraction:
         mock_response = AIMessage(content=json.dumps(extracted_info))
 
         with patch("openchatbi.text2sql.extraction.call_llm_chat_model_with_retry", return_value=mock_response):
-            with patch("openchatbi.text2sql.extraction.parse_extracted_info_json", return_value=extracted_info):
+            with patch("openchatbi.text2sql.extraction._parse_extracted_info_json", return_value=extracted_info):
                 extraction_func = information_extraction(mock_llm)
 
                 state = SQLGraphState(
@@ -104,7 +104,7 @@ class TestText2SQLExtraction:
         mock_response = AIMessage(content="")
 
         with patch("openchatbi.text2sql.extraction.call_llm_chat_model_with_retry", return_value=mock_response):
-            with patch("openchatbi.text2sql.extraction.parse_extracted_info_json", return_value={}):
+            with patch("openchatbi.text2sql.extraction._parse_extracted_info_json", return_value={}):
                 extraction_func = information_extraction(mock_llm)
 
                 state = SQLGraphState(messages=[HumanMessage(content="Test question")], question="Test question")
@@ -165,7 +165,7 @@ class TestText2SQLExtraction:
         mock_response = AIMessage(content=json.dumps(extracted_info))
 
         with patch("openchatbi.text2sql.extraction.call_llm_chat_model_with_retry", return_value=mock_response):
-            with patch("openchatbi.text2sql.extraction.parse_extracted_info_json", return_value=extracted_info):
+            with patch("openchatbi.text2sql.extraction._parse_extracted_info_json", return_value=extracted_info):
                 extraction_func = information_extraction(mock_llm)
 
                 state = SQLGraphState(messages=[HumanMessage(content="Test question")], question="Test question")
@@ -191,7 +191,7 @@ class TestText2SQLExtraction:
         mock_response = AIMessage(content=json.dumps(extracted_info))
 
         with patch("openchatbi.text2sql.extraction.call_llm_chat_model_with_retry", return_value=mock_response):
-            with patch("openchatbi.text2sql.extraction.parse_extracted_info_json", return_value=extracted_info):
+            with patch("openchatbi.text2sql.extraction._parse_extracted_info_json", return_value=extracted_info):
                 extraction_func = information_extraction(mock_llm)
 
                 state = SQLGraphState(

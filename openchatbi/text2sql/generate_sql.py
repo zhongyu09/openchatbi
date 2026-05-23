@@ -32,7 +32,7 @@ class SQLSecurityError(ValueError):
     """Raised when generated SQL fails safety validation."""
 
 
-COLUMN_PROMPT_TEMPLATE = """### Columns
+_COLUMN_PROMPT_TEMPLATE = """### Columns
 Column(Name, Type, Display Name, Description):
 [
 {}
@@ -132,7 +132,7 @@ def create_sql_nodes(
             table_info = catalog.get_table_information(table_name)
             single_table_schema_prompt = f"## Table {table_name}\n{table_info['description']}\n"
             columns = catalog.get_column_list(table_name)
-            single_table_schema_prompt += COLUMN_PROMPT_TEMPLATE.format(
+            single_table_schema_prompt += _COLUMN_PROMPT_TEMPLATE.format(
                 "\n".join([_get_column_prompt(column) for column in columns])
             )
             single_table_schema_prompt += table_info.get("derived_metric", "")
@@ -433,39 +433,6 @@ def create_sql_nodes(
             return {"visualization_dsl": {"error": f"Failed to generate visualization: {str(e)}"}}
 
     return generate_sql_node, execute_sql_node, regenerate_sql_node, generate_visualization_node
-
-
-def should_retry_sql(state: SQLGraphState) -> str:
-    """Conditional edge function to determine if SQL should be retried.
-
-    Args:
-        state (SQLGraphState): Current state
-
-    Returns:
-        str: Next node name - "regenerate_sql" if retry needed, "end" if done
-    """
-    execution_result = state.get("sql_execution_result", "")
-    retry_count = state.get("sql_retry_count", 0)
-    max_retries = 3
-
-    if execution_result in (SQL_SUCCESS, SQL_EXECUTE_TIMEOUT):
-        return "end"
-    elif retry_count < max_retries:
-        return "regenerate_sql"
-    else:
-        # Max retries reached or other terminal state
-        if retry_count >= max_retries:
-            previous_errors = state.get("previous_sql_errors", [])
-            if previous_errors:
-                last_error = previous_errors[-1]
-                error_result = f"```sql\n{last_error['sql']}\n```\n{last_error['error']}\nFailed to generate valid SQL after {max_retries} attempts."
-            else:
-                error_result = f"Failed to generate valid SQL after {max_retries} attempts."
-
-            # Update state with final error message
-            state["messages"] = [AIMessage(error_result)]
-            state["sql_execution_result"] = SQL_NA
-        return "end"
 
 
 def should_execute_sql(state: SQLGraphState) -> str:

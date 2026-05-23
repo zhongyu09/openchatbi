@@ -14,7 +14,7 @@ from openchatbi.prompts.system_prompt import get_basic_knowledge, get_extraction
 from openchatbi.utils import extract_json_from_answer, get_text_from_content, log
 
 
-def generate_extraction_prompt() -> str:
+def _generate_extraction_prompt() -> str:
     """Generate extraction prompt.
 
     Returns:
@@ -28,7 +28,7 @@ def generate_extraction_prompt() -> str:
     return prompt
 
 
-def parse_extracted_info_json(llm_answer_content: Any) -> dict[str, Any]:
+def _parse_extracted_info_json(llm_answer_content: Any) -> dict[str, Any]:
     """Extract and parse JSON from LLM response.
 
     Args:
@@ -69,7 +69,7 @@ def information_extraction(llm: BaseChatModel) -> Callable:
         last_message = messages[-1]
         user_input = last_message.content
         log(f"information_extraction: {user_input}")
-        system_prompt = generate_extraction_prompt()
+        system_prompt = _generate_extraction_prompt()
         prompt = "Please extract the information according to the context."
         response = call_llm_chat_model_with_retry(
             llm, ([SystemMessage(system_prompt)] + messages + [HumanMessage(prompt)]), ["search_knowledge", "AskHuman"]
@@ -80,7 +80,7 @@ def information_extraction(llm: BaseChatModel) -> Callable:
                 return {"messages": [response]}
             else:
                 llm_answer_content = response.content
-                parsed_result = parse_extracted_info_json(llm_answer_content)
+                parsed_result = _parse_extracted_info_json(llm_answer_content)
                 return {
                     "messages": [response],
                     "rewrite_question": parsed_result.get("rewrite_question"),

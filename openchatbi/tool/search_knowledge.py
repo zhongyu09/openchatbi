@@ -34,7 +34,7 @@ def search_knowledge(
     log(f"Search knowledge, query_list={query_list}, knowledge_bases={knowledge_bases}, reasoning={reasoning}")
     final_results = {}
     if "columns" in knowledge_bases:
-        column_results = search_column_from_catalog(query_list, with_table_list)
+        column_results = _search_column_from_catalog(query_list, with_table_list)
         final_results["columns"] = f"# Relevant Columns and Description:\n{column_results}"
     return final_results
 
@@ -53,21 +53,21 @@ def show_schema(reasoning: str, tables: list[str]) -> list[str]:
         list[str]: Schema information for each table.
     """
     log(f"Show schema, tables={tables}, reasoning={reasoning}")
-    result = list_table_from_catalog(tables)
+    result = _list_table_from_catalog(tables)
     return result
 
 
-def search_column_from_catalog(query_list: list[str], with_table_list: bool) -> str:
+def _search_column_from_catalog(query_list: list[str], with_table_list: bool) -> str:
     """Search columns from catalog based on query list."""
     relevant_column_set = set()
     for keywords in query_list:
         relevant_columns = get_relevant_columns(keywords.split(" "), keywords.split(" "), keywords.split(" "))
         relevant_column_set.update(relevant_columns)
-    column_results = render_column_result(relevant_column_set, with_table_list)
+    column_results = _render_column_result(relevant_column_set, with_table_list)
     return "\n".join(column_results)
 
 
-def list_table_from_catalog(tables: list[str]) -> list[str]:
+def _list_table_from_catalog(tables: list[str]) -> list[str]:
     """Get table information from catalog."""
     result = []
     catalog_store = config.get().catalog_store
@@ -79,7 +79,7 @@ def list_table_from_catalog(tables: list[str]) -> list[str]:
         table_desc = f"Table: `{table_name}` \n# Description: {table_info['description']}\n"
         columns = catalog_store.get_column_list(table_name)
         column_names = [info["column_name"] for info in columns]
-        column_results = render_column_result(column_names)
+        column_results = _render_column_result(column_names)
         table_desc += "# Columns:\n"
         table_desc += "\n".join(column_results)
         if table_info.get("derived_metric"):
@@ -89,7 +89,7 @@ def list_table_from_catalog(tables: list[str]) -> list[str]:
     return result
 
 
-def render_column_result(column_list: list[str], with_table_list: bool = False) -> list[str]:
+def _render_column_result(column_list: list[str], with_table_list: bool = False) -> list[str]:
     """Render column information as formatted strings."""
     column_results = []
     for column_name in column_list:

@@ -446,7 +446,8 @@ class SimpleStore(VectorStore):
 
         # Create new Document objects
         new_documents = [
-            Document(id=doc_id, page_content=text, metadata=meta) for doc_id, text, meta in zip(ids, texts, metadatas, strict=False)
+            Document(id=doc_id, page_content=text, metadata=meta)
+            for doc_id, text, meta in zip(ids, texts, metadatas, strict=False)
         ]
         self.documents.extend(new_documents)
 

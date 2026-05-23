@@ -1,10 +1,11 @@
 """OpenChatBI core module initialization."""
 
 import os
+from unittest.mock import MagicMock
 
 from langgraph.graph.state import CompiledStateGraph
 
-from openchatbi.config_loader import ConfigLoader
+from openchatbi.config_loader import Config, ConfigLoader
 
 # Global configuration instance
 config = ConfigLoader()
@@ -12,7 +13,7 @@ config = ConfigLoader()
 if not os.environ.get("SPHINX_BUILD"):
     config.load()
 else:
-    config.set({})
+    config._config = Config.from_dict({"default_llm": MagicMock()})
 
 
 def get_default_graph():

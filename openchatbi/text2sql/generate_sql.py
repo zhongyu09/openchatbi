@@ -1,4 +1,5 @@
 import datetime
+import re
 from collections.abc import Callable
 from typing import Any
 
@@ -14,6 +15,7 @@ from openchatbi.constants import (
     SQL_EXECUTE_TIMEOUT,
     SQL_NA,
     SQL_RESULT_LIMIT,
+    SQL_SECURITY_ERROR,
     SQL_SUCCESS,
     SQL_SYNTAX_ERROR,
     SQL_UNKNOWN_ERROR,
@@ -24,6 +26,11 @@ from openchatbi.prompts.system_prompt import get_text2sql_dialect_prompt_templat
 from openchatbi.text2sql.data import sql_example_dicts, sql_example_retriever
 from openchatbi.text2sql.visualization import VisualizationService
 from openchatbi.utils import get_text_from_content, log
+
+
+class SQLSecurityError(ValueError):
+    """Raised when generated SQL fails safety validation."""
+
 
 COLUMN_PROMPT_TEMPLATE = """### Columns
 Column(Name, Type, Display Name, Description):
@@ -37,6 +44,37 @@ def _limit_sql_query(sql: str, limit: int = SQL_RESULT_LIMIT) -> str:
     """Wrap a query so Text2SQL never executes an unbounded result set."""
     normalized_sql = sql.strip().rstrip(";").strip()
     return f"SELECT * FROM (\n{normalized_sql}\n) AS openchatbi_limited_result LIMIT {limit}"
+
+
+def _validate_sql_safety(sql: str) -> tuple[bool, str]:
+    """Validate generated SQL before execution."""
+    disallowed_patterns = [
+        r"(?:^|\s)INSERT\s+(?:INTO\s+|OVERWRITE\s+)(?:TABLE\s+)?",
+        r"(?:^|\s)UPDATE\s+[`\"\[\w]",
+        r"(?:^|\s)DELETE\s+(?:FROM\b|[`\"\[\w]+\s+FROM\b)",
+        r"(?:^|\s)DROP\s+(?:TEMP(?:ORARY)?\s+)?(?:TABLE|DATABASE|SCHEMA|VIEW|MATERIALIZED\s+VIEW|USER|ROLE|INDEX|FUNCTION|PROCEDURE|TRIGGER)\b",
+        r"(?:^|\s)CREATE\s+(?:OR\s+REPLACE\s+)?(?:TEMP(?:ORARY)?\s+)?(?:TABLE|DATABASE|SCHEMA|VIEW|MATERIALIZED\s+VIEW|USER|ROLE|INDEX|FUNCTION|PROCEDURE|TRIGGER)\b",
+        r"(?:^|\s)ALTER\s+(?:TABLE|DATABASE|SCHEMA|VIEW|MATERIALIZED\s+VIEW|USER|ROLE|INDEX|FUNCTION|PROCEDURE|TRIGGER)\b",
+        r"(?:^|\s)TRUNCATE\b",
+        r"(?:^|\s)GRANT\b",
+        r"(?:^|\s)REVOKE\b",
+        r"(?:^|\s)LOAD\s+DATA\b",
+        r"(?:^|\s)INTO\s+(?:OUT|DUMP)FILE\b",
+        r"(?:^|\s)FOR\s+UPDATE\b",
+    ]
+    for pattern in disallowed_patterns:
+        if re.search(pattern, sql, flags=re.IGNORECASE):
+            return False, f"Operation not allowed: {pattern}"
+
+    if re.match(r"^\s*SELECT\b", sql, flags=re.IGNORECASE):
+        return True, ""
+
+    if re.match(r"^\s*WITH\b", sql, flags=re.IGNORECASE) and re.search(
+        r"\bSELECT\b", sql, flags=re.IGNORECASE
+    ):
+        return True, ""
+
+    return False, "Operation not supported. Only SELECT queries are allowed"
 
 
 def _get_sql_result_limit_config() -> tuple[bool, int]:
@@ -173,7 +211,14 @@ def create_sql_nodes(
             Tuple[dict, str]: A tuple containing (schema_info, CSV string).
         """
         limit_enabled, result_limit = _get_sql_result_limit_config()
-        execute_sql = _limit_sql_query(sql, result_limit) if limit_enabled else sql
+        is_safe, reason = _validate_sql_safety(sql)
+        if not is_safe:
+            raise SQLSecurityError(reason)
+
+        if limit_enabled:
+            execute_sql = _limit_sql_query(sql, result_limit)
+        else:
+            execute_sql = sql
         with catalog.get_sql_engine().connect() as connection:
             result = connection.execute(text(execute_sql))
 
@@ -273,6 +318,19 @@ def create_sql_nodes(
                 f"```sql\n{sql_query}\n```\nDatabase Connection Timeout: {str(e)}\nPlease check database connectivity."
             )
             return {"sql_execution_result": SQL_EXECUTE_TIMEOUT, "messages": [AIMessage(error_result)]}
+        except SQLSecurityError as e:
+            error_type = "SQL security error"
+            log(f"{error_type}: {str(e)}")
+            previous_errors = list(state.get("previous_sql_errors", []))
+            previous_errors.append(
+                {"sql": sql_query, "error": f"{error_type}: {str(e)}", "error_type": error_type}
+            )
+            error_result = f"```sql\n{sql_query}\n```\n{error_type}: {str(e)}"
+            return {
+                "sql_execution_result": SQL_SECURITY_ERROR,
+                "previous_sql_errors": previous_errors,
+                "messages": [AIMessage(error_result)],
+            }
         except Exception as e:
             error_type = "Unexpected error"
             if isinstance(e, ProgrammingError):
@@ -423,8 +481,8 @@ def should_execute_sql(state: SQLGraphState) -> str:
     Returns:
         str: Next node name - "execute_sql" if SQL is generated, "end" if done
     """
-    sql = state.get("sql", "")
-    if not sql:
+    sql = state.get("sql", "").strip()
+    if not sql or sql.lower() == "null":
         return "end"
     else:
         return "execute_sql"

@@ -90,6 +90,25 @@ class TestText2SQLGenerateSQL:
         assert "sql" in result
         assert result["sql"] == "SELECT * FROM users"
 
+    def test_generate_sql_node_null_response_does_not_execute(self, mock_llm, mock_catalog):
+        """Test NULL SQL generation is treated as no executable SQL."""
+        mock_llm.invoke.return_value = AIMessage(content="NULL")
+        generate_node, _, _, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
+
+        state = SQLGraphState(
+            messages=[],
+            question="Show all users",
+            rewrite_question="Show all users",
+            tables=[{"table": "users", "columns": []}],
+        )
+
+        with patch("openchatbi.text2sql.generate_sql.sql_example_retriever") as mock_retriever:
+            mock_retriever.invoke.return_value = []
+            result = generate_node(state)
+
+        assert result["sql"] == "NULL"
+        assert should_execute_sql(result) == "end"
+
     def test_generate_sql_node_missing_rewrite_question(self, mock_llm, mock_catalog):
         """Test SQL generation with missing rewrite question."""
         generate_node, _, _, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
@@ -193,6 +212,150 @@ class TestText2SQLGenerateSQL:
         mock_result.fetchmany.assert_not_called()
         assert "limited to first" not in result["messages"][0].content
 
+    def test_execute_sql_node_allows_with_select_query(self, mock_llm, mock_catalog):
+        """Test SQL execution allows CTE-based SELECT queries."""
+        _, execute_node, _, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
+        state = SQLGraphState(
+            messages=[],
+            sql="WITH active_users AS (SELECT * FROM users WHERE active = 1) SELECT * FROM active_users",
+        )
+
+        result = execute_node(state)
+
+        mock_engine = mock_catalog.get_sql_engine.return_value
+        mock_connection = mock_engine.connect.return_value.__enter__.return_value
+        executed_sql = str(mock_connection.execute.call_args.args[0])
+
+        assert result["sql_execution_result"] == "SQL_SUCCESS"
+        assert "WITH active_users AS" in executed_sql
+
+    def test_execute_sql_node_rejects_disallowed_operation_after_select(self, mock_llm, mock_catalog):
+        """Test SQL execution rejects disallowed operations after a SELECT."""
+        _, execute_node, _, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
+        state = SQLGraphState(messages=[], sql="SELECT * FROM users; DELETE FROM users")
+
+        result = execute_node(state)
+
+        from openchatbi.constants import SQL_SECURITY_ERROR
+
+        mock_engine = mock_catalog.get_sql_engine.return_value
+        mock_connection = mock_engine.connect.return_value.__enter__.return_value
+
+        assert result["sql_execution_result"] == SQL_SECURITY_ERROR
+        assert result["previous_sql_errors"][-1]["error_type"] == "SQL security error"
+        assert "Operation not allowed" in result["previous_sql_errors"][-1]["error"]
+        mock_connection.execute.assert_not_called()
+
+    @pytest.mark.parametrize(
+        "sql",
+        [
+            "DELETE FROM users",
+            "DELETE users FROM users",
+            "UPDATE users SET name = 'Jane'",
+            "INSERT INTO users VALUES (1, 'Jane')",
+            "INSERT OVERWRITE TABLE users SELECT * FROM archived_users",
+            "DROP TABLE users",
+            "DROP DATABASE analytics",
+            "DROP MATERIALIZED VIEW user_summary",
+            "CREATE TABLE users (id INT)",
+            "CREATE OR REPLACE VIEW user_summary AS SELECT * FROM users",
+            "ALTER TABLE users ADD COLUMN email TEXT",
+            "ALTER USER readonly_user SET password = 'secret'",
+            "TRUNCATE TABLE users",
+            "SELECT * FROM users INTO OUTFILE '/tmp/users.csv'",
+            "SELECT * FROM users FOR UPDATE",
+        ],
+    )
+    def test_execute_sql_node_rejects_disallowed_operations(self, mock_llm, mock_catalog, sql):
+        """Test SQL execution rejects write and DDL operations."""
+        _, execute_node, _, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
+        state = SQLGraphState(messages=[], sql=sql)
+
+        result = execute_node(state)
+
+        from openchatbi.constants import SQL_SECURITY_ERROR
+
+        mock_engine = mock_catalog.get_sql_engine.return_value
+        mock_connection = mock_engine.connect.return_value.__enter__.return_value
+
+        assert result["sql_execution_result"] == SQL_SECURITY_ERROR
+        assert result["previous_sql_errors"][-1]["error_type"] == "SQL security error"
+        mock_connection.execute.assert_not_called()
+
+    def test_execute_sql_node_allows_ddl_words_in_string_literals(self, mock_llm, mock_catalog):
+        """Test operation words in string literals do not trigger object-level checks."""
+        _, execute_node, _, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
+        state = SQLGraphState(
+            messages=[],
+            sql="SELECT * FROM audit_logs WHERE action IN ('INSERT', 'UPDATE', 'DELETE', 'DROP', 'CREATE', 'ALTER')",
+        )
+
+        result = execute_node(state)
+
+        mock_engine = mock_catalog.get_sql_engine.return_value
+        mock_connection = mock_engine.connect.return_value.__enter__.return_value
+
+        assert result["sql_execution_result"] == "SQL_SUCCESS"
+        mock_connection.execute.assert_called_once()
+
+    def test_execute_sql_node_allows_select_into_table(self, mock_llm, mock_catalog):
+        """Test SELECT INTO table syntax is not blocked by the file export rule."""
+        _, execute_node, _, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
+        state = SQLGraphState(messages=[], sql="SELECT * INTO archived_users FROM users")
+
+        result = execute_node(state)
+
+        mock_engine = mock_catalog.get_sql_engine.return_value
+        mock_connection = mock_engine.connect.return_value.__enter__.return_value
+
+        assert result["sql_execution_result"] == "SQL_SUCCESS"
+        mock_connection.execute.assert_called_once()
+
+    def test_execute_sql_node_allows_operation_phrase_after_quote(self, mock_llm, mock_catalog):
+        """Test operation phrases after quotes are not treated as SQL operations."""
+        _, execute_node, _, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
+        state = SQLGraphState(messages=[], sql="SELECT * FROM audit_logs WHERE action='ALTER TABLE'")
+
+        result = execute_node(state)
+
+        mock_engine = mock_catalog.get_sql_engine.return_value
+        mock_connection = mock_engine.connect.return_value.__enter__.return_value
+
+        assert result["sql_execution_result"] == "SQL_SUCCESS"
+        mock_connection.execute.assert_called_once()
+
+    def test_execute_sql_node_rejects_disallowed_operations_in_comments(self, mock_llm, mock_catalog):
+        """Test dangerous keywords in comments are rejected by the safety check."""
+        _, execute_node, _, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
+        state = SQLGraphState(messages=[], sql="/* harmless */ SELECT * FROM users -- ignored DROP TABLE users")
+
+        result = execute_node(state)
+
+        from openchatbi.constants import SQL_SECURITY_ERROR
+
+        mock_engine = mock_catalog.get_sql_engine.return_value
+        mock_connection = mock_engine.connect.return_value.__enter__.return_value
+
+        assert result["sql_execution_result"] == SQL_SECURITY_ERROR
+        assert result["previous_sql_errors"][-1]["error_type"] == "SQL security error"
+        mock_connection.execute.assert_not_called()
+
+    def test_execute_sql_node_rejects_dangerous_statement_after_comment(self, mock_llm, mock_catalog):
+        """Test dangerous statements remain blocked when comments are present."""
+        _, execute_node, _, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
+        state = SQLGraphState(messages=[], sql="SELECT * FROM users /* comment */; DROP TABLE users")
+
+        result = execute_node(state)
+
+        from openchatbi.constants import SQL_SECURITY_ERROR
+
+        mock_engine = mock_catalog.get_sql_engine.return_value
+        mock_connection = mock_engine.connect.return_value.__enter__.return_value
+
+        assert result["sql_execution_result"] == SQL_SECURITY_ERROR
+        assert result["previous_sql_errors"][-1]["error_type"] == "SQL security error"
+        mock_connection.execute.assert_not_called()
+
     def test_execute_sql_node_empty_sql(self, mock_llm, mock_catalog):
         """Test SQL execution with empty SQL."""
         _, execute_node, _, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
@@ -295,6 +458,13 @@ class TestText2SQLGenerateSQL:
     def test_should_execute_sql_without_sql(self):
         """Test execute decision without SQL."""
         state = SQLGraphState(sql="")
+
+        result = should_execute_sql(state)
+        assert result == "end"
+
+    def test_should_execute_sql_with_null_sql(self):
+        """Test execute decision treats NULL as no SQL."""
+        state = SQLGraphState(sql="NULL")
 
         result = should_execute_sql(state)
         assert result == "end"

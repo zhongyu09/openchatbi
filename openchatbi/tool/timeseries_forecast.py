@@ -53,7 +53,7 @@ def check_forecast_service_health() -> bool:
         return False
 
 
-def _call_timeseries_service(
+def call_timeseries_service(
     service_url: str,
     input_data: list[float | int | dict[str, Any]],
     forecast_window: int,
@@ -61,7 +61,26 @@ def _call_timeseries_service(
     input_length: int | None = None,
     target_column: str = "value",
 ) -> dict[str, Any]:
-    """Call time series forecasting service."""
+    """Call the underlying time series forecasting service and return structured data.
+    
+    Unlike the `timeseries_forecast` tool function which returns a formatted string for the LLM agent,
+    this function returns the raw structured dictionary response from the forecasting microservice.
+    It is intended for internal programmatic use (e.g., by the anomaly detection module) where 
+    structured prediction data is needed for further computation.
+    
+    Args:
+        service_url: The URL of the forecasting microservice.
+        input_data: Historical time series data as list of numbers or structured data.
+        forecast_window: Number of future time points to predict.
+        frequency: Time series frequency (e.g., 'hourly', 'daily').
+        input_length: Optional limit on how much historical data to use.
+        target_column: Column name to forecast for structured data (default: 'value').
+        
+    Returns:
+        dict[str, Any]: A dictionary containing either the successful predictions 
+                        (e.g., {"predictions": [1.0, 2.0], "status": "success"}) 
+                        or an error status (e.g., {"error": "...", "status": "error"}).
+    """
     try:
         # Prepare request payload
         payload = {"input": input_data, "forecast_window": forecast_window, "frequency": frequency}
@@ -160,6 +179,10 @@ def timeseries_forecast(
 
     This tool uses state-of-the-art deep learning models (currently transformer based) to predict future values based on historical time series data.
     Perfect for sales forecasting, demand planning, trend analysis, and business intelligence.
+    
+    Note: This function acts as a LangChain tool wrapper and returns a human-readable formatted string 
+    designed for the LLM agent to read. If you need raw structured prediction data for internal 
+    programmatic use, call `call_timeseries_service` instead.
 
     Args:
         reasoning: Explanation of why forecasting is needed and what insights are expected
@@ -197,7 +220,7 @@ def timeseries_forecast(
         return """Time Series Forecasting Service Unavailable. The time series forecasting service is not running or not in service. """
 
     # Call the forecasting service
-    result = _call_timeseries_service(
+    result = call_timeseries_service(
         service_url=service_url,
         input_data=input_data,
         forecast_window=forecast_window,

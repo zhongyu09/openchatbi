@@ -297,6 +297,16 @@ def _build_graph_core(
     sql_graph = build_sql_graph(catalog, checkpointer, memory_store, llm_provider=llm_provider)
     call_sql_graph_tool = get_sql_tools(sql_graph=sql_graph, sync_mode=sync_mode)
 
+    # Add data analysis deep agent tool
+    from openchatbi.analysis.agent import get_data_analysis_tool
+    data_analysis_tool = get_data_analysis_tool(
+        sql_graph=sql_graph,
+        sync_mode=sync_mode,
+        llm_provider=llm_provider,
+        checkpointer=checkpointer,
+        memory_store=memory_store,
+    )
+
     # Use provided memory tools or create them
     if not memory_tools:
         memory_tools = get_memory_tools(get_llm(llm_provider), sync_mode=sync_mode, store=memory_store)
@@ -306,6 +316,7 @@ def _build_graph_core(
         search_knowledge,
         show_schema,
         call_sql_graph_tool,
+        data_analysis_tool,
         run_python_code,
         save_report,
     ]

@@ -106,6 +106,8 @@ class TestAgentGraphIntegration:
             patch("openchatbi.agent_graph.get_memory_tools") as mock_memory_tools,
             patch("openchatbi.agent_graph.create_mcp_tools_sync") as mock_mcp_tools,
             patch("openchatbi.agent_graph.get_llm", return_value=mock_llm),
+            patch("openchatbi.analysis.agent.get_llm", return_value=mock_llm),
+            patch("openchatbi.analysis.agent.create_deep_agent", return_value=Mock()),
         ):
 
             # Setup function-based mocks
@@ -153,6 +155,8 @@ class TestAgentGraphIntegration:
             patch("openchatbi.agent_graph.get_memory_tools") as mock_memory_tools,
             patch("openchatbi.agent_graph.create_mcp_tools_sync") as mock_mcp_tools,
             patch("openchatbi.agent_graph.get_llm", return_value=mock_llm),
+            patch("openchatbi.analysis.agent.get_llm", return_value=mock_llm),
+            patch("openchatbi.analysis.agent.create_deep_agent", return_value=Mock()),
         ):
 
             # Setup function-based mocks

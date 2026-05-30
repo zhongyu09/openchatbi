@@ -2,7 +2,7 @@
 
 import pytest
 
-from openchatbi.catalog.catalog_store import CatalogStore
+from openchatbi.catalog.catalog_store import CatalogStore, split_db_table_name
 from openchatbi.catalog.store.file_system import FileSystemCatalogStore
 
 
@@ -83,6 +83,31 @@ class TestFileSystemCatalogStore:
         # Should handle missing file gracefully
         columns = store.get_column_list("nonexistent_table")
         assert isinstance(columns, list)
+
+    def test_empty_database_name_uses_plain_table_name(self, temp_dir):
+        """Test empty database names do not produce leading-dot table keys."""
+        data_dir = temp_dir / "empty_database"
+        data_dir.mkdir()
+
+        (data_dir / "table_columns.csv").write_text(
+            "db_name,table_name,column_name\n"
+            ",Customers,customer_id\n"
+            ",Customers,customer_name\n"
+        )
+        (data_dir / "common_columns.csv").write_text(
+            "column_name,type,display_name,description\n"
+            "customer_id,bigint,Customer Id,Primary key\n"
+            "customer_name,varchar,Customer Name,Customer name\n"
+        )
+
+        data_warehouse_config = {"uri": "sqlite:///:memory:", "include_tables": None, "database_name": ""}
+        store = FileSystemCatalogStore(data_path=str(data_dir), data_warehouse_config=data_warehouse_config)
+
+        assert split_db_table_name("Customers", "") == ("Customers", "", "Customers")
+        assert store.get_table_list() == ["Customers"]
+
+        columns = store.get_column_list("Customers")
+        assert [column["column_name"] for column in columns] == ["customer_id", "customer_name"]
 
     def test_get_tables_malformed_csv(self, temp_dir):
         """Test handling malformed CSV files."""

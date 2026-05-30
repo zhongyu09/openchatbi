@@ -192,7 +192,7 @@ def split_db_table_name(table: str, database: str | None = None) -> tuple[str, s
 
     """
     full_table_name = table
-    if database is not None and "." not in table:
+    if database and "." not in table:
         full_table_name = f"{database}.{table}"
     if "." in full_table_name:
         db_name, table_name = full_table_name.rsplit(".", 1)

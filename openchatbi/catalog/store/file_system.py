@@ -355,7 +355,7 @@ class FileSystemCatalogStore(CatalogStore):
                 db_name = row["db_name"]
                 table_name = row["table_name"]
                 column_name = row["column_name"]
-                full_table_name = f"{db_name}.{table_name}"
+                full_table_name, _, _ = split_db_table_name(table_name, db_name)
                 if full_table_name not in table_dict:
                     table_dict[full_table_name] = []
                 table_dict[full_table_name].append(column_name)
@@ -392,7 +392,7 @@ class FileSystemCatalogStore(CatalogStore):
         for row in columns_csv:
             if "db_name" in row and "table_name" in row and "column_name" in row and row["column_name"]:
                 # Convert row to Dict[(str, str), Any]
-                full_table_name = f"{row['db_name']}.{row['table_name']}"
+                full_table_name, _, _ = split_db_table_name(row["table_name"], row["db_name"])
                 column_info = {}
                 for key, value in row.items():
                     if key != "":
@@ -560,7 +560,8 @@ class FileSystemCatalogStore(CatalogStore):
             for db_name, tables in self._sql_example_cache.items():
                 for table_name, example_text in tables.items():
                     qa_pairs = self._parse_example_text(example_text)
-                    examples.extend([(q, a, [f"{db_name}.{table_name}"]) for (q, a) in qa_pairs])
+                    full_table_name, _, _ = split_db_table_name(table_name, db_name)
+                    examples.extend([(q, a, [full_table_name]) for (q, a) in qa_pairs])
             return examples
 
         full_table_name, db_name, table_name = split_db_table_name(table, database)
@@ -666,7 +667,8 @@ class FileSystemCatalogStore(CatalogStore):
         existing_table_columns = set()
         for row in tables_data:
             if "db_name" in row and "table_name" in row and "column_name" in row:
-                key = f"{row['db_name']}.{row['table_name']}:{row['column_name']}"
+                existing_full_table_name, _, _ = split_db_table_name(row["table_name"], row["db_name"])
+                key = f"{existing_full_table_name}:{row['column_name']}"
                 existing_table_columns.add(key)
 
         # Update table_columns.csv and track new columns to add

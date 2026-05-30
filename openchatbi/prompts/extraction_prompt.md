@@ -85,6 +85,9 @@ Transform the original question into a clear, comprehensive query specification.
 - Include visualization preference if provided by user
 - Preserve user intent while adding necessary context
 - Use conversation history to fill gaps
+- For follow-up questions that only change time range, time grain, ranking, grouping, or visualization (for example: "show recent 2 years monthly data", "what about monthly", "look at it by year"), inherit the most recent explicit business subject, metric, filters, and entity context from conversation history. Do not rewrite these follow-ups into generic phrases like "monthly aggregated data" unless the previous context truly has no business subject or metric.
+- If the current question is a follow-up and the inherited business subject or metric cannot be determined from the current question or chat history, generate an `AskHuman` tool call instead of returning an underspecified rewrite.
+- The `rewrite_question`, `keywords`, and `metrics` fields must all preserve the inherited business subject and metric after resolving a follow-up question.
 
 # Knowledge Search Decision
 
@@ -167,7 +170,24 @@ Return a JSON object with the following structure:
 **Current**: "Show me CTR for last week"
 **Result**: Inherit site "ABC" context
 
-## Case 3: Timezone Handling
+## Case 3: Follow-up Time Grain Change
+**Previous**: "Show me yearly order count historically"
+**Current**: "Show me monthly data for the recent 2 years"
+**Expected Output**:
+```json
+{
+  "reasoning": "The current question is a follow-up that changes time range and time grain only. It inherits the business subject and metric from the previous query: order count. The current query overrides the time grain to monthly and the time range to the recent 2 years.",
+  "keywords": ["order", "order count", "monthly"],
+  "dimensions": ["date_order_placed"],
+  "metrics": ["order count"],
+  "filter": [],
+  "start_time": "calculated recent 2 years start timestamp",
+  "end_time": "calculated current timestamp",
+  "rewrite_question": "Show monthly order count for the recent 2 years"
+}
+```
+
+## Case 4: Timezone Handling
 **Input**: "Yesterday's metrics in EST"
 **Result**: Extract timezone="America/New_York", calculate yesterday in EST
 

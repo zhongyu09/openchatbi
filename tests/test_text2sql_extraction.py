@@ -29,6 +29,8 @@ class TestText2SQLExtraction:
         # Should contain basic knowledge
         assert "[basic_knowledge_glossary]" not in prompt
         assert "[time_field_placeholder]" not in prompt
+        assert "inherit the most recent explicit business subject" in prompt
+        assert "Show monthly order count for the recent 2 years" in prompt
 
     def test_parse_extracted_info_json_valid(self):
         """Test parsing valid JSON from LLM response."""
@@ -96,6 +98,40 @@ class TestText2SQLExtraction:
 
         assert "info_entities" in result
         assert result["rewrite_question"] == "What is the total revenue by region?"
+
+    def test_information_extraction_preserves_followup_business_context(self):
+        """Test follow-up extraction keeps inherited order metric context."""
+        mock_llm = Mock()
+
+        extracted_info = {
+            "rewrite_question": "Show monthly order count for the recent 2 years",
+            "keywords": ["order", "order count", "monthly"],
+            "dimensions": ["date_order_placed"],
+            "metrics": ["order count"],
+            "filters": [],
+            "start_time": "2024-05-01 00:00:00",
+            "end_time": "2026-05-30 23:59:59",
+        }
+
+        mock_response = AIMessage(content=json.dumps(extracted_info))
+
+        with patch("openchatbi.text2sql.extraction.call_llm_chat_model_with_retry", return_value=mock_response):
+            with patch("openchatbi.text2sql.extraction._parse_extracted_info_json", return_value=extracted_info):
+                extraction_func = information_extraction(mock_llm)
+
+                state = SQLGraphState(
+                    messages=[
+                        HumanMessage(content="帮我查下历史上年度的订单数"),
+                        AIMessage(content="年度订单数查询已完成。"),
+                        HumanMessage(content="帮我看下最近2年多月度数据"),
+                    ],
+                    question="帮我看下最近2年多月度数据",
+                )
+
+                result = extraction_func(state)
+
+        assert result["rewrite_question"] == "Show monthly order count for the recent 2 years"
+        assert "order count" in result["info_entities"]["metrics"]
 
     def test_information_extraction_empty_response(self):
         """Test handling empty extraction response."""
@@ -215,7 +251,7 @@ class TestText2SQLExtraction:
 
             # Should raise exception as the function doesn't have try-catch
             try:
-                result = extraction_func(state)
+                extraction_func(state)
                 # Should not reach here
                 assert False, "Expected exception to be raised"
             except Exception as e:

@@ -90,9 +90,7 @@ class TestFileSystemCatalogStore:
         data_dir.mkdir()
 
         (data_dir / "table_columns.csv").write_text(
-            "db_name,table_name,column_name\n"
-            ",Customers,customer_id\n"
-            ",Customers,customer_name\n"
+            "db_name,table_name,column_name\n" ",Customers,customer_id\n" ",Customers,customer_name\n"
         )
         (data_dir / "common_columns.csv").write_text(
             "column_name,type,display_name,description\n"

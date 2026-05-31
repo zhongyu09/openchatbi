@@ -68,45 +68,32 @@ business-friendly narrative.
 Data Analysis Agent
 ===================
 
-Overview
---------
+The narrative documentation for the data analysis package — covering the
+**Data Analysis Agent** and the two analysis algorithms (**anomaly detection**
+and **Adtributor drill-down**) — lives in the package README, included below:
 
-The data analysis agent is a specialized sub-agent (built on the `deepagents
-<https://github.com/langchain-ai/deepagents>`_ framework) that orchestrates the
-analysis tools above into multi-step workflows. The main agent delegates complex
-analysis requests to it through the ``data_analysis`` tool, which keeps the
-main agent's context focused while the sub-agent handles planning and tool
-orchestration.
+.. include:: ../../openchatbi/analysis/README.md
+    :parser: myst_parser.sphinx_
 
-Supported scenarios:
-
-- **Single metric trend forecasting** — ``text2sql`` → ``timeseries_forecast``
-- **Single metric anomaly detection** — ``text2sql`` → ``anomaly_detection``
-- **Single metric anomaly drill-down** — ``text2sql`` (1D melted table) → ``adtributor_drilldown``
-- **Multi-metric correlation** — ``text2sql`` → ``run_python_code``
-- **Business combination analysis** — ``text2sql`` → ``run_python_code``
-
-Tool dependencies and health checks:
-
-- ``text2sql`` reuses the main SQL generation subgraph.
-- ``timeseries_forecast`` and ``anomaly_detection`` require the forecasting
-  service to be healthy; both are excluded together when it is not.
-- ``adtributor_drilldown`` and ``run_python_code`` have no external service
-  dependency.
-
-LLM selection:
-
-- The agent uses the optional ``analysis_llm`` configuration when present,
-  otherwise it falls back to ``default_llm`` (see
-  :func:`openchatbi.llm.llm.get_analysis_llm`).
-
-Sub-agent isolation:
-
-- The sub-agent is invoked with a derived child ``thread_id``
-  (``"{parent_thread_id}:data_analysis"``) so it does not clobber the main
-  agent's checkpoint thread, while keeping interrupt/resume deterministic.
+API Reference
+-------------
 
 .. automodule:: openchatbi.analysis.agent
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+.. automodule:: openchatbi.analysis.anomaly_detection
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+.. automodule:: openchatbi.analysis.adtributor
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+.. automodule:: openchatbi.analysis.models
     :members:
     :undoc-members:
     :show-inheritance:

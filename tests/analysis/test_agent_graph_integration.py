@@ -27,7 +27,6 @@ def mock_llm():
     return llm
 
 
-@patch("openchatbi.agent_graph.check_forecast_service_health", return_value=False)
 @patch("openchatbi.agent_graph.get_memory_tools", return_value=[])
 @patch("openchatbi.analysis.agent.get_data_analysis_tool")
 @patch("openchatbi.agent_graph.get_sql_tools")
@@ -39,7 +38,6 @@ def test_build_agent_graph_sync_includes_data_analysis(
     mock_get_sql_tools,
     mock_get_data_analysis_tool,
     mock_get_memory_tools,
-    mock_check_health,
     mock_catalog,
     mock_llm,
 ):
@@ -60,7 +58,6 @@ def test_build_agent_graph_sync_includes_data_analysis(
 
 
 @pytest.mark.asyncio
-@patch("openchatbi.agent_graph.check_forecast_service_health", return_value=False)
 @patch("openchatbi.agent_graph.get_memory_tools", return_value=[])
 @patch("openchatbi.analysis.agent.get_data_analysis_tool")
 @patch("openchatbi.agent_graph.get_sql_tools")
@@ -72,7 +69,6 @@ async def test_build_agent_graph_async_includes_data_analysis(
     mock_get_sql_tools,
     mock_get_data_analysis_tool,
     mock_get_memory_tools,
-    mock_check_health,
     mock_catalog,
     mock_llm,
 ):

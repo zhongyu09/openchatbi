@@ -39,7 +39,7 @@ def _patch_agent_graph_dependencies(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(agent_graph, "get_memory_tools", lambda *args, **kwargs: None)
     monkeypatch.setattr(agent_graph, "create_mcp_tools_sync", lambda servers: [])
     monkeypatch.setattr(agent_graph, "get_mcp_tools_async", lambda servers: _async_empty_tools())
-    monkeypatch.setattr(agent_graph, "check_forecast_service_health", lambda: False)
+    monkeypatch.setattr(analysis_agent, "check_forecast_service_health", lambda: False)
 
 
 async def _async_empty_tools() -> list:

@@ -79,7 +79,7 @@ llm_providers:
       class: langchain_openai.ChatOpenAI
       params:
         api_key: YOUR_API_KEY_HERE
-        model: gpt-4.1
+        model: gpt-5.5
         temperature: 0.01
         max_tokens: 8192
     embedding_model:
@@ -93,7 +93,7 @@ llm_providers:
       class: langchain_openai.ChatOpenAI
       params:
         api_key: YOUR_API_KEY_HERE
-        model: gpt-4.1
+        model: gpt-5.5
         temperature: 0.0
         max_tokens: 8192
     # Optional: dedicated LLM for the data analysis agent.
@@ -103,7 +103,7 @@ llm_providers:
     #   class: langchain_openai.ChatOpenAI
     #   params:
     #     api_key: YOUR_API_KEY_HERE
-    #     model: gpt-4.1
+    #     model: gpt-5.5
     #     temperature: 0.0
     #     max_tokens: 8192
   # anthropic:

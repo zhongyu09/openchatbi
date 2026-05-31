@@ -17,7 +17,7 @@ Join the Slack channel to discuss: https://join.slack.com/t/openchatbicommunity/
 4. **Data Catalog Management**: Automatically discovers and indexes database table structures, supports flexible catalog
    storage backends with vector-based or BM25-based retrieval, and easily maintains business explanations for tables
    and columns as well as optimizes Prompts.
-5. **Time Series Forecasting**: Forecasting models deployed in-house that can be called as tools
+5. **Time Series Forecasting**: In-house forecasting models, accessed through the data analysis agent (see feature 12)
 6. **Code Execution**: Execute Python code for data analysis and visualization
 7. **Interactive Problem-Solving**: Proactively ask users for more context when information is incomplete
 8. **Persistent Memory**: Conversation management and user characteristic memory based on LangGraph checkpointing
@@ -30,7 +30,8 @@ Join the Slack channel to discuss: https://join.slack.com/t/openchatbicommunity/
    that the main agent delegates complex analysis to. It orchestrates text2sql, time series forecasting, anomaly detection,
    multi-dimensional drill-down (Adtributor) and Python execution to cover trend forecasting, anomaly detection,
    anomaly root-cause drill-down, multi-metric correlation and business combination analysis. Optionally uses a
-   dedicated `analysis_llm`. See the docs `Tools and Utilities` page for details.
+   dedicated `analysis_llm`. See [`openchatbi/analysis/README.md`](openchatbi/analysis/README.md)
+   ([中文](openchatbi/analysis/README_cn.md)) for the agent and the underlying anomaly detection / Adtributor algorithms.
 
 ## Roadmap
 
@@ -138,7 +139,7 @@ llm_providers:
       class: langchain_openai.ChatOpenAI
       params:
         api_key: YOUR_API_KEY_HERE
-        model: gpt-4.1
+        model: gpt-5.5
         temperature: 0.02
         max_tokens: 8192
 
@@ -320,6 +321,12 @@ openchatbi/
 │   ├── context_manager.py      # Context window and token management
 │   ├── text_segmenter.py       # Text segmentation with jieba support
 │   ├── utils.py                # Utility functions and SimpleStore (BM25-based retrieval)
+│   ├── analysis/               # Data analysis agent + algorithms (see analysis/README.md)
+│   │   ├── README.md           # Package docs (EN) / README_cn.md (中文)
+│   │   ├── agent.py            # Data analysis agent + `data_analysis` tool
+│   │   ├── anomaly_detection.py # Anomaly detection scoring algorithm
+│   │   ├── adtributor.py       # Adtributor root-cause / drill-down algorithm
+│   │   └── models.py           # Adtributor output models
 │   ├── catalog/                # Data catalog management
 │   │   ├── __init__.py         # Package initialization
 │   │   ├── catalog_loader.py   # Catalog loading logic
@@ -359,6 +366,8 @@ openchatbi/
 │   │   ├── text2sql_utils.py   # Text2SQL utilities
 │   │   └── visualization.py    # Data visualization functions
 │   └── tool/                   # LangGraph tools and functions
+│       ├── anomaly_detection.py # Anomaly detection tool wrapper
+│       ├── adtributor_tool.py  # Adtributor drill-down tool wrapper
 │       ├── ask_human.py        # Human-in-the-loop interactions
 │       ├── memory.py           # Memory management tool
 │       ├── mcp_tools.py        # MCP (Model Context Protocol) integration

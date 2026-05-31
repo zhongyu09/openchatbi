@@ -218,3 +218,4 @@ specs
 .specify
 .cursor
 .claude
+chroma_db_new

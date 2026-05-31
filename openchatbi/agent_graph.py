@@ -34,7 +34,6 @@ from openchatbi.tool.memory import get_memory_tools
 from openchatbi.tool.run_python_code import run_python_code
 from openchatbi.tool.save_report import save_report
 from openchatbi.tool.search_knowledge import search_knowledge, show_schema
-from openchatbi.tool.timeseries_forecast import check_forecast_service_health, timeseries_forecast
 from openchatbi.utils import log, recover_incomplete_tool_calls
 
 logger = logging.getLogger(__name__)
@@ -323,10 +322,9 @@ def _build_graph_core(
     ]
     if memory_tools:
         normal_tools.extend(memory_tools)
-    if check_forecast_service_health():
-        normal_tools.append(timeseries_forecast)
-    else:
-        logger.warning("Time series forecasting service is not healthy. Skipping timeseries_forecast tool.")
+    # Forecasting/anomaly/drill-down analysis is delegated to the data analysis
+    # agent (the `data_analysis` tool), which owns timeseries_forecast and the
+    # related health check. It is intentionally not exposed directly here.
     normal_tools.extend(mcp_tools)
 
     # Initialize context manager if enabled

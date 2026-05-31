@@ -31,7 +31,7 @@ Join the Slack channel to discuss: https://join.slack.com/t/openchatbicommunity/
    multi-dimensional drill-down (Adtributor) and Python execution to cover trend forecasting, anomaly detection,
    anomaly root-cause drill-down, multi-metric correlation and business combination analysis. Optionally uses a
    dedicated `analysis_llm`. See [`openchatbi/analysis/README.md`](openchatbi/analysis/README.md)
-   ([中文](openchatbi/analysis/README_cn.md)) for the agent and the underlying anomaly detection / Adtributor algorithms.
+   for the agent and the underlying anomaly detection / Adtributor algorithms.
 
 ## Roadmap
 
@@ -281,9 +281,10 @@ OpenChatBI is built using a modular architecture with clear separation of concer
 1. **LangGraph Workflows**: Core orchestration using state machines for complex multi-step processes
 2. **Catalog Management**: Flexible data catalog system with intelligent retrieval (vector-based or BM25 fallback)
 3. **Text2SQL Pipeline**: Advanced natural language to SQL conversion with schema linking
-4. **Code Execution**: Sandboxed Python execution environment for data analysis
-5. **Tool Integration**: Extensible tool system for human interaction and knowledge search
-6. **Persistent Memory**: SQLite-based conversation state management
+4. **Data Analysis Agent**: Specialized sub-agent that orchestrates forecasting, anomaly detection, root-cause drill-down and Python analysis into multi-step workflows
+5. **Code Execution**: Sandboxed Python execution environment for data analysis
+6. **Tool Integration**: Extensible tool system for human interaction and knowledge search
+7. **Persistent Memory**: SQLite-based conversation state management
 
 ## Technology Stack
 
@@ -322,7 +323,7 @@ openchatbi/
 │   ├── text_segmenter.py       # Text segmentation with jieba support
 │   ├── utils.py                # Utility functions and SimpleStore (BM25-based retrieval)
 │   ├── analysis/               # Data analysis agent + algorithms (see analysis/README.md)
-│   │   ├── README.md           # Package docs (EN) / README_cn.md (中文)
+│   │   ├── README.md           # Package documentation
 │   │   ├── agent.py            # Data analysis agent + `data_analysis` tool
 │   │   ├── anomaly_detection.py # Anomaly detection scoring algorithm
 │   │   ├── adtributor.py       # Adtributor root-cause / drill-down algorithm

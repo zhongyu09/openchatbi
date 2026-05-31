@@ -1,7 +1,5 @@
 # Data Analysis Package (`openchatbi.analysis`)
 
-> 中文版见 [README_cn.md](./README_cn.md).
-
 This package provides OpenChatBI's advanced data analysis capabilities: a
 specialized **Data Analysis Agent** that orchestrates analysis tools into
 multi-step workflows, plus the two analysis **algorithms** it relies on —

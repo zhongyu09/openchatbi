@@ -67,8 +67,6 @@ class TestContextConfig:
 
     def test_update_context_config_single_value(self):
         """Test updating a single configuration value."""
-        original_trigger_tokens = get_context_config().summary_trigger_tokens
-
         updated_config = update_context_config(summary_trigger_tokens=15000)
 
         assert updated_config.summary_trigger_tokens == 15000
@@ -97,7 +95,7 @@ class TestContextConfig:
 
     def test_update_context_config_returns_copy(self):
         """Test that update_context_config returns a modified copy."""
-        original_config = get_context_config()
+        get_context_config()
         updated_config = update_context_config(summary_trigger_tokens=30000)
 
         # Original should be unchanged (if it's designed that way)
@@ -242,7 +240,7 @@ class TestContextConfigEdgeCases:
         small_config = ContextConfig()
 
         # Large dataset scenario
-        large_config = ContextConfig()
+        ContextConfig()
 
         # Interactive analysis scenario
         interactive_config = ContextConfig(

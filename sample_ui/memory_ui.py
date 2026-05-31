@@ -96,7 +96,7 @@ def format_memories_for_display(memories: list[dict[str, Any]]) -> str:
             try:
                 value_str = json.dumps(value, indent=2)
                 formatted.append(f"**Content:**\n```json\n{value_str}\n```")
-            except:
+            except Exception:
                 formatted.append(f"**Content:** {str(value)}")
         else:
             formatted.append(f"**Content:** {str(value)}")

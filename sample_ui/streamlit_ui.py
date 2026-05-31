@@ -1,6 +1,7 @@
 """Streamlit-based Streaming UI for OpenChatBI with collapsible thinking sections."""
 
 import asyncio
+import atexit
 import sys
 import traceback
 import uuid
@@ -17,13 +18,13 @@ from langchain_core.messages import AIMessage
 
 sys.modules["sqlite3"] = sqlite3
 
-from langgraph.types import Command
+from langgraph.types import Command  # noqa: E402
 
-from openchatbi import config as openchatbi_config
-from openchatbi.llm.llm import list_llm_providers
-from openchatbi.utils import get_text_from_message_chunk, log
-from sample_ui.async_graph_manager import AsyncGraphManager
-from sample_ui.plotly_utils import visualization_dsl_to_gradio_plot
+from openchatbi import config as openchatbi_config  # noqa: E402
+from openchatbi.llm.llm import list_llm_providers  # noqa: E402
+from openchatbi.utils import get_text_from_message_chunk, log  # noqa: E402
+from sample_ui.async_graph_manager import AsyncGraphManager  # noqa: E402
+from sample_ui.plotly_utils import visualization_dsl_to_gradio_plot  # noqa: E402
 
 # Configuration
 st.set_page_config(page_title="OpenChatBI - Streamlit Interface", page_icon="💬", layout="wide")
@@ -556,6 +557,5 @@ def cleanup_session():
 
 
 # Register cleanup (this is a simplified approach - in production you might want more robust cleanup)
-import atexit
 
 atexit.register(cleanup_session)

@@ -48,7 +48,7 @@ class TestConfigLoader:
 
     def test_config_loader_initialization(self):
         """Test ConfigLoader initialization."""
-        loader = ConfigLoader()
+        ConfigLoader()
         # Initially, config should be None until loaded
         # Don't assert _config state since it depends on previous tests
 

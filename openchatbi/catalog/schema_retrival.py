@@ -74,7 +74,7 @@ def edit_distance_search(keywords_list, top_k=10, threshold=0.5):
     Returns:
         list: List of relevant column names.
     """
-    keys = set([re.sub(r"(_id|_name| id| name)$", "", key.lower()) for key in keywords_list])
+    keys = {re.sub(r"(_id|_name| id| name)$", "", key.lower()) for key in keywords_list}
     column_similarity_score = set()
     for key in keys:
         key_column_similarity_score = {}

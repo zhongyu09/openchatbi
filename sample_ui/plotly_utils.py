@@ -186,12 +186,12 @@ def create_table_chart(df: pd.DataFrame, config: dict[str, Any], layout: dict[st
     fig = go.Figure(
         data=[
             go.Table(
-                header=dict(values=columns, fill_color="lightblue", align="left"),
-                cells=dict(
-                    values=[display_df[col] for col in columns if col in display_df.columns],
-                    fill_color="white",
-                    align="left",
-                ),
+                header={"values": columns, "fill_color": "lightblue", "align": "left"},
+                cells={
+                    "values": [display_df[col] for col in columns if col in display_df.columns],
+                    "fill_color": "white",
+                    "align": "left",
+                },
             )
         ]
     )
@@ -212,12 +212,12 @@ def create_empty_chart(message: str) -> go.Figure:
         xanchor="center",
         yanchor="middle",
         showarrow=False,
-        font=dict(size=16),
+        font={"size": 16},
     )
     fig.update_layout(
         title="Chart Generation Issue",
-        xaxis=dict(showgrid=False, showticklabels=False, zeroline=False),
-        yaxis=dict(showgrid=False, showticklabels=False, zeroline=False),
+        xaxis={"showgrid": False, "showticklabels": False, "zeroline": False},
+        yaxis={"showgrid": False, "showticklabels": False, "zeroline": False},
     )
     return fig
 

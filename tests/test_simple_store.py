@@ -76,7 +76,7 @@ class TestSimpleStore:
         assert len(results) == 2
         for doc, score in results:
             assert hasattr(doc, "page_content")
-            assert isinstance(score, (int, float))
+            assert isinstance(score, int | float)
             assert score >= 0
 
         # Scores should be in descending order

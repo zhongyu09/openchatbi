@@ -29,8 +29,6 @@ extensions = [
 ]
 
 # Set an environment variable to indicate we're building docs
-import os
-
 os.environ["SPHINX_BUILD"] = "1"
 
 # MyST parser configuration

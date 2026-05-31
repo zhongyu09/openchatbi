@@ -157,7 +157,7 @@ class TestContextManagementEdgeCases:
 
         # Should handle all Unicode content
         assert len(result) > 0
-        assert all(isinstance(msg, (HumanMessage, AIMessage, ToolMessage)) for msg in result)
+        assert all(isinstance(msg, HumanMessage | AIMessage | ToolMessage) for msg in result)
 
     def test_extremely_nested_or_complex_structures(self, context_manager):
         """Test handling of complex nested data structures in tool outputs."""

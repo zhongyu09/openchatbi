@@ -66,34 +66,10 @@ business-friendly narrative.
     :show-inheritance:
 
 Data Analysis Agent
-===================
+-------------------
 
-The narrative documentation for the data analysis package — covering the
-**Data Analysis Agent** and the two analysis algorithms (**anomaly detection**
-and **Adtributor drill-down**) — lives in the package README, included below:
+The data analysis agent is a specialized sub-agent that orchestrates complex analysis 
+tasks (like anomaly detection, root cause drill-down, and trend forecasting). 
 
-.. include:: ../../openchatbi/analysis/README.md
-    :parser: myst_parser.sphinx_
-
-API Reference
--------------
-
-.. automodule:: openchatbi.analysis.agent
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-.. automodule:: openchatbi.analysis.anomaly_detection
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-.. automodule:: openchatbi.analysis.adtributor
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-.. automodule:: openchatbi.analysis.models
-    :members:
-    :undoc-members:
-    :show-inheritance:
+See the dedicated :doc:`data_analysis_agent` section for full details on the 
+agent workflows, tool dependencies, and the underlying algorithms.

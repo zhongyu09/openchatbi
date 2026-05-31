@@ -91,13 +91,9 @@ def merge_dimensions(df: pd.DataFrame, derived: bool) -> pd.DataFrame:
     if derived:
         with np.errstate(divide="ignore", invalid="ignore"):
             df["predict"] = np.nan_to_num(
-                df["predict_numerator"] / df["predict_denominator"],
-                nan=0.0, posinf=0.0, neginf=0.0
+                df["predict_numerator"] / df["predict_denominator"], nan=0.0, posinf=0.0, neginf=0.0
             )
-            df["real"] = np.nan_to_num(
-                df["real_numerator"] / df["real_denominator"],
-                nan=0.0, posinf=0.0, neginf=0.0
-            )
+            df["real"] = np.nan_to_num(df["real_numerator"] / df["real_denominator"], nan=0.0, posinf=0.0, neginf=0.0)
     df = df.reset_index(drop=True)
     return df
 
@@ -194,9 +190,9 @@ def adtributor(
 
     # Rank dimensions
     ranked_candidates = sorted(
-        [c for c in candidates if not c.get("skipped_direction", False)], 
-        key=lambda x: x.get("total_surprise", 0), 
-        reverse=True
+        [c for c in candidates if not c.get("skipped_direction", False)],
+        key=lambda x: x.get("total_surprise", 0),
+        reverse=True,
     )
     ranked_dimensions = [c["dimension"] for c in ranked_candidates]
 

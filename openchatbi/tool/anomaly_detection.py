@@ -22,7 +22,10 @@ class AnomalyDetectionInput(BaseModel):
         description="Historical time series data as list of numbers or structured data with timestamps and values"
     )
     evaluation_window: int = Field(
-        default=3, description="Number of recent data points to evaluate simultaneously for anomaly scoring", ge=1, le=10
+        default=3,
+        description="Number of recent data points to evaluate simultaneously for anomaly scoring",
+        ge=1,
+        le=10,
     )
     frequency: str = Field(default="hourly", description="Time series frequency: hourly, daily, weekly, monthly, etc.")
     target_column: str = Field(
@@ -39,30 +42,27 @@ def anomaly_detection(
     target_column: str = "value",
 ) -> str:
     """Evaluate time series data for anomalies using forecasting and multi-factor scoring.
-    
-    This tool calculates an anomaly score (0 to 1) for the most recent data points by comparing 
-    them against predicted values from a time series forecasting model. It considers reconstruction 
+
+    This tool calculates an anomaly score (0 to 1) for the most recent data points by comparing
+    them against predicted values from a time series forecasting model. It considers reconstruction
     error, bound violations, relative size, and anomaly duration.
-    
+
     Args:
         reasoning: Explanation of why anomaly detection is needed
         input_data: Historical time series data including the points to evaluate at the end
         evaluation_window: Number of recent data points to evaluate (1-10, default: 3)
         frequency: Time series frequency - hourly, daily, weekly, monthly, etc.
         target_column: Column name to evaluate for structured data (default: 'value')
-        
+
     Returns:
         str: Formatted anomaly detection report with scores and insights
     """
     log(f"Anomaly Detection: {reasoning}")
-    
+
     # Evaluate the window
     score, details = evaluate_anomalies(
-        input_data=input_data,
-        evaluation_window=evaluation_window,
-        frequency=frequency,
-        target_column=target_column
+        input_data=input_data, evaluation_window=evaluation_window, frequency=frequency, target_column=target_column
     )
-    
+
     # Format and return report
     return format_anomaly_report(score, details, reasoning)

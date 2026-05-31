@@ -4,6 +4,7 @@
     DEPRECATED: This module is marked for deprecation.
     Please use the new core algorithm in `openchatbi.analysis.adtributor` and the Tool wrapper `openchatbi.tool.adtributor_tool.adtributor_drilldown` instead.
 """
+
 import logging
 
 import numpy as np
@@ -23,10 +24,7 @@ def additional_check(dimension, df, attr_list):
     """
 
     # check proportion ~= 100% case
-    checks = {
-        'proportion': 0.98,
-        'base_proportion': 0.98
-    }
+    checks = {"proportion": 0.98, "base_proportion": 0.98}
     reason = []
     for check, threshold in checks.items():
         if check not in df.columns:
@@ -49,8 +47,9 @@ def add_surpise(df, derived, merged_divide=1):
       as done in the adtributor code).
     :return: dataframe with added column for the surprise.
     """
+
     def compute_surprise(col_real, col_predict):
-        with np.errstate(divide='ignore'):
+        with np.errstate(divide="ignore"):
             f = df[col_predict].sum() / merged_divide
             a = df[col_real].sum() / merged_divide
 
@@ -62,14 +61,15 @@ def add_surpise(df, derived, merged_divide=1):
         return surprise
 
     if derived:
-        df['surprise'] = compute_surprise('real_numerator', 'predict_numerator') + \
-            compute_surprise('real_denominator', 'predict_denominator')
+        df["surprise"] = compute_surprise("real_numerator", "predict_numerator") + compute_surprise(
+            "real_denominator", "predict_denominator"
+        )
     else:
-        df['surprise'] = compute_surprise('real', 'predict')
+        df["surprise"] = compute_surprise("real", "predict")
     return df
 
 
-def add_explanatory_power(df, derived, issue_type='drop'):
+def add_explanatory_power(df, derived, issue_type="drop"):
     """
     Computes the explanatory power for all elements in the dataframe.
     :param df: pandas dataframe.
@@ -77,36 +77,36 @@ def add_explanatory_power(df, derived, issue_type='drop'):
     :return: pandas dataframe with added column for the explanatory power.
     """
     if derived:
-        f_a = df['predict_numerator'].sum()
-        f_b = df['predict_denominator'].sum()
+        f_a = df["predict_numerator"].sum()
+        f_b = df["predict_denominator"].sum()
 
-        n = (df['real_numerator'] - df['predict_numerator']) * f_b - \
-            (df['real_denominator'] - df['predict_denominator']) * f_a
-        d = f_b * (f_b + df['real_denominator'] - df['predict_denominator'])
-        df['ep'] = n / d
+        n = (df["real_numerator"] - df["predict_numerator"]) * f_b - (
+            df["real_denominator"] - df["predict_denominator"]
+        ) * f_a
+        d = f_b * (f_b + df["real_denominator"] - df["predict_denominator"])
+        df["ep"] = n / d
 
         # Normalize to sum up to 1
-        df['ep'] = df['ep'] / df['ep'].sum()
+        df["ep"] = df["ep"] / df["ep"].sum()
     else:
-        f = df['predict'].sum()
-        a = df['real'].sum()
+        f = df["predict"].sum()
+        a = df["real"].sum()
 
-        df['ep'] = (df['real'] - df['predict']) / (a - f)
+        df["ep"] = (df["real"] - df["predict"]) / (a - f)
     return df
 
 
 def merge_dimensions(df, derived):
     if derived:
-        df['predict'] = df['predict_numerator'] / df['predict_denominator']
-        df['real'] = df['real_numerator'] / df['real_denominator']
+        df["predict"] = df["predict_numerator"] / df["predict_denominator"]
+        df["real"] = df["real_numerator"] / df["real_denominator"]
     # df['element'] = df[dimensions]
     df = df.reset_index(drop=True)
     return df
 
 
-def adtributor(derived, df_dict, dimension_weights=None,
-               tep=0.7, teep=0.02, k=1, issue_type='drop'):
-    '''
+def adtributor(derived, df_dict, dimension_weights=None, tep=0.7, teep=0.02, k=1, issue_type="drop"):
+    """
     Analyzes the input data and identifies candidate dimensions for drill-down analysis.
     :param derived: bool, whether the input data is derived
     :param df_dict: dict, a dictionary containing dimension names as keys and corresponding dataframes as values
@@ -126,21 +126,21 @@ def adtributor(derived, df_dict, dimension_weights=None,
     df_dict = {
         'site_section': df1,
     }
-    :return: tuple(result, ranked_dim, debug) 
+    :return: tuple(result, ranked_dim, debug)
         result: Dict[dim: List[elements]]
         ranked_dim: List[dim]
         debug: List[Dict[elements, ep, surprise]]
-    '''
-    reason_flag = ''
+    """
+    reason_flag = ""
     if dimension_weights is None:
         dimension_weights = {}
     candidates = []
     ranked_dimensions = []
     for d, dim_df in df_dict.items():
-        if issue_type == 'drop':
-            dim_df = dim_df.loc[dim_df['predict'] > dim_df['real'] + 0.001]
-        elif issue_type == 'rise':
-            dim_df = dim_df.loc[dim_df['predict'] + 0.001 < dim_df['real']]
+        if issue_type == "drop":
+            dim_df = dim_df.loc[dim_df["predict"] > dim_df["real"] + 0.001]
+        elif issue_type == "rise":
+            dim_df = dim_df.loc[dim_df["predict"] + 0.001 < dim_df["real"]]
         if dim_df.empty:
             logging.info(f"Skip {d} drill-down: all attribute should {issue_type}")
             reason_flag = NO_SPECIFIC_INV
@@ -150,40 +150,40 @@ def adtributor(derived, df_dict, dimension_weights=None,
         # elements = add_deviation_score(elements)
         elements = add_surpise(elements, derived, merged_divide=len([d]))
         dim_elems = elements.set_index(d)
-        dim_elems = dim_elems.sort_values('surprise', ascending=False)
-        cumulative_ep = dim_elems.loc[dim_elems['ep'] > teep, 'ep'].cumsum()
+        dim_elems = dim_elems.sort_values("surprise", ascending=False)
+        cumulative_ep = dim_elems.loc[dim_elems["ep"] > teep, "ep"].cumsum()
 
         attr_list = cumulative_ep.index.values.tolist()
         dimension_weight = dimension_weights.get(d, 1)
 
-        total_suprise = dim_elems.loc[:, 'surprise'].sum() * dimension_weight
+        total_suprise = dim_elems.loc[:, "surprise"].sum() * dimension_weight
 
         candidate = {
-            'explanatory_power': cumulative_ep.max(),
-            'tep': tep,
-            'total_suprise': total_suprise,
-            'dimension': d
+            "explanatory_power": cumulative_ep.max(),
+            "tep": tep,
+            "total_suprise": total_suprise,
+            "dimension": d,
         }
-        reason = ''
+        reason = ""
 
         if np.any(cumulative_ep > tep):
             idx = (cumulative_ep > tep).idxmax()
             attr_list = cumulative_ep.loc[:idx].index.values.tolist()
             further_check_passed, reason = additional_check(d, dim_df, attr_list)
             if further_check_passed:
-                candidate['elements'] = attr_list
-                candidate['surprise'] = dim_elems.loc[attr_list, 'surprise'].sum() * dimension_weight
+                candidate["elements"] = attr_list
+                candidate["surprise"] = dim_elems.loc[attr_list, "surprise"].sum() * dimension_weight
         else:
             reason = f"skip: cumulative_ep({cumulative_ep.max()}) < tep({tep})"
             reason_flag = ATTRS_NOT_FOUND
-        candidate['reason'] = reason
+        candidate["reason"] = reason
         logging.info(f"Dimension: {d}, {reason}")
         candidates.append(candidate)
 
-    ranked_dimensions = sorted(candidates, key=lambda x: x['total_suprise'], reverse=True)
-    ranked_dimensions = [d['dimension'] for d in ranked_dimensions]
+    ranked_dimensions = sorted(candidates, key=lambda x: x["total_suprise"], reverse=True)
+    ranked_dimensions = [d["dimension"] for d in ranked_dimensions]
 
-    rc_candidates = sorted([c for c in candidates if 'elements' in c], key=lambda t: t['surprise'], reverse=True)[:k]
-    candidate_dict = {c['dimension']: c['elements'] for c in rc_candidates}
+    rc_candidates = sorted([c for c in candidates if "elements" in c], key=lambda t: t["surprise"], reverse=True)[:k]
+    candidate_dict = {c["dimension"]: c["elements"] for c in rc_candidates}
 
-    return candidate_dict, ranked_dimensions, {d['dimension']: d for d in candidates}, reason_flag
+    return candidate_dict, ranked_dimensions, {d["dimension"]: d for d in candidates}, reason_flag

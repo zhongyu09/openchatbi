@@ -299,6 +299,7 @@ def _build_graph_core(
 
     # Add data analysis deep agent tool
     from openchatbi.analysis.agent import get_data_analysis_tool
+
     data_analysis_tool = get_data_analysis_tool(
         sql_graph=sql_graph,
         sync_mode=sync_mode,

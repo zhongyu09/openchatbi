@@ -13,31 +13,44 @@ logger = logging.getLogger(__name__)
 
 class DrilldownRow(BaseModel):
     """A single row of data for the adtributor drilldown analysis."""
+
     dimension_name: str = Field(description="Name of the dimension (e.g., 'device', 'province')")
     element_value: Union[str, int, float] = Field(description="Value of the dimension element (e.g., 'ios', 1)")
-    
+
     # 绝对指标
-    predict: float | None = Field(description="Baseline/expected value for absolute metrics. Pass null if using derived metrics.")
-    real: float | None = Field(description="Actual observed value for absolute metrics. Pass null if using derived metrics.")
-    
+    predict: float | None = Field(
+        description="Baseline/expected value for absolute metrics. Pass null if using derived metrics."
+    )
+    real: float | None = Field(
+        description="Actual observed value for absolute metrics. Pass null if using derived metrics."
+    )
+
     # 派生指标 (比率)
-    predict_numerator: float | None = Field(description="Baseline numerator for derived/ratio metrics. Pass null if using absolute metrics.")
-    predict_denominator: float | None = Field(description="Baseline denominator for derived metrics. Pass null if using absolute metrics.")
-    real_numerator: float | None = Field(description="Actual numerator for derived metrics. Pass null if using absolute metrics.")
-    real_denominator: float | None = Field(description="Actual denominator for derived metrics. Pass null if using absolute metrics.")
-    
+    predict_numerator: float | None = Field(
+        description="Baseline numerator for derived/ratio metrics. Pass null if using absolute metrics."
+    )
+    predict_denominator: float | None = Field(
+        description="Baseline denominator for derived metrics. Pass null if using absolute metrics."
+    )
+    real_numerator: float | None = Field(
+        description="Actual numerator for derived metrics. Pass null if using absolute metrics."
+    )
+    real_denominator: float | None = Field(
+        description="Actual denominator for derived metrics. Pass null if using absolute metrics."
+    )
+
     # 预留给 additional check 的字段
     proportion: float | None = Field(description="Optional proportion of real value. Pass null if not available.")
-    base_proportion: float | None = Field(description="Optional proportion of predict value. Pass null if not available.")
+    base_proportion: float | None = Field(
+        description="Optional proportion of predict value. Pass null if not available."
+    )
 
 
 class AdtributorToolInput(BaseModel):
     """Input schema for the adtributor drilldown tool."""
 
     reasoning: str = Field(description="Reason for using adtributor tool and what insights you expect to gain.")
-    data: list[DrilldownRow] = Field(
-        description="Melted table data representing the anomaly data."
-    )
+    data: list[DrilldownRow] = Field(description="Melted table data representing the anomaly data.")
     derived: bool = Field(description="Whether the metric is derived (ratio).")
     issue_type: str = Field(default="drop", description="Type of anomaly: 'drop' or 'rise'. Default is 'drop'.")
     tep: float = Field(default=0.7, description="Threshold for cumulative explanatory power")
@@ -120,17 +133,21 @@ def adtributor_drilldown(
         if details.elements:
             elements_str = ", ".join(map(str, details.elements))
             ep_pct = details.explanatory_power * 100 if details.explanatory_power else 0
-            narrative = f"The elements [{elements_str}] in this dimension contributed to {ep_pct:.2f}% of the overall anomaly."
-        else:
             narrative = (
-                f"This dimension was skipped or did not have specific elements causing the anomaly. Reason: {details.reason}"
+                f"The elements [{elements_str}] in this dimension contributed to {ep_pct:.2f}% of the overall anomaly."
             )
+        else:
+            narrative = f"This dimension was skipped or did not have specific elements causing the anomaly. Reason: {details.reason}"
 
         result["dimension_details"][dim] = {
             "contribution": details.explanatory_power,
             "elements": details.elements,
             "narrative": narrative,
-            "raw_metrics": {"total_surprise": details.total_surprise, "surprise": details.surprise, "reason": details.reason},
+            "raw_metrics": {
+                "total_surprise": details.total_surprise,
+                "surprise": details.surprise,
+                "reason": details.reason,
+            },
         }
 
     return result

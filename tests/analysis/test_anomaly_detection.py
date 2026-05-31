@@ -128,9 +128,7 @@ def test_evaluate_window_direction_weighting():
     rise_actual = [1000.0, 1000.0, 1015.0]
 
     drop_default, _ = _evaluate_window(drop_actual, predicted, SMOOTH_HISTORY)
-    drop_emphasised, _ = _evaluate_window(
-        drop_actual, predicted, SMOOTH_HISTORY, drop_weight=2.0, rise_weight=1.0
-    )
+    drop_emphasised, _ = _evaluate_window(drop_actual, predicted, SMOOTH_HISTORY, drop_weight=2.0, rise_weight=1.0)
     rise_default, _ = _evaluate_window(rise_actual, predicted, SMOOTH_HISTORY)
 
     # Emphasising drops raises the score for a downward deviation.

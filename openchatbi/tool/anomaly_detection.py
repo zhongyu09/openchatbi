@@ -20,7 +20,10 @@ class AnomalyDetectionInput(BaseModel):
         description="Historical time series data as list of numbers or structured data with timestamps and values"
     )
     evaluation_window: int = Field(
-        default=3, description="Number of recent data points to evaluate simultaneously for anomaly scoring", ge=1, le=10
+        default=3,
+        description="Number of recent data points to evaluate simultaneously for anomaly scoring",
+        ge=1,
+        le=10,
     )
     frequency: str = Field(default="hourly", description="Time series frequency: hourly, daily, weekly, monthly, etc.")
     target_column: str = Field(

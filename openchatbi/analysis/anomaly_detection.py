@@ -281,9 +281,7 @@ def evaluate_anomalies(
 
     # Check service availability before doing any work.
     if not check_forecast_service_health():
-        return 0.0, {
-            "error": "Time Series Forecasting Service Unavailable. Cannot perform anomaly detection."
-        }
+        return 0.0, {"error": "Time Series Forecasting Service Unavailable. Cannot perform anomaly detection."}
 
     service_url = config.get().timeseries_forecasting_service_url
 
@@ -370,8 +368,7 @@ def format_anomaly_report(score: float, details: Dict[str, Any], reasoning: str 
         report.extend(
             [
                 f"  Point {i + 1} (Weight: {point['weight']:.2f}):",
-                f"    - Actual: {point['actual']:.2f} | Predicted: {point['predicted']:.2f} "
-                f"({point['direction']})",
+                f"    - Actual: {point['actual']:.2f} | Predicted: {point['predicted']:.2f} " f"({point['direction']})",
                 f"    - Z-Score: {point['z_score']:.2f} | Significance: {point['significance']:.4f}",
                 f"    - Volume Factor: x{point['volume_factor']:.4f}",
                 f"    - Point Severity: {point['severity']:.4f} | Contribution: {point['contribution']:.4f}",
@@ -390,8 +387,7 @@ def format_anomaly_report(score: float, details: Dict[str, Any], reasoning: str 
         report.extend(
             [
                 "",
-                "💡 Insight: No significant anomaly detected. The data follows the "
-                "expected pattern closely.",
+                "💡 Insight: No significant anomaly detected. The data follows the " "expected pattern closely.",
             ]
         )
 

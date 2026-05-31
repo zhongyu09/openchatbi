@@ -15,7 +15,7 @@ def sample_csv_data():
     """Sample CSV data for testing."""
     return """product,sales,region,month
 Widget A,10000,North,Jan
-Widget B,15000,South,Jan  
+Widget B,15000,South,Jan
 Widget C,8000,East,Jan
 Widget A,12000,North,Feb
 Widget B,18000,South,Feb

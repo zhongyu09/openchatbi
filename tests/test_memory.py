@@ -10,7 +10,7 @@ from langchain_openai import ChatOpenAI
 # Check if pysqlite3 is available, if not skip these tests
 pysqlite3 = pytest.importorskip("pysqlite3", reason="pysqlite3 not available")
 
-from openchatbi.tool.memory import (
+from openchatbi.tool.memory import (  # noqa: E402
     StructuredToolWithRequired,
     UserProfile,
     cleanup_async_memory_store,
@@ -301,7 +301,7 @@ class TestStructuredToolWithRequired:
         mock_original_tool.coroutine = None
 
         with patch("openchatbi.tool.memory.StructuredTool.__init__", return_value=None) as mock_init:
-            wrapper = StructuredToolWithRequired(mock_original_tool)
+            StructuredToolWithRequired(mock_original_tool)
 
             # Verify the __init__ was called with correct parameters
             mock_init.assert_called_once()

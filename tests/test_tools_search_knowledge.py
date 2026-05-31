@@ -194,7 +194,7 @@ class TestSearchKnowledge:
             mock_search.side_effect = Exception("Search error")
 
             # Should handle exceptions gracefully
-            with pytest.raises(Exception):
+            with pytest.raises(Exception, match="Search error"):
                 search_knowledge.run(
                     {
                         "reasoning": reasoning,
@@ -258,7 +258,7 @@ class TestSearchKnowledge:
         with patch("openchatbi.tool.search_knowledge._list_table_from_catalog") as mock_list:
             mock_list.side_effect = Exception("Table access error")
 
-            with pytest.raises(Exception):
+            with pytest.raises(Exception, match="Table access error"):
                 show_schema.run({"reasoning": reasoning, "tables": tables})
 
     def test_show_schema_complex_table(self):

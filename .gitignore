@@ -217,3 +217,5 @@ runledger_out/
 specs
 .specify
 .cursor
+chroma_db_new
+.claude

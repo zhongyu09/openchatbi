@@ -95,7 +95,7 @@ class TestDataCatalogLoader:
             loader = DataCatalogLoader(engine=mock_engine, include_tables=["table1"])
             result = loader.save_to_catalog_store(mock_catalog_store, "test_db")
 
-            assert result == True
+            assert result
             mock_catalog_store.save_table_information.assert_called()
             mock_catalog_store.save_table_sql_examples.assert_called()
             mock_catalog_store.save_table_selection_examples.assert_called()
@@ -113,7 +113,7 @@ class TestDataCatalogLoader:
             loader = DataCatalogLoader(engine=mock_engine)
             result = loader.save_to_catalog_store(mock_catalog_store)
 
-            assert result == False
+            assert not result
 
     def test_load_catalog_from_data_warehouse(self):
         """Test main entry point for catalog loading."""
@@ -132,7 +132,7 @@ class TestDataCatalogLoader:
 
             result = load_catalog_from_data_warehouse(mock_catalog_store)
 
-            assert result == True
+            assert result
             mock_loader.save_to_catalog_store.assert_called_once()
 
     def test_error_handling_in_get_tables_and_columns(self, mock_engine):

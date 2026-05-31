@@ -257,7 +257,7 @@ id,name,email
             ]
         )
 
-        original_count = len(messages)
+        len(messages)
         context_manager.manage_context_messages(messages)
 
         # Recent messages should be preserved (even if content gets compressed due to summarization)

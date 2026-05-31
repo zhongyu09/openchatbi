@@ -187,7 +187,7 @@ def create_sql_nodes(
                     try:
                         pd.to_datetime(df[col].head(10))
                         schema_info["datetime_columns"].append(col)
-                    except:
+                    except Exception:
                         schema_info["categorical_columns"].append(col)
 
             # Calculate unique value counts for categorical columns

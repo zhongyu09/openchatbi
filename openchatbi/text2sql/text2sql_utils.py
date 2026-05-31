@@ -42,7 +42,7 @@ def _init_table_selection_example_dict(catalog, vector_db_path: str = None):
         tuple: (retriever, table_selection_example_dict)
     """
     sql_examples = catalog.get_table_selection_examples()
-    table_selection_example_dict = dict((q, tables) for q, tables in sql_examples)
+    table_selection_example_dict = dict(sql_examples)
 
     texts = list(table_selection_example_dict.keys())
     if not texts:

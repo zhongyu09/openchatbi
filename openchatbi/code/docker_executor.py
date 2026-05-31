@@ -80,9 +80,11 @@ class DockerExecutor(ExecutorBase):
                         f"Error: {result.stderr.strip()}"
                     )
         except subprocess.TimeoutExpired:
-            raise RuntimeError("Docker command timed out. Please check if Docker is running properly.")
+            raise RuntimeError("Docker command timed out. Please check if Docker is running properly.") from None
         except FileNotFoundError:
-            raise RuntimeError("Docker command not found. Please install Docker and ensure it's in your system PATH.")
+            raise RuntimeError(
+                "Docker command not found. Please install Docker and ensure it's in your system PATH."
+            ) from None
 
     @staticmethod
     def _handle_docker_error(error: Exception):

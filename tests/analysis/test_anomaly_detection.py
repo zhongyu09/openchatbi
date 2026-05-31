@@ -12,7 +12,6 @@ from openchatbi.analysis.anomaly_detection import (
     format_anomaly_report,
 )
 
-
 # Smooth, mildly noisy history with mean ~ 1000.
 SMOOTH_HISTORY = [1000.0, 1010.0, 990.0, 1005.0, 995.0, 1002.0, 998.0, 1008.0, 992.0, 1004.0] * 3
 

@@ -23,7 +23,7 @@ significant / higher-impact anomaly.
 """
 
 import math
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any
 
 from openchatbi import config
 from openchatbi.tool.timeseries_forecast import call_timeseries_service, check_forecast_service_health
@@ -37,14 +37,14 @@ DEFAULT_DROP_WEIGHT = 1.0
 DEFAULT_RISE_WEIGHT = 1.0
 
 
-def _extract_values(data: List[Union[float, int, Dict[str, Any]]], target_column: str = "value") -> List[float]:
+def _extract_values(data: list[float | int | dict[str, Any]], target_column: str = "value") -> list[float]:
     """Extract numeric values from input data, silently skipping invalid entries."""
-    values: List[float] = []
+    values: list[float] = []
     for item in data:
         if isinstance(item, bool):
             # bool is a subclass of int; ignore to avoid treating True/False as data
             continue
-        if isinstance(item, (int, float)):
+        if isinstance(item, int | float):
             values.append(float(item))
         elif isinstance(item, dict) and target_column in item:
             try:
@@ -54,12 +54,12 @@ def _extract_values(data: List[Union[float, int, Dict[str, Any]]], target_column
     return values
 
 
-def _mean(values: List[float]) -> float:
+def _mean(values: list[float]) -> float:
     """Arithmetic mean; returns 0.0 for empty input."""
     return sum(values) / len(values) if values else 0.0
 
 
-def _median(values: List[float]) -> float:
+def _median(values: list[float]) -> float:
     """Median; returns 0.0 for empty input."""
     if not values:
         return 0.0
@@ -71,7 +71,7 @@ def _median(values: List[float]) -> float:
     return (ordered[mid - 1] + ordered[mid]) / 2
 
 
-def _estimate_noise_scale(historical_values: List[float]) -> float:
+def _estimate_noise_scale(historical_values: list[float]) -> float:
     """Estimate the robust noise scale (sigma) of a series.
 
     Works on first differences (which removes trend/seasonality, so the scale is
@@ -98,7 +98,7 @@ def _estimate_noise_scale(historical_values: List[float]) -> float:
     return sigma_diff / math.sqrt(2)
 
 
-def _deviation_significance(actual: float, predicted: float, sigma: float) -> Tuple[float, float]:
+def _deviation_significance(actual: float, predicted: float, sigma: float) -> tuple[float, float]:
     """Return (significance in [0, 1], signed z-score).
 
     The significance grows linearly to 0.5 at the SIGMA_BOUND (3 sigma) bound,
@@ -118,7 +118,7 @@ def _deviation_significance(actual: float, predicted: float, sigma: float) -> Tu
     return significance, z
 
 
-def _volume_factor(expected_level: float, historical_values: List[float]) -> float:
+def _volume_factor(expected_level: float, historical_values: list[float]) -> float:
     """Modulation multiplier in [0.6, 1.0] based on the expected traffic level.
 
     High-traffic moments keep full weight (1.0); low-traffic moments are damped
@@ -132,7 +132,7 @@ def _volume_factor(expected_level: float, historical_values: List[float]) -> flo
     return 0.6 + 0.4 * min(relative_level, 1.0)
 
 
-def _historical_anomaly_frequency(historical_values: List[float], sigma: float) -> float:
+def _historical_anomaly_frequency(historical_values: list[float], sigma: float) -> float:
     """Fraction of historical steps whose jump exceeds the 3-sigma noise band.
 
     A high frequency means the metric is intrinsically noisy/jumpy, so anomalies
@@ -152,13 +152,13 @@ def _historical_anomaly_frequency(historical_values: List[float], sigma: float) 
 
 
 def _evaluate_window(
-    actual_values: List[float],
-    predicted_values: List[float],
-    historical_values: List[float],
-    sigmas: Optional[List[float]] = None,
+    actual_values: list[float],
+    predicted_values: list[float],
+    historical_values: list[float],
+    sigmas: list[float] | None = None,
     drop_weight: float = DEFAULT_DROP_WEIGHT,
     rise_weight: float = DEFAULT_RISE_WEIGHT,
-) -> Tuple[float, Dict[str, Any]]:
+) -> tuple[float, dict[str, Any]]:
     """Evaluate a window of recent points and return (score in [0, 1], details).
 
     Newer points carry higher weight (linear weighting, gentler than exponential
@@ -182,7 +182,7 @@ def _evaluate_window(
     normalized_weights = [w / total_weight for w in weights]
 
     weighted_base = 0.0
-    point_details: List[Dict[str, Any]] = []
+    point_details: list[dict[str, Any]] = []
     consecutive_anomalies = 0
 
     for i in range(window_size):
@@ -243,14 +243,14 @@ def _evaluate_window(
 
 
 def evaluate_anomalies(
-    input_data: List[Union[float, int, Dict[str, Any]]],
+    input_data: list[float | int | dict[str, Any]],
     evaluation_window: int = 3,
     frequency: str = "hourly",
     target_column: str = "value",
-    input_length: Optional[int] = None,
+    input_length: int | None = None,
     drop_weight: float = DEFAULT_DROP_WEIGHT,
     rise_weight: float = DEFAULT_RISE_WEIGHT,
-) -> Tuple[float, Dict[str, Any]]:
+) -> tuple[float, dict[str, Any]]:
     """Forecast the evaluation window and score it for anomalies.
 
     The last ``evaluation_window`` points of ``input_data`` are treated as the
@@ -336,7 +336,7 @@ def evaluate_anomalies(
     )
 
 
-def format_anomaly_report(score: float, details: Dict[str, Any], reasoning: str = "") -> str:
+def format_anomaly_report(score: float, details: dict[str, Any], reasoning: str = "") -> str:
     """Format the anomaly detection result into a human-readable report."""
     if "error" in details:
         return f"Anomaly Detection Error: {details['error']}"

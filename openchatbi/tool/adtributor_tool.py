@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Union
+from typing import Any
 
 import pandas as pd
 from langchain_core.tools import tool
@@ -15,7 +15,7 @@ class DrilldownRow(BaseModel):
     """A single row of data for the adtributor drilldown analysis."""
 
     dimension_name: str = Field(description="Name of the dimension (e.g., 'device', 'province')")
-    element_value: Union[str, int, float] = Field(description="Value of the dimension element (e.g., 'ios', 1)")
+    element_value: str | int | float = Field(description="Value of the dimension element (e.g., 'ios', 1)")
 
     # 绝对指标
     predict: float | None = Field(
@@ -124,10 +124,10 @@ def adtributor_drilldown(
         )
     elif output.status == "no_root_cause":
         result["summary_narrative"] = (
-            f"The anomaly is systemic and evenly distributed. No specific root cause elements exceeded the required threshold."
+            "The anomaly is systemic and evenly distributed. No specific root cause elements exceeded the required threshold."
         )
     else:
-        result["summary_narrative"] = f"Root cause analysis successfully identified contributing elements."
+        result["summary_narrative"] = "Root cause analysis successfully identified contributing elements."
 
     for dim, details in output.dimension_details.items():
         if details.elements:

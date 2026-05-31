@@ -1,5 +1,5 @@
 import pandas as pd
-import pytest
+
 from openchatbi.analysis.adtributor import adtributor
 from openchatbi.tool.adtributor_tool import adtributor_drilldown
 

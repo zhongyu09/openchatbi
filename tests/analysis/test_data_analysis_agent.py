@@ -1,14 +1,15 @@
-import pytest
 from unittest.mock import MagicMock, patch
+
+import pytest
 from langchain_core.tools import StructuredTool
 from langgraph.graph.state import CompiledStateGraph
 
 from openchatbi.analysis.agent import (
-    build_data_analysis_agent,
-    get_data_analysis_tool,
     DataAnalysisInput,
     _build_sub_agent_config,
     _extract_final_content,
+    build_data_analysis_agent,
+    get_data_analysis_tool,
 )
 
 

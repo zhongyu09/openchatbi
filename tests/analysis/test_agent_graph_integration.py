@@ -1,10 +1,10 @@
-import pytest
 from unittest.mock import MagicMock, Mock, patch
 
+import pytest
 from langchain_core.tools import StructuredTool
 from langgraph.graph.state import CompiledStateGraph
 
-from openchatbi.agent_graph import build_agent_graph_sync, build_agent_graph_async
+from openchatbi.agent_graph import build_agent_graph_async, build_agent_graph_sync
 from openchatbi.catalog import CatalogStore
 
 

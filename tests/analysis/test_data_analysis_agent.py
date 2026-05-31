@@ -18,7 +18,7 @@ def mock_sql_graph():
 
 
 @patch("openchatbi.analysis.agent.create_deep_agent")
-@patch("openchatbi.analysis.agent.get_llm")
+@patch("openchatbi.analysis.agent.get_analysis_llm")
 @patch("openchatbi.agent_graph.get_sql_tools")
 @patch("openchatbi.analysis.agent.check_forecast_service_health")
 def test_build_data_analysis_agent(
@@ -63,7 +63,7 @@ def test_build_data_analysis_agent(
 def test_get_data_analysis_tool_sync(mock_build_agent, mock_sql_graph):
     # Setup mock agent
     mock_agent = MagicMock()
-    # Deep agent returns a dict with "messages" key containing AIMessage
+    # The agent returns a dict with "messages" key containing AIMessage
     mock_message = MagicMock()
     mock_message.content = "Analysis result"
     mock_agent.invoke.return_value = {"messages": [mock_message]}
@@ -116,6 +116,52 @@ async def test_get_data_analysis_tool_async(mock_build_agent, mock_sql_graph):
     # Test invocation
     result = await tool.ainvoke({"reasoning": "test", "task": "analyze this"})
     assert result == "Async analysis result"
+
+
+@patch("openchatbi.analysis.agent.build_data_analysis_agent")
+def test_sync_tool_propagates_graph_interrupt(mock_build_agent, mock_sql_graph):
+    """GraphInterrupt from the sub-agent must bubble up (HITL), not be swallowed."""
+    from langgraph.errors import GraphInterrupt
+
+    mock_agent = MagicMock()
+    mock_agent.invoke.side_effect = GraphInterrupt(())
+    mock_build_agent.return_value = mock_agent
+
+    tool = get_data_analysis_tool(sql_graph=mock_sql_graph, sync_mode=True)
+    with pytest.raises(GraphInterrupt):
+        tool.invoke({"reasoning": "test", "task": "analyze this"})
+
+
+@pytest.mark.asyncio
+@patch("openchatbi.analysis.agent.build_data_analysis_agent")
+async def test_async_tool_propagates_graph_interrupt(mock_build_agent, mock_sql_graph):
+    """GraphInterrupt from the async sub-agent must bubble up (HITL), not be swallowed."""
+    from langgraph.errors import GraphInterrupt
+
+    mock_agent = MagicMock()
+
+    async def mock_ainvoke(*args, **kwargs):
+        raise GraphInterrupt(())
+
+    mock_agent.ainvoke = mock_ainvoke
+    mock_build_agent.return_value = mock_agent
+
+    tool = get_data_analysis_tool(sql_graph=mock_sql_graph, sync_mode=False)
+    with pytest.raises(GraphInterrupt):
+        await tool.ainvoke({"reasoning": "test", "task": "analyze this"})
+
+
+@patch("openchatbi.analysis.agent.build_data_analysis_agent")
+def test_sync_tool_returns_error_string_on_generic_exception(mock_build_agent, mock_sql_graph):
+    """Non-interrupt exceptions are caught and returned as an error string."""
+    mock_agent = MagicMock()
+    mock_agent.invoke.side_effect = RuntimeError("boom")
+    mock_build_agent.return_value = mock_agent
+
+    tool = get_data_analysis_tool(sql_graph=mock_sql_graph, sync_mode=True)
+    result = tool.invoke({"reasoning": "test", "task": "analyze this"})
+    assert "Error occurred during data analysis" in result
+    assert "boom" in result
 
 
 def test_build_sub_agent_config_derives_isolated_thread_id():

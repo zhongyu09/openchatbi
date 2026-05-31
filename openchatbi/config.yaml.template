@@ -96,6 +96,16 @@ llm_providers:
         model: gpt-4.1
         temperature: 0.0
         max_tokens: 8192
+    # Optional: dedicated LLM for the data analysis agent.
+    # Falls back to default_llm when omitted. Use a stronger reasoning model
+    # here if complex multi-step analysis benefits from it.
+    # analysis_llm:
+    #   class: langchain_openai.ChatOpenAI
+    #   params:
+    #     api_key: YOUR_API_KEY_HERE
+    #     model: gpt-4.1
+    #     temperature: 0.0
+    #     max_tokens: 8192
   # anthropic:
   #   default_llm:
   #     class: langchain_anthropic.ChatAnthropic

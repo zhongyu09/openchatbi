@@ -26,11 +26,20 @@ Join the Slack channel to discuss: https://join.slack.com/t/openchatbicommunity/
    knowledge base retrival (via MCP tools)
 11. **Web UI Interface**: Provide 2 sample UI: simple and streaming web interfaces using Gradio and Streamlit, easy to
    integrate with other web applications
+12. **Data Analysis Agent**: A specialized sub-agent (built on [deepagents](https://github.com/langchain-ai/deepagents))
+   that the main agent delegates complex analysis to. It orchestrates text2sql, time series forecasting, anomaly detection,
+   multi-dimensional drill-down (Adtributor) and Python execution to cover trend forecasting, anomaly detection,
+   anomaly root-cause drill-down, multi-metric correlation and business combination analysis. Optionally uses a
+   dedicated `analysis_llm`. See the docs `Tools and Utilities` page for details.
 
 ## Roadmap
 
-1. **Anomaly Detection Algorithm**: Time series anomaly detection
-2. **Root Cause Analysis Algorithm**: Multi-dimensional drill-down capabilities for anomaly investigation
+1. **Anomaly Detection Algorithm**: Time series anomaly detection — initial version available via the data analysis
+   agent; actively being refined toward production readiness.
+2. **Root Cause Analysis Algorithm**: Multi-dimensional drill-down for anomaly investigation — initial Adtributor-based
+   drill-down tool available; actively being refined toward production readiness.
+3. **Data Analysis Agent**: End-to-end analysis orchestration — initial version available; iterating on robustness,
+   data hand-off between tools, and overall quality to reach production readiness.
 
 # Getting started
 

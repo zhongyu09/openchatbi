@@ -20,6 +20,7 @@ class LLMProviderConfig(BaseModel):
     default_llm: MagicMock | BaseChatModel
     embedding_model: MagicMock | BaseModel | None = None
     text2sql_llm: MagicMock | BaseChatModel | None = None
+    analysis_llm: MagicMock | BaseChatModel | None = None
 
 
 class Config(BaseModel):
@@ -45,6 +46,7 @@ class Config(BaseModel):
     default_llm: MagicMock | BaseChatModel
     embedding_model: MagicMock | BaseModel | None = None
     text2sql_llm: MagicMock | BaseChatModel | None = None
+    analysis_llm: MagicMock | BaseChatModel | None = None
     # Multiple LLM providers (optional)
     llm_provider: str | None = None
     llm_providers: dict[str, LLMProviderConfig] = {}
@@ -111,7 +113,7 @@ class ConfigLoader:
             cls._instance = super().__new__(cls)
         return cls._instance
 
-    llm_configs = ["default_llm", "embedding_model", "text2sql_llm"]
+    llm_configs = ["default_llm", "embedding_model", "text2sql_llm", "analysis_llm"]
 
     def get(self) -> Config:
         """Get the current configuration.
@@ -199,6 +201,7 @@ class ConfigLoader:
             config_data["default_llm"] = providers[selected_provider].default_llm
             config_data.setdefault("embedding_model", providers[selected_provider].embedding_model)
             config_data.setdefault("text2sql_llm", providers[selected_provider].text2sql_llm)
+            config_data.setdefault("analysis_llm", providers[selected_provider].analysis_llm)
         elif "default_llm" not in config_data:
             raise ValueError("Missing LLM config key: default_llm")
 

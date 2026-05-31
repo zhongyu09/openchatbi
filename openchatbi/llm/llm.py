@@ -60,6 +60,17 @@ def get_text2sql_llm(provider: str | None = None):
     return config.get().text2sql_llm or get_default_llm()
 
 
+def get_analysis_llm(provider: str | None = None):
+    """Get the data analysis LLM from config (optionally scoped to a provider).
+
+    Falls back to the default LLM when no dedicated `analysis_llm` is configured.
+    """
+    provider_cfg = _get_provider_config(provider)
+    if provider_cfg:
+        return provider_cfg.analysis_llm or provider_cfg.default_llm
+    return config.get().analysis_llm or get_default_llm(provider)
+
+
 def _invalid_tool_names(valid_tools, tool_calls) -> str:
     invalid_tools = []
     for tool in tool_calls:

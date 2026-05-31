@@ -33,7 +33,7 @@ def _patch_agent_graph_dependencies(monkeypatch: pytest.MonkeyPatch) -> None:
     import openchatbi.analysis.agent as analysis_agent
 
     monkeypatch.setattr(agent_graph, "get_llm", lambda provider=None: DummyLLM())
-    monkeypatch.setattr(analysis_agent, "get_llm", lambda provider=None: DummyLLM())
+    monkeypatch.setattr(analysis_agent, "get_analysis_llm", lambda provider=None: DummyLLM())
     monkeypatch.setattr(analysis_agent, "create_deep_agent", lambda *args, **kwargs: FakeSQLGraph())
     monkeypatch.setattr(agent_graph, "build_sql_graph", lambda *args, **kwargs: FakeSQLGraph())
     monkeypatch.setattr(agent_graph, "get_memory_tools", lambda *args, **kwargs: None)

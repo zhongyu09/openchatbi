@@ -1,4 +1,4 @@
-"""Data Analysis Deep Agent implementation."""
+"""Data Analysis Agent implementation."""
 
 import logging
 
@@ -10,7 +10,7 @@ from langgraph.store.base import BaseStore
 from pydantic import BaseModel, Field
 
 from deepagents import create_deep_agent
-from openchatbi.llm.llm import get_llm
+from openchatbi.llm.llm import get_analysis_llm
 from openchatbi.tool.run_python_code import run_python_code
 from openchatbi.tool.timeseries_forecast import check_forecast_service_health, timeseries_forecast
 
@@ -48,7 +48,7 @@ def _build_sub_agent_config(config: RunnableConfig | None) -> RunnableConfig:
 
 
 def _extract_final_content(response: dict) -> str:
-    """Extract the final message content from a deep agent response as a string."""
+    """Extract the final message content from the agent response as a string."""
     if isinstance(response, dict) and response.get("messages"):
         content = response["messages"][-1].content
         if isinstance(content, str):
@@ -86,7 +86,7 @@ def build_data_analysis_agent(
     checkpointer: BaseCheckpointSaver | None = None,
     memory_store: BaseStore | None = None,
 ) -> CompiledStateGraph:
-    """Build the data analysis deep agent.
+    """Build the data analysis agent.
 
     Args:
         sql_graph: Compiled SQL generation graph to use for text2sql tool.
@@ -96,7 +96,7 @@ def build_data_analysis_agent(
         memory_store: Store for long-term memory.
 
     Returns:
-        CompiledStateGraph: The compiled data analysis deep agent.
+        CompiledStateGraph: The compiled data analysis agent.
     """
     # Import here to avoid circular imports
     from openchatbi.agent_graph import get_sql_tools
@@ -115,13 +115,13 @@ def build_data_analysis_agent(
 
     tools.append(adtributor_drilldown)
 
-    # 2. Get LLM
-    llm = get_llm(llm_provider)
+    # 2. Get LLM (dedicated analysis_llm if configured, else default)
+    llm = get_analysis_llm(llm_provider)
 
     # 3. Get prompt
     system_prompt = _load_data_analysis_prompt()
 
-    # 4. Create Deep Agent
+    # 4. Create the agent (built on the deepagents framework)
     # Note: deepagents.create_deep_agent expects a model string or a BaseChatModel
     agent = create_deep_agent(
         model=llm,
@@ -150,7 +150,7 @@ def get_data_analysis_tool(
     checkpointer: BaseCheckpointSaver | None = None,
     memory_store: BaseStore | None = None,
 ) -> StructuredTool:
-    """Create the data analysis tool that delegates to the deep agent.
+    """Create the data analysis tool that delegates to the data analysis agent.
 
     Args:
         sql_graph: Compiled SQL generation graph.
@@ -178,7 +178,7 @@ def get_data_analysis_tool(
 
         sub_config = _build_sub_agent_config(config)
         try:
-            # Deep Agents accept a string under "messages", which is coerced to a HumanMessage.
+            # The agent accepts a string under "messages", which is coerced to a HumanMessage.
             response = agent.invoke({"messages": task}, config=sub_config)
             return _extract_final_content(response)
         except GraphInterrupt as e:

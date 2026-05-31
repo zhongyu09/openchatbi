@@ -5,7 +5,7 @@
   - `anomaly-detection-algorithm` → `openchatbi/tool/anomaly_detection.py`
   - `adtributor-anomaly-drilldown` → `openchatbi/tool/adtributor_tool.py`
 
-## 2. 数据分析 Deep Agent
+## 2. 数据分析 Agent
 
 - [x] 2.1 编写 `openchatbi/prompts/data_analysis_prompt.md`：5 类分析场景工作流与工具使用指引（强调下钻前使用 text2sql 准备一维长表数据）
 - [x] 2.2 在 `openchatbi/analysis/agent.py` 中 import `anomaly_detection` 和 `adtributor_drilldown` 工具

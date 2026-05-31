@@ -15,7 +15,7 @@ OpenChatBI 主 Agent（`agent_graph.py`）采用 LangGraph `StateGraph` + `ToolN
 
 **Goals:**
 
-- 构建专用数据分析 Deep Agent，支持 5 类分析场景
+- 构建专用数据分析 Agent，支持 5 类分析场景
 - 通过 `data_analysis` 工具将分析任务委托给子 Agent
 - 直接复用 `openchatbi/tool/` 下的 `anomaly_detection` 与 `adtributor_drilldown` 工具
 - 复用现有 text2sql / forecast / python 工具
@@ -30,7 +30,7 @@ OpenChatBI 主 Agent（`agent_graph.py`）采用 LangGraph `StateGraph` + `ToolN
 
 ## Decisions
 
-### 1. 集成模式：Deep Agent 作为子 Agent + 主 Agent 委托工具
+### 1. 集成模式：数据分析 Agent 作为子 Agent + 主 Agent 委托工具
 
 **选择**：`create_deep_agent` 构建数据分析 Agent；主 Agent 注册 `data_analysis` StructuredTool。
 
@@ -71,18 +71,26 @@ from openchatbi.tool.adtributor_tool import adtributor_drilldown
 
 ### 5. 模块结构
 
+实际落地的分层为「算法核心在 `analysis/`，Tool 封装在 `tool/`，数据分析 Agent 编排在 `analysis/agent.py`」：
+
 ```
 openchatbi/analysis/
 ├── __init__.py
-└── agent.py                    # build_data_analysis_agent(), get_data_analysis_tool()
+├── agent.py                    # build_data_analysis_agent(), get_data_analysis_tool()
+│                               #   + _build_sub_agent_config() / _extract_final_content() 辅助函数
+├── anomaly_detection.py        # 异常检测算法核心（来自 anomaly-detection-algorithm）
+├── adtributor.py               # Adtributor 算法核心（来自 adtributor-anomaly-drilldown）
+└── models.py                   # Adtributor 输出数据模型（AdtributorOutput 等）
 
 openchatbi/tool/
-├── anomaly_detection.py        # 来自 anomaly-detection-algorithm
-└── adtributor_tool.py          # 来自 adtributor-anomaly-drilldown
+├── anomaly_detection.py        # anomaly_detection Tool 封装（调用 analysis.anomaly_detection）
+└── adtributor_tool.py          # adtributor_drilldown Tool 封装（调用 analysis.adtributor）
 
 openchatbi/prompts/
 └── data_analysis_prompt.md
 ```
+
+> 注：早期的概念验证文件 `analysis/adtributor_demo.py` 已删除，由 `analysis/adtributor.py` + `tool/adtributor_tool.py` 取代。
 
 ### 6. 主 Agent 集成点
 
@@ -111,7 +119,16 @@ normal_tools.append(data_analysis_tool)
 4. 集成到 `agent_graph.py`
 5. 回滚：移除 `data_analysis` 工具注册
 
-## Open Questions
+## Resolved Decisions（原 Open Questions）
 
-- 三个变更的合并顺序（建议：anomaly-detection-algorithm / adtributor-anomaly-drilldown → data-analysis-deep-agent）
-- 数据分析 Agent 是否使用独立 LLM provider（`analysis_llm`）
+- **合并顺序**：anomaly-detection-algorithm / adtributor-anomaly-drilldown → data-analysis-deep-agent（两个工具变更先合并）。
+- **独立 LLM provider**：已支持。新增可选的 `analysis_llm` 配置项（`Config` / `LLMProviderConfig` 均含该字段），并由 `openchatbi.llm.llm.get_analysis_llm()` 解析；未配置时回退到 `default_llm`。数据分析 Agent 通过 `get_analysis_llm(llm_provider)` 获取模型。
+
+## 子 Agent 配置隔离（checkpointer / thread_id）
+
+数据分析 Agent 是独立编译的子图，可能与主 Agent 共享同一 `checkpointer`。`get_data_analysis_tool` 的 sync/async 调用函数通过注入的 `RunnableConfig` 派生子配置（`_build_sub_agent_config`）：
+
+- 由父 `thread_id` 派生确定性子线程 id：`"{parent_thread_id}:data_analysis"`，既满足 checkpointer 对 `thread_id` 的要求，又避免污染父图 checkpoint 线程，同时保证 `GraphInterrupt` 恢复时 id 稳定。
+- 清除继承的 `checkpoint_ns` / `checkpoint_id`，让子 Agent 从干净命名空间开始。
+- 其余 config（callbacks/tags/metadata）原样透传。
+- 返回值经 `_extract_final_content` 兜底：content 为多模态 content blocks（list）时拼接文本，避免返回非 str。

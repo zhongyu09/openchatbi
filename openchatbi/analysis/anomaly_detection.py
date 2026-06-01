@@ -336,7 +336,7 @@ def evaluate_anomalies(
     )
 
 
-def format_anomaly_report(score: float, details: dict[str, Any], reasoning: str = "") -> str:
+def format_anomaly_report(score: float, details: dict[str, Any]) -> str:
     """Format the anomaly detection result into a human-readable report."""
     if "error" in details:
         return f"Anomaly Detection Error: {details['error']}"
@@ -387,7 +387,7 @@ def format_anomaly_report(score: float, details: dict[str, Any], reasoning: str 
         report.extend(
             [
                 "",
-                "💡 Insight: No significant anomaly detected. The data follows the " "expected pattern closely.",
+                "💡 Insight: No significant anomaly detected. The data follows the expected pattern closely.",
             ]
         )
 

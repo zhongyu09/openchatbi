@@ -83,4 +83,4 @@ def anomaly_detection(
         rise_weight=rise_weight,
     )
 
-    return format_anomaly_report(score, details, reasoning)
+    return format_anomaly_report(score, details)

@@ -224,7 +224,7 @@ def test_evaluate_anomalies_prediction_length_mismatch(monkeypatch):
 
 def test_format_anomaly_report():
     score, details = _evaluate_window([1000.0, 500.0, 0.0], [1000.0, 1000.0, 1000.0], SMOOTH_HISTORY)
-    report = format_anomaly_report(score, details, reasoning="check traffic drop")
+    report = format_anomaly_report(score, details)
     assert "Anomaly Detection Report" in report
     assert "Severity" in report
     # Error details render an error report.

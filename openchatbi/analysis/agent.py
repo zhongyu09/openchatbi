@@ -25,8 +25,17 @@ def _build_sub_agent_config(config: RunnableConfig | None) -> RunnableConfig:
     The sub-agent is a separate compiled graph that may share the parent's
     checkpointer. To avoid clobbering the parent's checkpoint thread (and to
     provide the ``thread_id`` LangGraph requires when a checkpointer is set),
-    we derive a deterministic child ``thread_id`` from the parent one. Other
-    config keys (callbacks, tags, metadata) are propagated as-is.
+    we derive a deterministic child ``thread_id`` from the parent one.
+
+    We also pin a fixed, single-level ``checkpoint_ns`` (``"data_analysis"``)
+    instead of popping it. ``checkpoint_ns`` doubles as the subgraph namespace
+    for ``astream(subgraphs=True)``: popping it would flatten the sub-agent's
+    events onto the parent's depth-0 stream (making its steps indistinguishable
+    from the main agent's in a streaming UI), whereas a fixed single-level
+    namespace surfaces the sub-agent as a proper nested subgraph (depth >= 1).
+    Checkpoint isolation is provided by the derived ``thread_id`` plus the
+    ``checkpoint_id`` reset below, not by ``checkpoint_ns``. Other config keys
+    (callbacks, tags, metadata) are propagated as-is.
     """
     sub_config: RunnableConfig = {}
     configurable: dict = {}
@@ -37,9 +46,11 @@ def _build_sub_agent_config(config: RunnableConfig | None) -> RunnableConfig:
     parent_thread_id = configurable.get("thread_id")
     if parent_thread_id is not None:
         configurable["thread_id"] = f"{parent_thread_id}:data_analysis"
-    # Reset the checkpoint namespace so the sub-agent starts from a clean
-    # namespace rather than inheriting the parent tool-call namespace.
-    configurable.pop("checkpoint_ns", None)
+        # Pin a clean, single-level namespace so the sub-agent streams as a
+        # nested subgraph rather than being flattened onto the parent stream.
+        configurable["checkpoint_ns"] = "data_analysis"
+    # Resetting checkpoint_id is what actually prevents the sub-agent from
+    # resuming off the parent's checkpoint (the real isolation guarantee).
     configurable.pop("checkpoint_id", None)
 
     sub_config["configurable"] = configurable

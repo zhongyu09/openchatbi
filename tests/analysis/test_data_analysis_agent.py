@@ -166,7 +166,8 @@ def test_sync_tool_returns_error_string_on_generic_exception(mock_build_agent, m
 
 
 def test_build_sub_agent_config_derives_isolated_thread_id():
-    """A derived child thread_id should be used, and stale checkpoint keys dropped."""
+    """A derived child thread_id is used; checkpoint_id is dropped and the
+    checkpoint namespace is pinned to a fixed single-level value."""
     parent = {
         "configurable": {
             "thread_id": "abc",
@@ -177,7 +178,10 @@ def test_build_sub_agent_config_derives_isolated_thread_id():
     }
     sub = _build_sub_agent_config(parent)
     assert sub["configurable"]["thread_id"] == "abc:data_analysis"
-    assert "checkpoint_ns" not in sub["configurable"]
+    # checkpoint_ns is pinned (not popped) so the sub-agent streams as a nested
+    # subgraph; the parent's task-scoped namespace must not leak through.
+    assert sub["configurable"]["checkpoint_ns"] == "data_analysis"
+    # checkpoint_id reset is the real isolation guarantee.
     assert "checkpoint_id" not in sub["configurable"]
     # Non-configurable keys are propagated.
     assert sub["tags"] == ["x"]

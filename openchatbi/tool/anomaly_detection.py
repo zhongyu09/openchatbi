@@ -17,7 +17,7 @@ class AnomalyDetectionInput(BaseModel):
 
     reasoning: str = Field(description="Reason for using anomaly detection and what insights you expect to gain")
     input_data: list[float | int | dict[str, Any]] = Field(
-        description="Historical time series data as list of numbers or structured data with timestamps and values"
+        description="Historical time series data as list of numbers or structured data with timestamps and values. CRITICAL: You MUST provide enough historical context for accurate forecasting. Provide at least 3-4 times the expected seasonality (e.g., if checking hourly data for daily patterns, provide at least 72-96 hours of data). Minimum recommended is 30 data points."
     )
     evaluation_window: int = Field(
         default=3,

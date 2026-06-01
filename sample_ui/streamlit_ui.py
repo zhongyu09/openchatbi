@@ -107,8 +107,15 @@ def _describe_generic_node(node_output: dict) -> list[str]:
         if isinstance(message, AIMessage) and tool_calls:
             for tool_call in tool_calls:
                 args = tool_call.get("args") or {}
-                args_preview = _preview_text(", ".join(f"{k}={v}" for k, v in args.items()), 160)
-                suffix = f"（{args_preview}）" if args_preview else ""
+                # Show a short, human-readable rationale instead of dumping the
+                # raw tool arguments (reasoning/context/code…) which read too
+                # "techy". Fall back to just the tool name when none is present.
+                rationale = ""
+                for key in ("reasoning", "task", "question", "query", "goal"):
+                    if args.get(key):
+                        rationale = _preview_text(args[key], 100)
+                        break
+                suffix = f"：{rationale}" if rationale else ""
                 descriptions.append(f"🛠️ 调用工具 `{tool_call.get('name', '?')}`{suffix}")
         elif isinstance(message, ToolMessage):
             tool_name = getattr(message, "name", None) or "tool"

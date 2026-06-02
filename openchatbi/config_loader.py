@@ -84,6 +84,9 @@ class Config(BaseModel):
 
     # Time Series Service Configuration
     timeseries_forecasting_service_url: str = "http://localhost:8765"
+    # Optional manual override for the forecasting model's minimum input length. When unset (None),
+    # the value is fetched from the forecasting service (which reads it from the model config).
+    timeseries_forecasting_min_input_length: int | None = None
 
     @classmethod
     def from_dict(cls, config: dict[str, Any]) -> "Config":

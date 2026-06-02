@@ -575,20 +575,15 @@ cd timeseries_forecasting
 ./build_and_run.sh
 ```
 
-#### 2. Configure Tool Usage Rules
-
-In your `bi.yaml`, add constraints for the timeseries_forecast tool, e.g. if you are using `timer-base-84m` model:
-```yaml
-extra_tool_use_rule: |
-  - timeseries_forecast tool requires at least 96 time points in input data. If no enough input data, set input_len to 96 to pad with zeros.
-```
-
-#### 3. Configure Service URL
+#### 2. Configure Service URL
 
 In your `config.yaml`:
 ```yaml
 # Time Series Forecasting Service Configuration
 timeseries_forecasting_service_url: "http://localhost:8765"
+# Optional: override the model's minimum input length. Leave unset to fetch it automatically
+# from the service /health (which reads it from the model config, e.g. Timer's input_token_len).
+# timeseries_forecasting_min_input_length: 96
 ```
 
 **Important**: Adjust the URL based on your deployment scenario:
@@ -596,7 +591,7 @@ timeseries_forecasting_service_url: "http://localhost:8765"
 - **Remote service**: `http://your-service-host:8765`
 
 
-#### 4. Verify Service Health
+#### 3. Verify Service Health
 
 Test the service is accessible:
 ```bash
@@ -608,6 +603,7 @@ Expected response:
 {
   "status": "healthy",
   "model_initialized": true,
+  "min_input_length": 96,
   "uptime_seconds": 123.45
 }
 ``` 

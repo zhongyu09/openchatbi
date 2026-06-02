@@ -35,12 +35,18 @@ class TimeseriesForecastInput(BaseModel):
 def _check_service_health(service_url: str) -> bool:
     """Check if time series forecasting service is available."""
     try:
-        response = requests.get(f"{service_url}/health", timeout=5)
+        response = requests.get(f"{service_url}/health", timeout=10)
         if response.status_code == 200:
             health_data = response.json()
             return health_data.get("model_initialized", False)
+        else:
+            log(
+                f"Time series forecasting service health check failed: "
+                f"GET {service_url}/health returned status {response.status_code}, body: {response.text}"
+            )
         return False
-    except requests.exceptions.RequestException:
+    except requests.exceptions.RequestException as e:
+        log(f"Time series forecasting service health check error: GET {service_url}/health failed with {e}")
         return False
 
 

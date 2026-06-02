@@ -17,7 +17,18 @@ class AnomalyDetectionInput(BaseModel):
 
     reasoning: str = Field(description="Reason for using anomaly detection and what insights you expect to gain")
     input_data: list[float | int | dict[str, Any]] = Field(
-        description="Historical time series data as list of numbers or structured data with timestamps and values. CRITICAL: You MUST provide enough historical context for accurate forecasting. Provide at least 3-4 times the expected seasonality (e.g., if checking hourly data for daily patterns, provide at least 72-96 hours of data). Minimum recommended is 30 data points."
+        description=(
+            "Full time series as list of numbers or structured rows with timestamps and values. "
+            "The trailing `evaluation_window` points are the period being checked; ALL preceding "
+            "points are the historical context fed to the forecasting model. "
+            "IMPORTANT: provide a CONTINUOUS, gap-free series at the given `frequency`: include one "
+            "entry per period from the earliest returned period through the end of the analysis window, "
+            "and set periods that had no rows in the query result to 0 (a missing period for a "
+            "count/volume metric means 0, and a drop to 0 is exactly the anomaly to catch). Do this "
+            "yourself when constructing this argument; do not omit empty periods. If fewer than "
+            "(96 + evaluation_window) historical points are available, the forecasting service "
+            "backfills the earliest points automatically."
+        )
     )
     evaluation_window: int = Field(
         default=3,
@@ -30,7 +41,13 @@ class AnomalyDetectionInput(BaseModel):
         default="value", description="Column name to evaluate for structured data (default: 'value')"
     )
     input_length: int | None = Field(
-        default=None, description="Optional cap on how much history to send to the forecasting service"
+        default=None,
+        description=(
+            "Target length of historical input for the forecasting service. If the supplied history "
+            "is longer, only the most recent `input_length` points are used; if it is shorter, the "
+            "service left-pads the earliest points with zeros to reach this length. Usually leave "
+            "unset; the tool sets it automatically when history is below the model minimum."
+        ),
     )
     drop_weight: float = Field(
         default=1.0, description="Severity multiplier for downward deviations (>1 emphasises drops)", ge=0.0, le=3.0
@@ -58,13 +75,17 @@ def anomaly_detection(
     orthogonal factors: statistical deviation significance, deviation direction (drop vs rise),
     business volume of the moment, the metric's historical noisiness, and anomaly duration.
 
+    Provide ``input_data`` as a continuous, gap-free series (missing periods filled with 0 up to the
+    end of the analysis window). Leading history before the earliest point is backfilled by the
+    forecasting service.
+
     Args:
         reasoning: Explanation of why anomaly detection is needed
-        input_data: Historical time series data including the points to evaluate at the end
+        input_data: Continuous (gap-free) time series including the points to evaluate at the end
         evaluation_window: Number of recent data points to evaluate (1-10, default: 3)
         frequency: Time series frequency - hourly, daily, weekly, monthly, etc.
         target_column: Column name to evaluate for structured data (default: 'value')
-        input_length: Optional cap on how much history to send to the forecasting service
+        input_length: Target historical input length; shorter history is left-padded with zeros by the service
         drop_weight: Severity multiplier for downward deviations (>1 emphasises drops)
         rise_weight: Severity multiplier for upward deviations (>1 emphasises spikes)
 

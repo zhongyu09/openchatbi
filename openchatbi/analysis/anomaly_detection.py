@@ -263,7 +263,8 @@ def evaluate_anomalies(
         evaluation_window: Number of trailing points to evaluate (must be < len(input_data)).
         frequency: Time series frequency (e.g. 'hourly', 'daily').
         target_column: Column to read from structured (dict) data.
-        input_length: Optional cap on how much history to send to the forecast service.
+        input_length: Target historical input length for the service; if the supplied history is
+            shorter, the service left-pads the earliest points with zeros to reach this length.
         drop_weight: Severity multiplier applied to downward deviations.
         rise_weight: Severity multiplier applied to upward deviations.
 

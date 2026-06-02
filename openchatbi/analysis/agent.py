@@ -149,7 +149,14 @@ class DataAnalysisInput(BaseModel):
 
     reasoning: str = Field(description="Reason for delegating to the data analysis agent")
     task: str = Field(
-        description="Full description of the analysis task, including metrics, dimensions, time range, and analysis type"
+        description=(
+            "Full, self-contained description of the analysis task. The data analysis agent does NOT "
+            "know the current time or the conversation context, so the task MUST be unambiguous: "
+            "resolve every relative time expression (e.g. 'last week', 'today', 'yesterday') into "
+            "CONCRETE absolute dates/datetimes, and explicitly state the metric(s), dimensions, "
+            "granularity, time range, and analysis type. For anomaly detection, also state the "
+            "evaluation window (the period of interest) and the end date of the analysis window."
+        )
     )
 
 
@@ -227,7 +234,10 @@ Use this tool for:
 4. Multi-metric correlation
 5. Business combination analysis
 
-Provide a detailed task description including metrics, dimensions, time ranges, and the specific analysis goal."""
+Provide a detailed, self-contained task description including metrics, dimensions, time ranges, and the
+specific analysis goal. IMPORTANT: this sub-agent does NOT know the current time or the conversation
+context, so resolve all relative time expressions (e.g. "last week", "yesterday") into concrete absolute
+dates before delegating, and make the task unambiguous."""
 
     if sync_mode:
         return StructuredTool.from_function(

@@ -14,6 +14,8 @@ from openchatbi.analysis.anomaly_detection import (
 
 # Smooth, mildly noisy history with mean ~ 1000.
 SMOOTH_HISTORY = [1000.0, 1010.0, 990.0, 1005.0, 995.0, 1002.0, 998.0, 1008.0, 992.0, 1004.0] * 3
+# Longer history used by service-path tests.
+LONG_HISTORY = SMOOTH_HISTORY * 4
 
 
 def test_extract_values():
@@ -188,7 +190,7 @@ def _patch_service(monkeypatch, predictions, status="success", healthy=True):
 
 
 def test_evaluate_anomalies_success(monkeypatch):
-    data = SMOOTH_HISTORY + [1000.0, 500.0, 0.0]
+    data = LONG_HISTORY + [1000.0, 500.0, 0.0]
     _patch_service(monkeypatch, predictions=[1000.0, 1000.0, 1000.0])
     score, details = evaluate_anomalies(data, evaluation_window=3)
     assert "error" not in details
@@ -201,23 +203,32 @@ def test_evaluate_anomalies_input_too_short():
     assert "error" in details
 
 
+def test_evaluate_anomalies_short_history_proceeds(monkeypatch):
+    # Short history must NOT hard-error; padding to the model minimum is delegated
+    # to the service (call_timeseries_service), so detection proceeds.
+    _patch_service(monkeypatch, predictions=[1.0, 2.0, 3.0])
+    short = SMOOTH_HISTORY + [1.0, 2.0, 3.0]  # 30 history < model minimum
+    score, details = evaluate_anomalies(short, evaluation_window=3)
+    assert "error" not in details
+
+
 def test_evaluate_anomalies_service_unavailable(monkeypatch):
     monkeypatch.setattr(ad, "check_forecast_service_health", lambda: False)
-    score, details = evaluate_anomalies(SMOOTH_HISTORY + [1.0, 2.0, 3.0], evaluation_window=3)
+    score, details = evaluate_anomalies(LONG_HISTORY + [1.0, 2.0, 3.0], evaluation_window=3)
     assert score == 0.0
     assert "Unavailable" in details["error"]
 
 
 def test_evaluate_anomalies_forecast_error(monkeypatch):
     _patch_service(monkeypatch, predictions=[], status="error")
-    score, details = evaluate_anomalies(SMOOTH_HISTORY + [1.0, 2.0, 3.0], evaluation_window=3)
+    score, details = evaluate_anomalies(LONG_HISTORY + [1.0, 2.0, 3.0], evaluation_window=3)
     assert score == 0.0
     assert "error" in details
 
 
 def test_evaluate_anomalies_prediction_length_mismatch(monkeypatch):
     _patch_service(monkeypatch, predictions=[1000.0])  # only 1, need 3
-    score, details = evaluate_anomalies(SMOOTH_HISTORY + [1.0, 2.0, 3.0], evaluation_window=3)
+    score, details = evaluate_anomalies(LONG_HISTORY + [1.0, 2.0, 3.0], evaluation_window=3)
     assert score == 0.0
     assert "Mismatch" in details["error"]
 

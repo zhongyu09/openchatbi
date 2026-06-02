@@ -273,7 +273,9 @@ async def process_user_message_stream(
                     visualization_dsl = node_output.get("visualization_dsl")
                     if visualization_dsl and "error" not in visualization_dsl and data_csv:
                         try:
-                            plot_figure, plot_description = visualization_dsl_to_gradio_plot(data_csv, visualization_dsl)
+                            plot_figure, plot_description = visualization_dsl_to_gradio_plot(
+                                data_csv, visualization_dsl
+                            )
                             desc = f"📊 Generated visualization: {plot_description}"
                         except Exception as e:
                             desc = f"⚠️ Visualization error: {str(e)}"

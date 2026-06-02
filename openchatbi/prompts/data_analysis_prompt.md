@@ -17,9 +17,10 @@ Follow these standard workflows based on the user's request:
 - **Goal**: Predict future values for a metric.
 - **Steps**:
   1. Use `text2sql` to fetch historical time series data for the metric.
-  2. Use `timeseries_forecast` to generate predictions. The underlying model needs at least 96 input
-     points; if fewer are available the service automatically left-pads the earliest points with
-     zeros, so do not block on this — but for best quality prefer fetching enough real history.
+  2. Use `timeseries_forecast` to generate predictions. The underlying model needs at least
+     [min_input_length] input points; if fewer are available the service automatically left-pads the
+     earliest points with zeros, so do not block on this — but for best quality prefer fetching enough
+     real history.
   3. Interpret the results and summarize the trend for the user.
 
 ### 2. Single Metric Anomaly Detection
@@ -31,9 +32,10 @@ Follow these standard workflows based on the user's request:
      just fetch the raw `(period, value)` rows; periods with no activity will simply be absent.
      - The period the user asks about (e.g. "the last 7 days") is only the **evaluation window**;
        `anomaly_detection` also needs **historical context** *before* that window. For best results
-       fetch a range covering at least `96 + evaluation_window` periods (e.g. to evaluate the last 7
-       **daily** values, fetch ~120 days of daily data). If fewer historical points are available the
-       forecasting service backfills the earliest points, so do not block on this.
+       fetch a range covering at least `[min_input_length] + evaluation_window` periods (e.g. to
+       evaluate the last 7 **daily** values, fetch at least `[min_input_length] + 7` days of daily
+       data). If fewer historical points are available the forecasting service backfills the earliest
+       points, so do not block on this.
   2. Build the `input_data` argument yourself as a **continuous, gap-free** series before calling
      `anomaly_detection`: take the rows returned by `text2sql` and add an entry for every missing
      period from the earliest returned period through the end of the analysis window (the query's

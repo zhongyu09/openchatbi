@@ -76,17 +76,34 @@ def _extract_final_content(response: dict) -> str:
     return str(response)
 
 
+def _resolve_min_input_length() -> int:
+    """Resolve the forecasting model's minimum input length for prompt injection.
+
+    Falls back to the default when config/service are unavailable (e.g. in tests).
+    """
+    from openchatbi import config
+    from openchatbi.tool.timeseries_forecast import DEFAULT_MIN_FORECAST_INPUT_LENGTH, get_min_forecast_input_length
+
+    try:
+        service_url = config.get().timeseries_forecasting_service_url
+        return get_min_forecast_input_length(service_url)
+    except Exception:
+        return DEFAULT_MIN_FORECAST_INPUT_LENGTH
+
+
 def _load_data_analysis_prompt() -> str:
-    """Load the data analysis prompt template."""
+    """Load the data analysis prompt template, injecting the model's minimum input length."""
     import os
 
     prompt_path = os.path.join(os.path.dirname(__file__), "..", "prompts", "data_analysis_prompt.md")
     try:
         with open(prompt_path, encoding="utf-8") as f:
-            return f.read()
+            template = f.read()
     except FileNotFoundError:
         logger.warning(f"Data analysis prompt file not found at {prompt_path}")
         return "You are a data analysis agent. Help the user analyze their data."
+
+    return template.replace("[min_input_length]", str(_resolve_min_input_length()))
 
 
 def build_data_analysis_agent(

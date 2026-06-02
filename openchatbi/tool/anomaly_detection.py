@@ -25,9 +25,9 @@ class AnomalyDetectionInput(BaseModel):
             "entry per period from the earliest returned period through the end of the analysis window, "
             "and set periods that had no rows in the query result to 0 (a missing period for a "
             "count/volume metric means 0, and a drop to 0 is exactly the anomaly to catch). Do this "
-            "yourself when constructing this argument; do not omit empty periods. If fewer than "
-            "(96 + evaluation_window) historical points are available, the forecasting service "
-            "backfills the earliest points automatically."
+            "yourself when constructing this argument; do not omit empty periods. If the history is "
+            "shorter than the model's minimum input length, the forecasting service backfills the "
+            "earliest points automatically."
         )
     )
     evaluation_window: int = Field(

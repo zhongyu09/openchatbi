@@ -4,10 +4,12 @@ import pytest
 from langchain_core.tools import StructuredTool
 from langgraph.graph.state import CompiledStateGraph
 
+from openchatbi.analysis import agent as analysis_agent
 from openchatbi.analysis.agent import (
     DataAnalysisInput,
     _build_sub_agent_config,
     _extract_final_content,
+    _load_data_analysis_prompt,
     build_data_analysis_agent,
     get_data_analysis_tool,
 )
@@ -16,6 +18,14 @@ from openchatbi.analysis.agent import (
 @pytest.fixture
 def mock_sql_graph():
     return MagicMock(spec=CompiledStateGraph)
+
+
+def test_load_data_analysis_prompt_injects_min_input_length(monkeypatch):
+    # The [min_input_length] placeholder is replaced with the resolved model minimum.
+    monkeypatch.setattr(analysis_agent, "_resolve_min_input_length", lambda: 48)
+    prompt = _load_data_analysis_prompt()
+    assert "[min_input_length]" not in prompt
+    assert "48 input points" in prompt
 
 
 @patch("openchatbi.analysis.agent.create_deep_agent")

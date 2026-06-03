@@ -14,7 +14,6 @@ try:
 except ImportError:  # pragma: no cover
     import sqlite3
 import streamlit as st
-from langchain_core.messages import AIMessage, ToolMessage
 
 sys.modules["sqlite3"] = sqlite3
 
@@ -22,7 +21,8 @@ from langgraph.types import Command  # noqa: E402
 
 from openchatbi import config as openchatbi_config  # noqa: E402
 from openchatbi.llm.llm import list_llm_providers  # noqa: E402
-from openchatbi.utils import get_text_from_message_chunk, log  # noqa: E402
+from openchatbi.streaming import AgentStreamProcessor, StreamStep, StreamToken  # noqa: E402
+from openchatbi.utils import log  # noqa: E402
 from sample_ui.async_graph_manager import AsyncGraphManager  # noqa: E402
 from sample_ui.plotly_utils import visualization_dsl_to_gradio_plot  # noqa: E402
 
@@ -38,89 +38,6 @@ if "session_interrupts" not in st.session_state:
     st.session_state.session_interrupts = {}
 if "event_loop" not in st.session_state:
     st.session_state.event_loop = None
-
-# Node names that belong to the text2sql SQL subgraph. Their intermediate
-# token stream is intentionally not surfaced as raw "thinking" because the
-# dedicated `updates` handlers below already render them (SQL, tables, etc.).
-_SQL_SUBGRAPH_NODES = {
-    "search_knowledge",
-    "ask_human",
-    "information_extraction",
-    "table_selection",
-    "generate_sql",
-    "execute_sql",
-    "regenerate_sql",
-    "generate_visualization",
-}
-
-# Node names of the top-level agent graph (openchatbi). Anything else that
-# bubbles up at depth 0 is the data analysis sub-agent: because it is invoked
-# with a reset checkpoint namespace (see analysis/agent._build_sub_agent_config),
-# the deepagents `model`/`tools`/middleware nodes are flattened onto depth 0
-# instead of appearing as a nested subgraph.
-_MAIN_GRAPH_NODES = {"llm_node", "use_tool", "ask_human"}
-
-# Display label used for the (flattened) data analysis sub-agent layer.
-_SUBAGENT_LABEL = "data_analysis"
-
-
-def _format_namespace_label(namespace: tuple) -> str:
-    """Turn an astream subgraph namespace into a readable layer label.
-
-    A namespace looks like ``("use_tool:abc", "tools:xyz", ...)``; we keep the
-    node-name part of each segment so users can see which layer a step belongs
-    to (e.g. ``use_tool › tools``).
-    """
-    if not namespace:
-        return "main"
-    parts = []
-    for seg in namespace:
-        name = str(seg).split(":")[0]
-        # Skip the bare numeric index layers LangGraph inserts for subgraphs
-        # invoked without an explicit config (e.g. text2sql's sql_graph).
-        if name.isdigit():
-            continue
-        parts.append(name)
-    return " › ".join(parts) if parts else "subtask"
-
-
-def _preview_text(text: object, limit: int = 300) -> str:
-    """Collapse whitespace and truncate long content for compact previews."""
-    collapsed = " ".join(str(text).split())
-    if len(collapsed) <= limit:
-        return collapsed
-    return collapsed[:limit] + " …(truncated)"
-
-
-def _describe_generic_node(node_output: dict) -> list[str]:
-    """Describe tool calls / tool results from an arbitrary sub-agent node.
-
-    Used as a fallback for nodes without a dedicated handler (notably the
-    deepagents data-analysis sub-agent's ``model``/``tools`` nodes). Plain
-    assistant text is skipped here because it is already shown via the token
-    stream.
-    """
-    descriptions: list[str] = []
-    for message in node_output.get("messages") or []:
-        tool_calls = getattr(message, "tool_calls", None)
-        if isinstance(message, AIMessage) and tool_calls:
-            for tool_call in tool_calls:
-                args = tool_call.get("args") or {}
-                # Show a short, human-readable rationale instead of dumping the
-                # raw tool arguments (reasoning/context/code…) which read too
-                # "techy". Fall back to just the tool name when none is present.
-                rationale = ""
-                for key in ("reasoning", "task", "question", "query", "goal"):
-                    if args.get(key):
-                        rationale = _preview_text(args[key], 200)
-                        break
-                suffix = f"：{rationale}" if rationale else ""
-                descriptions.append(f"🛠️ Using tool: `{tool_call.get('name', '?')}`{suffix}")
-        elif isinstance(message, ToolMessage):
-            tool_name = getattr(message, "name", None) or "tool"
-            descriptions.append(f"📤 Tool `{tool_name}` result：{_preview_text(message.content, 300)}")
-    return descriptions
-
 
 async def process_user_message_stream(
     message: str, user_id: str, session_id: str, llm_provider: str | None, thinking_container, response_container
@@ -148,8 +65,6 @@ async def process_user_message_stream(
 
     config = {"configurable": {"thread_id": user_session_id, "user_id": user_id}}
 
-    data_csv = None
-
     # Use empty container for real-time updates
     thinking_placeholder = thinking_container.empty()
 
@@ -168,145 +83,54 @@ async def process_user_message_stream(
     # Initial display
     update_display()
 
-    # Stream through the graph
+    # Stream through the graph using the shared event parser so the CLI, the
+    # HTTP API and this UI all surface the same intermediate steps.
+    processor = AgentStreamProcessor()
     async for namespace, event_type, event_value in graph.astream(
         stream_input, config=config, stream_mode=["updates", "messages"], subgraphs=True, debug=True
     ):
-        # Nesting depth from the subgraph namespace: 0 = main agent, >0 = a
-        # genuinely nested subgraph (e.g. the text2sql SQL graph). Note the data
-        # analysis sub-agent is flattened onto depth 0 (reset checkpoint ns).
-        depth = len(namespace) if namespace else 0
-        layer_label = _format_namespace_label(namespace)
-
-        if event_type == "messages":
-            chunk = event_value[0]
-            metadata = event_value[1]
-            node = metadata.get("langgraph_node")
-            token = get_text_from_message_chunk(chunk)
-            if not token:
-                continue
-
-            if depth == 0 and node == "llm_node" and metadata.get("streaming_tokens", False):
-                # Main agent streaming its (intermediate/final) answer.
-                final_response += token
-                if current_token_layer != "main":
-                    chronological_content += "\n\n**🤖 AI Response:** "
-                    current_token_layer = "main"
-                chronological_content += token
-                update_display()
-            elif node in _SQL_SUBGRAPH_NODES:
-                # SQL subgraph internal LLM tokens: the dedicated `updates`
-                # handlers below already render these as steps.
-                continue
-            elif depth == 0 and node in _MAIN_GRAPH_NODES:
-                # Other main-graph nodes don't carry a useful thinking trace.
-                continue
-            else:
-                # Sub-agent (data analysis) LLM thinking tokens. They bubble up
-                # nested (depth>0) or flattened onto depth 0 (reset checkpoint ns).
-                level = depth if depth > 0 else 1
-                label = layer_label if depth > 0 else _SUBAGENT_LABEL
-                token_layer = ("think", namespace, node)
-                if current_token_layer != token_layer:
-                    chronological_content += f"\n\n{'　' * level}💭 *{label} 思考:* "
-                    current_token_layer = token_layer
-                chronological_content += token
+        for event in processor.process(namespace, event_type, event_value):
+            if isinstance(event, StreamToken):
+                if event.is_final:
+                    # Main agent streaming its (intermediate/final) answer.
+                    final_response += event.text
+                    if current_token_layer != "main":
+                        chronological_content += "\n\n**🤖 AI Response:** "
+                        current_token_layer = "main"
+                else:
+                    # Sub-agent (data analysis) thinking tokens.
+                    token_layer = ("think", event.level, event.label)
+                    if current_token_layer != token_layer:
+                        chronological_content += f"\n\n{'　' * event.level}💭 *{event.label} 思考:* "
+                        current_token_layer = token_layer
+                chronological_content += event.text
                 update_display()
 
-        else:
-            # Process tool calls and intermediate steps. Works for the main
-            # graph, the text2sql SQL subgraph, and the data analysis sub-agent.
-            pending_steps = []  # list of (level, label, desc)
+            elif isinstance(event, StreamStep):
+                desc = event.text
 
-            for node_name, node_output in event_value.items():
-                if not isinstance(node_output, dict):
-                    continue
+                # Building the Plotly figure is UI-specific, so it stays here.
+                # The shared parser hands us the DSL plus the latest CSV data.
+                if event.kind == "visualization":
+                    data_csv = event.data.get("data")
+                    visualization_dsl = event.data.get("visualization_dsl")
+                    if not data_csv:
+                        # Match prior behavior: no chart without data.
+                        continue
+                    try:
+                        plot_figure, plot_description = visualization_dsl_to_gradio_plot(data_csv, visualization_dsl)
+                        desc = f"📊 Generated visualization: {plot_description}"
+                    except Exception as e:
+                        desc = f"⚠️ Visualization error: {str(e)}"
 
-                # Decide which layer this node belongs to for display.
-                is_main_node = depth == 0 and node_name in _MAIN_GRAPH_NODES
-                if is_main_node:
-                    level, label = 0, "main"
-                elif depth == 0:
-                    # deepagents sub-agent node flattened onto depth 0.
-                    level, label = 1, _SUBAGENT_LABEL
-                else:
-                    level, label = depth, layer_label
-
-                desc = None
-                matched = True
-
-                if node_name == "llm_node":
-                    message_obj = (node_output.get("messages") or [None])[0]
-                    if isinstance(message_obj, AIMessage) and message_obj.tool_calls:
-                        sub_agents = [tool['name'] for tool in message_obj.tool_calls if
-                                      tool['name'] in ('data_analysis', 'text2sql')]
-                        normal_tools = [tool['name'] for tool in message_obj.tool_calls if
-                                      tool['name'] not in sub_agents]
-                        if normal_tools:
-                            desc = f"🛠️ Using tools: {', '.join(normal_tools)}"
-                        if sub_agents:
-                            desc = f"🛠️ Running sub agent: {', '.join(sub_agents)}"
-
-                elif node_name == "information_extraction":
-                    message_obj = (node_output.get("messages") or [None])[0]
-                    if message_obj and getattr(message_obj, "tool_calls", None):
-                        desc = f"🛠️ Using tool: {message_obj.tool_calls[0]['name']}"
-                    else:
-                        rewrite_q = node_output.get("rewrite_question")
-                        if rewrite_q:
-                            desc = f"📝 Rewriting question: {rewrite_q}"
-
-                elif node_name == "table_selection":
-                    tables = node_output.get("tables")
-                    if tables:
-                        desc = f"🗂️ Selected tables: {tables}"
-
-                elif node_name == "generate_sql":
-                    sql = node_output.get("sql")
-                    if sql:
-                        desc = f"💾 Generated SQL:\n```sql\n{sql}\n```"
-
-                elif node_name == "execute_sql":
-                    desc = "⚡ Executing SQL query..."
-                    data_csv = node_output.get("data")
-
-                elif node_name == "regenerate_sql":
-                    sql = node_output.get("sql")
-                    if sql:
-                        desc = f"🔄 Regenerated SQL:\n```sql\n{sql}\n```"
-
-                elif node_name == "generate_visualization":
-                    visualization_dsl = node_output.get("visualization_dsl")
-                    if visualization_dsl and "error" not in visualization_dsl and data_csv:
-                        try:
-                            plot_figure, plot_description = visualization_dsl_to_gradio_plot(
-                                data_csv, visualization_dsl
-                            )
-                            desc = f"📊 Generated visualization: {plot_description}"
-                        except Exception as e:
-                            desc = f"⚠️ Visualization error: {str(e)}"
-                else:
-                    matched = False
-
-                if desc:
-                    pending_steps.append((level, label, desc))
-
-                # Generic fallback for sub-agent nodes (deepagents `model`/
-                # `tools` etc.). They surface flattened on depth 0 (reset
-                # checkpoint ns) or nested at depth>0 — never as a main node.
-                if not matched and not is_main_node:
-                    for generic_desc in _describe_generic_node(node_output):
-                        pending_steps.append((level, label, generic_desc))
-
-            for level, label, desc in pending_steps:
                 thinking_steps.append(desc)
                 step_number = len(thinking_steps)
                 if chronological_content and not chronological_content.endswith("\n\n"):
                     chronological_content += "\n\n"
-                if level == 0:
+                if event.level == 0:
                     chronological_content += f"**Step {step_number}:** {desc}\n\n"
                 else:
-                    chronological_content += f"{'　' * level}↳ *[{label}]* {desc}\n\n"
+                    chronological_content += f"{'　' * event.level}↳ *[{event.label}]* {desc}\n\n"
                 # Reset token grouping so the next streamed tokens get a header.
                 current_token_layer = None
                 update_display()

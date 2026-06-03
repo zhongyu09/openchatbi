@@ -1,17 +1,25 @@
 """Async API for streaming chat responses from OpenChatBI."""
 
 import asyncio
+import dataclasses
+import json
 from collections import defaultdict
 from contextlib import asynccontextmanager
 from typing import Any
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import StreamingResponse
-from langchain_core.messages import AIMessageChunk
 from pydantic import BaseModel
 
 from openchatbi import config
 from openchatbi.agent_graph import build_agent_graph_async
+from openchatbi.streaming import (
+    AgentStreamProcessor,
+    StreamInterrupt,
+    StreamStep,
+    StreamToken,
+    extract_final_answer,
+)
 from openchatbi.utils import get_report_download_response
 
 # Session state storage: session_id -> state
@@ -54,11 +62,56 @@ class UserRequest(BaseModel):
     user_id: str | None = "default"
     session_id: str | None = "default"
     provider: str | None = None
+    # "events" → structured NDJSON (steps + tokens + final answer, like the
+    # Streamlit UI). "text" → legacy plain-text answer-only stream.
+    mode: str | None = "events"
+
+
+def _event_to_dict(event) -> dict[str, Any]:
+    """Serialize a streaming event into a JSON-friendly dict."""
+    if isinstance(event, StreamStep):
+        return {
+            "type": "step",
+            "kind": event.kind,
+            "level": event.level,
+            "label": event.label,
+            "text": event.text,
+            "data": _json_safe(event.data),
+        }
+    if isinstance(event, StreamToken):
+        return {
+            "type": "token",
+            "level": event.level,
+            "label": event.label,
+            "is_final": event.is_final,
+            "text": event.text,
+        }
+    if isinstance(event, StreamInterrupt):
+        return {"type": "interrupt", "text": event.text, "buttons": _json_safe(event.buttons)}
+    return {"type": "unknown"}
+
+
+def _json_safe(obj: Any) -> Any:
+    """Best-effort conversion of arbitrary payloads to JSON-serializable data."""
+    try:
+        json.dumps(obj)
+        return obj
+    except TypeError:
+        if dataclasses.is_dataclass(obj):
+            return dataclasses.asdict(obj)
+        return str(obj)
 
 
 @app.post("/chat/stream")
 async def chat_stream(req: UserRequest):
-    """Stream chat responses from the agent graph."""
+    """Stream chat responses from the agent graph.
+
+    When ``mode == "events"`` (default) the response is newline-delimited JSON
+    (``application/x-ndjson``): one object per line with a ``type`` field of
+    ``step`` | ``token`` | ``interrupt`` | ``final_answer``. This mirrors the
+    intermediate steps the Streamlit UI displays. When ``mode == "text"`` the
+    legacy plain-text answer-only stream is returned.
+    """
     user_id = req.user_id or "default"
     session_id = req.session_id or "default"
     provider = req.provider
@@ -74,22 +127,38 @@ async def chat_stream(req: UserRequest):
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
 
-    async def event_generator():
-        """Generate streaming events from the graph."""
-        async for _namespace, event_type, event_value in graph.astream(
+    async def text_generator():
+        """Legacy plain-text generator: yields only assistant answer text."""
+        processor = AgentStreamProcessor()
+        async for namespace, event_type, event_value in graph.astream(
             stream_input, config=config, stream_mode=["updates", "messages"], subgraphs=True
         ):
-            text = ""
-            if event_type == "messages":
-                message_chunk = event_value[0]
-                if isinstance(message_chunk, AIMessageChunk):
-                    text = message_chunk.content
-            elif event_value.get("llm_node") and event_value["llm_node"].get("final_answer"):
-                text = event_value["llm_node"]["final_answer"]
-            if text:
-                yield text
+            for event in processor.process(namespace, event_type, event_value):
+                if isinstance(event, StreamToken) and event.is_final and event.text:
+                    yield event.text
 
-    return StreamingResponse(event_generator(), media_type="text/plain")
+    async def event_generator():
+        """Structured NDJSON generator: steps, tokens, interrupts, final answer."""
+        processor = AgentStreamProcessor()
+        async for namespace, event_type, event_value in graph.astream(
+            stream_input, config=config, stream_mode=["updates", "messages"], subgraphs=True
+        ):
+            for event in processor.process(namespace, event_type, event_value):
+                yield json.dumps(_event_to_dict(event), ensure_ascii=False) + "\n"
+
+        # Emit interrupt or final answer from the terminal state.
+        state = await graph.aget_state(config)
+        if state.interrupts:
+            value = state.interrupts[0].value or {}
+            interrupt = StreamInterrupt(text=value.get("text", ""), buttons=value.get("buttons", []) or [])
+            yield json.dumps(_event_to_dict(interrupt), ensure_ascii=False) + "\n"
+        else:
+            final = extract_final_answer(processor.final_response)
+            yield json.dumps({"type": "final_answer", "text": final}, ensure_ascii=False) + "\n"
+
+    if (req.mode or "events") == "text":
+        return StreamingResponse(text_generator(), media_type="text/plain")
+    return StreamingResponse(event_generator(), media_type="application/x-ndjson")
 
 
 @app.get("/user/{user_id}/memories")

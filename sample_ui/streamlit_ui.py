@@ -39,7 +39,6 @@ if "session_interrupts" not in st.session_state:
 if "event_loop" not in st.session_state:
     st.session_state.event_loop = None
 
-
 # Node names that belong to the text2sql SQL subgraph. Their intermediate
 # token stream is intentionally not surfaced as raw "thinking" because the
 # dedicated `updates` handlers below already render them (SQL, tables, etc.).
@@ -113,13 +112,13 @@ def _describe_generic_node(node_output: dict) -> list[str]:
                 rationale = ""
                 for key in ("reasoning", "task", "question", "query", "goal"):
                     if args.get(key):
-                        rationale = _preview_text(args[key], 100)
+                        rationale = _preview_text(args[key], 200)
                         break
                 suffix = f"：{rationale}" if rationale else ""
-                descriptions.append(f"🛠️ 调用工具 `{tool_call.get('name', '?')}`{suffix}")
+                descriptions.append(f"🛠️ Using tool: `{tool_call.get('name', '?')}`{suffix}")
         elif isinstance(message, ToolMessage):
             tool_name = getattr(message, "name", None) or "tool"
-            descriptions.append(f"📤 `{tool_name}` 返回：{_preview_text(message.content, 300)}")
+            descriptions.append(f"📤 Tool `{tool_name}` result：{_preview_text(message.content, 300)}")
     return descriptions
 
 
@@ -239,7 +238,14 @@ async def process_user_message_stream(
                 if node_name == "llm_node":
                     message_obj = (node_output.get("messages") or [None])[0]
                     if isinstance(message_obj, AIMessage) and message_obj.tool_calls:
-                        desc = f"🛠️ Using tools: {', '.join(tool['name'] for tool in message_obj.tool_calls)}"
+                        sub_agents = [tool['name'] for tool in message_obj.tool_calls if
+                                      tool['name'] in ('data_analysis', 'text2sql')]
+                        normal_tools = [tool['name'] for tool in message_obj.tool_calls if
+                                      tool['name'] not in sub_agents]
+                        if normal_tools:
+                            desc = f"🛠️ Using tools: {', '.join(normal_tools)}"
+                        if sub_agents:
+                            desc = f"🛠️ Running sub agent: {', '.join(sub_agents)}"
 
                 elif node_name == "information_extraction":
                     message_obj = (node_output.get("messages") or [None])[0]

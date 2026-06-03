@@ -29,12 +29,11 @@ else
     exit 1
 fi
 
-# Check if container is already running
+# Check if container already exists (running or stopped) and remove it
 CONTAINER_NAME="time-series-forecasting-service"
-if [ "$(docker ps -q -f name=$CONTAINER_NAME)" ]; then
-    echo "Stopping existing container..."
-    docker stop $CONTAINER_NAME
-    docker rm $CONTAINER_NAME
+if [ "$(docker ps -aq -f name=^/${CONTAINER_NAME}$)" ]; then
+    echo "Removing existing container..."
+    docker rm -f $CONTAINER_NAME
 fi
 
 echo "=== Starting Timeseries Forecasting Service ==="

@@ -101,7 +101,7 @@ async def process_user_message_stream(
                     # Sub-agent (data analysis) thinking tokens.
                     token_layer = ("think", event.level, event.label)
                     if current_token_layer != token_layer:
-                        chronological_content += f"\n\n{'　' * event.level}💭 *{event.label} 思考:* "
+                        chronological_content += f"\n\n{'　' * event.level}💭 *{event.label} Thinking:* "
                         current_token_layer = token_layer
                 chronological_content += event.text
                 update_display()

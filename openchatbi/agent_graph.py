@@ -1,6 +1,7 @@
 """Main agent graph construction and execution logic."""
 
 import datetime
+import json
 import logging
 import traceback
 from collections.abc import Callable
@@ -73,7 +74,7 @@ class CallSQLGraphInput(BaseModel):
     reasoning: str = Field(
         description="Explanation of why Text2SQL tool is needed",
     )
-    context: str = Field(
+    context: str | dict[str, Any] | list[Any] = Field(
         description="""The full context pass to Text2SQL tool, make sure do not miss any potential information that related to user's question.
         Following the format: History Conversation: (user and assistant history dialog)
         Information: (the knowledge you retrival that is relevant, like metrics and dimensions)
@@ -92,6 +93,16 @@ Important notes:
 - If user want to change the visualization chart type or style, add the requirement in the question
 - Make sure to provide question in English
 """
+
+
+def _normalize_text2sql_context(context: str | dict[str, Any] | list[Any]) -> str:
+    """Normalize tool context to the string payload expected by SQL graph."""
+    if isinstance(context, str):
+        return context
+    try:
+        return json.dumps(context, ensure_ascii=False)
+    except (TypeError, ValueError):
+        return str(context)
 
 
 def _format_sql_response(sql_graph_response: dict) -> str:
@@ -136,11 +147,12 @@ def get_sql_tools(sql_graph: CompiledStateGraph, sync_mode: bool = False) -> Cal
         function: Tool function for SQL generation.
     """
 
-    def call_sql_graph_sync(reasoning: str, context: str) -> str:
+    def call_sql_graph_sync(reasoning: str, context: str | dict[str, Any] | list[Any]) -> str:
         """Sync node function for Text2SQL tool"""
-        log(f"Call SQL graph (sync) with reasoning: {reasoning}, context: {context}")
+        normalized_context = _normalize_text2sql_context(context)
+        log(f"Call SQL graph (sync) with reasoning: {reasoning}, context: {normalized_context}")
         try:
-            sql_graph_response = sql_graph.invoke({"messages": context})
+            sql_graph_response = sql_graph.invoke({"messages": normalized_context})
             return _format_sql_response(sql_graph_response)
         except GraphInterrupt as e:
             log(f"Sql graph interrupted:\n{repr(e)}")
@@ -150,11 +162,12 @@ def get_sql_tools(sql_graph: CompiledStateGraph, sync_mode: bool = False) -> Cal
             traceback.print_exc()
         return "Error occurred when calling Text2SQL tool."
 
-    async def call_sql_graph_async(reasoning: str, context: str) -> str:
+    async def call_sql_graph_async(reasoning: str, context: str | dict[str, Any] | list[Any]) -> str:
         """Async node function for Text2SQL tool"""
-        log(f"Call SQL graph (async) with reasoning: {reasoning}, context: {context}")
+        normalized_context = _normalize_text2sql_context(context)
+        log(f"Call SQL graph (async) with reasoning: {reasoning}, context: {normalized_context}")
         try:
-            sql_graph_response = await sql_graph.ainvoke({"messages": context})
+            sql_graph_response = await sql_graph.ainvoke({"messages": normalized_context})
             return _format_sql_response(sql_graph_response)
         except GraphInterrupt as e:
             log(f"Sql graph interrupted:\n{repr(e)}")

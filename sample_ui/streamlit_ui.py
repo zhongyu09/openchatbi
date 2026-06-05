@@ -47,6 +47,7 @@ async def process_user_message_stream(
     Updates the thinking_container and response_container as processing happens
     """
     thinking_steps = []
+    top_level_step_number = 0
     final_response = ""
     plot_figure = None
 
@@ -124,11 +125,11 @@ async def process_user_message_stream(
                         desc = f"⚠️ Visualization error: {str(e)}"
 
                 thinking_steps.append(desc)
-                step_number = len(thinking_steps)
                 if chronological_content and not chronological_content.endswith("\n\n"):
                     chronological_content += "\n\n"
                 if event.level == 0:
-                    chronological_content += f"**Step {step_number}:** {desc}\n\n"
+                    top_level_step_number += 1
+                    chronological_content += f"**Step {top_level_step_number}:** {desc}\n\n"
                 else:
                     chronological_content += f"{'　' * event.level}↳ *[{event.label}]* {desc}\n\n"
                 # Reset token grouping so the next streamed tokens get a header.

@@ -510,6 +510,73 @@ class TestText2SQLGenerateSQL:
 
         assert result["sql_execution_result"] == SQL_EXECUTE_TIMEOUT
 
+    def test_sql_error_handling_operational_syntax_error(self, mock_llm, mock_catalog):
+        """Test handling of syntax errors wrapped by OperationalError."""
+        _, execute_node, _, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
+
+        mock_engine = mock_catalog.get_sql_engine.return_value
+        mock_connection = mock_engine.connect.return_value.__enter__.return_value
+        from sqlalchemy.exc import OperationalError
+
+        mock_connection.execute.side_effect = OperationalError(
+            "",
+            {},
+            Exception('near "<": syntax error'),
+        )
+
+        state = SQLGraphState(messages=[], sql="SELECT * FROM users WHERE < invalid")
+        result = execute_node(state)
+
+        from openchatbi.constants import SQL_SYNTAX_ERROR
+
+        assert result["sql_execution_result"] == SQL_SYNTAX_ERROR
+        assert "previous_sql_errors" in result
+        assert result["previous_sql_errors"][-1]["error_type"] == "SQL syntax error"
+
+    def test_sql_error_handling_operational_timeout_takes_priority(self, mock_llm, mock_catalog):
+        """Test timeout markers take precedence over syntax markers."""
+        _, execute_node, _, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
+
+        mock_engine = mock_catalog.get_sql_engine.return_value
+        mock_connection = mock_engine.connect.return_value.__enter__.return_value
+        from sqlalchemy.exc import OperationalError
+
+        mock_connection.execute.side_effect = OperationalError(
+            "",
+            {},
+            Exception('connection timed out near "<": syntax error'),
+        )
+
+        state = SQLGraphState(messages=[], sql="SELECT * FROM users WHERE < invalid")
+        result = execute_node(state)
+
+        from openchatbi.constants import SQL_EXECUTE_TIMEOUT
+
+        assert result["sql_execution_result"] == SQL_EXECUTE_TIMEOUT
+
+    def test_sql_error_handling_operational_unknown_error(self, mock_llm, mock_catalog):
+        """Test non-timeout, non-syntax operational errors are treated as unknown."""
+        _, execute_node, _, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
+
+        mock_engine = mock_catalog.get_sql_engine.return_value
+        mock_connection = mock_engine.connect.return_value.__enter__.return_value
+        from sqlalchemy.exc import OperationalError
+
+        mock_connection.execute.side_effect = OperationalError(
+            "",
+            {},
+            Exception("disk i/o error"),
+        )
+
+        state = SQLGraphState(messages=[], sql="SELECT * FROM users")
+        result = execute_node(state)
+
+        from openchatbi.constants import SQL_UNKNOWN_ERROR
+
+        assert result["sql_execution_result"] == SQL_UNKNOWN_ERROR
+        assert "previous_sql_errors" in result
+        assert result["previous_sql_errors"][-1]["error_type"] == "Database operational error"
+
     def test_regenerate_sql_empty_response(self, mock_llm, mock_catalog):
         """Test regeneration with empty LLM response."""
         mock_llm.invoke.return_value = AIMessage(content="")

@@ -364,9 +364,7 @@ def create_sql_nodes(
             error_category = _classify_operational_error(e)
             if error_category == "timeout_or_connection":
                 log(f"Database connection/timeout error: {str(e)}")
-                error_result = (
-                    f"```sql\n{sql_query}\n```\nDatabase Connection Timeout: {str(e)}\nPlease check database connectivity."
-                )
+                error_result = f"```sql\n{sql_query}\n```\nDatabase Connection Timeout: {str(e)}\nPlease check database connectivity."
                 return {"sql_execution_result": SQL_EXECUTE_TIMEOUT, "messages": [AIMessage(error_result)]}
 
             previous_errors = list(state.get("previous_sql_errors", []))

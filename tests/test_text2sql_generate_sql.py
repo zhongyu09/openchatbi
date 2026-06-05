@@ -213,6 +213,30 @@ class TestText2SQLGenerateSQL:
         mock_result.fetchmany.assert_not_called()
         assert "limited to first" not in result["messages"][0].content
 
+    def test_execute_sql_node_limit_disabled_invalid_prefix_returns_syntax_error(self, mock_llm, mock_catalog):
+        """Test malformed SQL prefix returns syntax error when limit wrapper is disabled."""
+        _, execute_node, _, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
+        state = SQLGraphState(messages=[], sql="<SQL> SELECT * FROM users")
+
+        with patch("openchatbi.text2sql.generate_sql.config") as mock_config:
+            mock_config.get.return_value = SimpleNamespace(
+                enable_sql_result_limit=False,
+                sql_result_limit=5,
+            )
+            mock_engine = mock_catalog.get_sql_engine.return_value
+            mock_connection = mock_engine.connect.return_value.__enter__.return_value
+            from sqlalchemy.exc import ProgrammingError
+
+            mock_connection.execute.side_effect = ProgrammingError("", "", 'line 1:1: mismatched input "<"')
+            result = execute_node(state)
+
+        from openchatbi.constants import SQL_SECURITY_ERROR, SQL_SYNTAX_ERROR
+
+        assert result["sql_execution_result"] == SQL_SYNTAX_ERROR
+        assert result["sql_execution_result"] != SQL_SECURITY_ERROR
+        assert "previous_sql_errors" in result
+        assert result["previous_sql_errors"][-1]["error_type"] == "SQL syntax error"
+
     def test_execute_sql_node_allows_with_select_query(self, mock_llm, mock_catalog):
         """Test SQL execution allows CTE-based SELECT queries."""
         _, execute_node, _, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")

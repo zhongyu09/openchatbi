@@ -224,7 +224,9 @@ class AgentStreamProcessor:
             if node_name == "llm_node":
                 message_obj = (node_output.get("messages") or [None])[0]
                 if isinstance(message_obj, AIMessage) and message_obj.tool_calls:
-                    sub_agents = [t["name"] for t in message_obj.tool_calls if t["name"] in ("data_analysis", "text2sql")]
+                    sub_agents = [
+                        t["name"] for t in message_obj.tool_calls if t["name"] in ("data_analysis", "text2sql")
+                    ]
                     normal_tools = [t["name"] for t in message_obj.tool_calls if t["name"] not in sub_agents]
                     if normal_tools:
                         desc = f"🛠️ Using tools: {', '.join(normal_tools)}"

@@ -39,6 +39,7 @@ if "session_interrupts" not in st.session_state:
 if "event_loop" not in st.session_state:
     st.session_state.event_loop = None
 
+
 async def process_user_message_stream(
     message: str, user_id: str, session_id: str, llm_provider: str | None, thinking_container, response_container
 ):

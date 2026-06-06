@@ -76,11 +76,10 @@ class CallSQLGraphInput(BaseModel):
     context: str | dict[str, Any] | list[Any] = Field(
         description="""Context payload passed to Text2SQL.
         Prefer a structured format to preserve information while isolating scope:
-        Shared Context: stable business background, entities, metrics, key filters
-        Current Subtask: the ONLY goal to solve in this call
-        Carry-over From Previous Step (optional): prior SQL/result and the exact delta to apply
-        Deferred Tasks (optional): remaining stages that must NOT be solved in this call
-        User's latest question: MUST describe only the Current Subtask for this call""",
+        - Shared Context: stable business background, entities, metrics, key filters
+        - Current Subtask (User's latest question): The ONLY specific query to execute NOW.
+        - Carry-over From Previous Step: prior SQL/result and the exact delta to apply (optional)
+        - Deferred Tasks: remaining stages to ignore for now (optional)""",
     )
 
 

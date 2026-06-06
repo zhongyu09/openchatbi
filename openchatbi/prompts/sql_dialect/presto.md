@@ -2,7 +2,7 @@
 - Use 'LIKE' instead of 'ILIKE' in the Presto SQL.
 - If there is a 'GROUP BY' clause in the user query, you can use serial number(1,2,3..) instead of the column names in the 'GROUP BY' clause.
 - When filter Array type dimension, use ARRAYS_OVERLAP, e.g. ARRAYS_OVERLAP(states, ARRAY['CA'])
-- If you have to write two SQL statements, ensure to separate them with a semicolon `;`.
+- Return exactly one SQL statement for each request. Do not output multiple statements separated by semicolons.
 - If there is no 'limit' or 'top' count mentioned in user question, default use "LIMIT 10000" in the SQL query. 
 - If the SQL you provide includes fuzzy matching filters (e.g., 'name LIKE ...'), you should apply a GROUP BY clause for this dimension to handle cases where multiple rows have similar names.
 - If a table name is referenced multiple times in the SQL query (e.g., table_name.column), assign an alias to the table to simplify the query, such as (a.column).

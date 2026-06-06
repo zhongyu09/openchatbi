@@ -74,10 +74,13 @@ class CallSQLGraphInput(BaseModel):
         description="Explanation of why Text2SQL tool is needed",
     )
     context: str | dict[str, Any] | list[Any] = Field(
-        description="""The full context pass to Text2SQL tool, make sure do not miss any potential information that related to user's question.
-        Following the format: History Conversation: (user and assistant history dialog)
-        Information: (the knowledge you retrival that is relevant, like metrics and dimensions)
-        User's latest question:""",
+        description="""Context payload passed to Text2SQL.
+        Prefer a structured format to preserve information while isolating scope:
+        Shared Context: stable business background, entities, metrics, key filters
+        Current Subtask: the ONLY goal to solve in this call
+        Carry-over From Previous Step (optional): prior SQL/result and the exact delta to apply
+        Deferred Tasks (optional): remaining stages that must NOT be solved in this call
+        User's latest question: MUST describe only the Current Subtask for this call""",
     )
 
 
@@ -91,6 +94,8 @@ Returns:
 Important notes:
 - If user want to change the visualization chart type or style, add the requirement in the question
 - Make sure to provide question in English
+- In staged workflows, pass subtask-scoped context only for this call and keep other stages under Deferred Tasks
+- If this call depends on the previous SQL intent, use Carry-over with an explicit delta instead of resending the whole multi-stage ask
 """
 
 

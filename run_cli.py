@@ -12,6 +12,10 @@ Single question (sync graph, human-readable streaming output)::
 
     CONFIG_FILE=example/config.yaml python run_cli.py "How many users signed up last week?"
 
+Anomaly-detection question (exercises text2sql + the anomaly detection tool)::
+
+    CONFIG_FILE=example/config.yaml python run_cli.py "Are there anomaly drop of daily orders in last week？"
+
 Interactive REPL (keeps the same thread/session, supports ask-human resume)::
 
     CONFIG_FILE=example/config.yaml python run_cli.py

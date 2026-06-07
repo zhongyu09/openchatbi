@@ -149,14 +149,11 @@ async def process_user_message_stream(
                     step_counters = {k: v for k, v in step_counters.items() if k <= event.level}
 
                     step_number_parts = [
-                        str(step_counters[level])
-                        for level in sorted(step_counters.keys())
-                        if level <= event.level
+                        str(step_counters[level]) for level in sorted(step_counters.keys()) if level <= event.level
                     ]
                     hierarchical_step_number = ".".join(step_number_parts)
                     chronological_content += (
-                        f"{'　' * event.level}↳ Step {hierarchical_step_number} "
-                        f"[{event.label}] {desc}\n\n"
+                        f"{'　' * event.level}↳ Step {hierarchical_step_number} " f"[{event.label}] {desc}\n\n"
                     )
                 # Reset token grouping so the next streamed tokens get a header.
                 current_token_layer = None

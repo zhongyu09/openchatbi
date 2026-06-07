@@ -165,7 +165,9 @@ def get_sql_tools(sql_graph: CompiledStateGraph, sync_mode: bool = False) -> Cal
             traceback.print_exc()
         return "Error occurred when calling Text2SQL tool."
 
-    async def call_sql_graph_async(reasoning: str, context: str | dict[str, Any] | list[dict[str, Any]] | list[str]) -> str:
+    async def call_sql_graph_async(
+        reasoning: str, context: str | dict[str, Any] | list[dict[str, Any]] | list[str]
+    ) -> str:
         """Async node function for Text2SQL tool"""
         normalized_context = _normalize_text2sql_context(context)
         log(f"Call SQL graph (async) with reasoning: {reasoning}, context: {normalized_context}")

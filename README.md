@@ -58,7 +58,7 @@ Join the Slack channel to discuss: https://join.slack.com/t/openchatbicommunity/
 
 ### LangGraph Version Compatibility
 
-OpenChatBI has upgraded its agent runtime to **LangGraph v1** and currently targets `langgraph==1.1.10`.
+OpenChatBI has upgraded its agent runtime to **LangGraph v1** and currently targets `langgraph>=1.2.2`.
 This upgrade also brings in the LangChain 1.x ecosystem and related compatibility changes.
 
 If you do **not** want to depend on LangGraph v1, please use OpenChatBI `v0.2.2` or an earlier release.

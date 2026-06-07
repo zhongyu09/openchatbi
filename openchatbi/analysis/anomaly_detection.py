@@ -294,7 +294,7 @@ def _evaluate_window(
     # points denoise it via a light, newest-weighted average controlled by
     # ``smoothing`` (anchor weight share = 1 - smoothing).
     anchor_contribution = contributions[-1]
-    smoothed_contribution = sum(c * w for c, w in zip(contributions, normalized_weights))
+    smoothed_contribution = sum(c * w for c, w in zip(contributions, normalized_weights, strict=False))
     smoothing = min(max(smoothing, 0.0), 1.0)
     window_base = (1.0 - smoothing) * anchor_contribution + smoothing * smoothed_contribution
 

@@ -180,7 +180,7 @@ class AgentStreamProcessor:
     ) -> Iterator[StreamEvent]:
         chunk, metadata = event_value[0], event_value[1]
         node = metadata.get("langgraph_node")
-        token = get_text_from_message_chunk(chunk) if isinstance(chunk, (AIMessageChunk, AIMessage)) else ""
+        token = get_text_from_message_chunk(chunk) if isinstance(chunk, AIMessageChunk | AIMessage) else ""
         if not token:
             return
 
@@ -304,8 +304,7 @@ class AgentStreamProcessor:
             else:
                 matched = False
 
-            for step in extra_steps:
-                yield step
+            yield from extra_steps
 
             if desc:
                 yield StreamStep(text=desc, level=level, label=label, kind=kind, data=data)

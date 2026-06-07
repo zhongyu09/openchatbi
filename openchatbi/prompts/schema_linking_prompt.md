@@ -8,6 +8,10 @@ You are a language expert and professional SQL engineer tasked with analyzing qu
 
 [data_warehouse_introduction]
 
+# Input Structure Awareness
+The user context in the chat history may contain a section called "Deferred Tasks".
+- **CRITICAL**: You MUST completely IGNORE any tables or columns that might be needed for "Deferred Tasks". Only select tables for the exact query requested in the final "Please select the appropriate tables for the question:" prompt.
+
 # Candidate Tables
 I found the following tables and their relevant columns and descriptions that might contain the data the user is looking for.
 [tables]

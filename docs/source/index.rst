@@ -21,6 +21,7 @@ OpenChatBI Documentation
    Configuration <config>
    Catalog System <catalog>
    Text2SQL System <text2sql>
+   Data Analysis Agent <data_analysis_agent>
    Code Execution <code>
    LLM Integration <llm>
    Tools and Utilities <tools>

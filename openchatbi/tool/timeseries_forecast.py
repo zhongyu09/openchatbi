@@ -12,6 +12,46 @@ from openchatbi.utils import log
 
 logger = logging.getLogger(__name__)
 
+# Fallback minimum input length used only when the value cannot be obtained from the forecasting
+# service or config. The authoritative value is read from the model config (e.g. Timer's
+# ``input_token_len``) and exposed by the service's /health endpoint.
+DEFAULT_MIN_FORECAST_INPUT_LENGTH = 96
+
+# Per-service-url cache of the model minimum input length fetched from /health.
+_min_input_length_cache: dict[str, int] = {}
+
+
+def _configured_min_input_length() -> int | None:
+    """Return the manual override from config, if set and valid."""
+    try:
+        value = config.get().timeseries_forecasting_min_input_length
+    except ValueError:
+        # Configuration not loaded yet (e.g., in tests).
+        return None
+    return value if isinstance(value, int) and value > 0 else None
+
+
+def get_min_forecast_input_length(service_url: str) -> int:
+    """Resolve the forecasting model's minimum input length.
+
+    Resolution order:
+      1. Manual override from config (``timeseries_forecasting_min_input_length``).
+      2. Value exposed by the service ``/health`` (``min_input_length``, read from the model
+         config), cached per service URL. The cache is usually already warmed by the preceding
+         health check; on a miss we run ``_probe_service_health`` once, which fetches
+         /health and populates the cache.
+      3. ``DEFAULT_MIN_FORECAST_INPUT_LENGTH`` as a last-resort fallback.
+    """
+    override = _configured_min_input_length()
+    if override is not None:
+        return override
+
+    if service_url not in _min_input_length_cache:
+        # Fetch /health once; this warms the cache as a side effect.
+        _probe_service_health(service_url)
+
+    return _min_input_length_cache.get(service_url, DEFAULT_MIN_FORECAST_INPUT_LENGTH)
+
 
 class TimeseriesForecastInput(BaseModel):
     """Input schema for time series forecasting tool."""
@@ -25,35 +65,56 @@ class TimeseriesForecastInput(BaseModel):
     )
     frequency: str = Field(default="hourly", description="Time series frequency: hourly, daily, weekly, monthly, etc.")
     input_length: int | None = Field(
-        default=None, description="Optional limit on input data length to use for prediction"
+        default=None,
+        description=(
+            "Target length of historical input for the forecasting service. If the supplied history "
+            "is longer, only the most recent `input_length` points are used; if it is shorter, the "
+            "service left-pads the earliest points with zeros to reach this length."
+        ),
     )
     target_column: str = Field(
         default="value", description="Column name to forecast for structured data (default: 'value')"
     )
 
 
-def _check_service_health(service_url: str) -> bool:
-    """Check if time series forecasting service is available."""
+def _probe_service_health(service_url: str) -> bool:
+    """Check the forecasting service health and warm caches from the /health payload.
+
+    Besides reporting whether the model is initialized, this primes the per-URL
+    ``min_input_length`` cache from the same response, so a subsequent
+    ``call_timeseries_service`` / ``get_min_forecast_input_length`` does not need a second
+    /health request.
+    """
     try:
-        response = requests.get(f"{service_url}/health", timeout=5)
+        response = requests.get(f"{service_url}/health", timeout=10)
         if response.status_code == 200:
             health_data = response.json()
+            # Warm the per-URL min_input_length cache from the same payload.
+            min_input_length = health_data.get("min_input_length")
+            if isinstance(min_input_length, int) and min_input_length > 0:
+                _min_input_length_cache[service_url] = min_input_length
             return health_data.get("model_initialized", False)
+        else:
+            log(
+                f"Time series forecasting service health check failed: "
+                f"GET {service_url}/health returned status {response.status_code}, body: {response.text}"
+            )
         return False
-    except requests.exceptions.RequestException:
+    except requests.exceptions.RequestException as e:
+        log(f"Time series forecasting service health check error: GET {service_url}/health failed with {e}")
         return False
 
 
 def check_forecast_service_health() -> bool:
     try:
         service_url = config.get().timeseries_forecasting_service_url
-        return _check_service_health(service_url)
+        return _probe_service_health(service_url)
     except ValueError:
         # Configuration not loaded yet (e.g., in tests)
         return False
 
 
-def _call_timeseries_service(
+def call_timeseries_service(
     service_url: str,
     input_data: list[float | int | dict[str, Any]],
     forecast_window: int,
@@ -61,8 +122,37 @@ def _call_timeseries_service(
     input_length: int | None = None,
     target_column: str = "value",
 ) -> dict[str, Any]:
-    """Call time series forecasting service."""
+    """Call the underlying time series forecasting service and return structured data.
+
+    Unlike the `timeseries_forecast` tool function which returns a formatted string for the LLM agent,
+    this function returns the raw structured dictionary response from the forecasting microservice.
+    It is intended for internal programmatic use (e.g., by the anomaly detection module) where
+    structured prediction data is needed for further computation.
+
+    Args:
+        service_url: The URL of the forecasting microservice.
+        input_data: Historical time series data as list of numbers or structured data.
+        forecast_window: Number of future time points to predict.
+        frequency: Time series frequency (e.g., 'hourly', 'daily').
+        input_length: Target historical input length; longer history is limited to the most recent
+            points, shorter history is left-padded with zeros by the service.
+        target_column: Column name to forecast for structured data (default: 'value').
+
+    Returns:
+        dict[str, Any]: A dictionary containing either the successful predictions
+                        (e.g., {"predictions": [1.0, 2.0], "status": "success"})
+                        or an error status (e.g., {"error": "...", "status": "error"}).
+    """
     try:
+        # The model needs at least its minimum input length (read from the service/model config).
+        # When fewer points are provided, request padding by setting input_len so the service
+        # left-pads the earliest points with zeros. Centralised here so every caller (forecasting
+        # and anomaly detection) behaves the same.
+        if input_length is None:
+            min_input_length = get_min_forecast_input_length(service_url)
+            if len(input_data) < min_input_length:
+                input_length = min_input_length
+
         # Prepare request payload
         payload = {"input": input_data, "forecast_window": forecast_window, "frequency": frequency}
 
@@ -105,7 +195,7 @@ Please check:
             return f"""Time Series Forecasting Error: {result.get('error', 'Unknown error occurred')}
 Please check:
 1. Input data format is correct
-2. input_len is set to larger when the input data length is not enough
+2. When the input data length is not enough, set input_length to the target length so the service left-pads the earliest points with zeros
 3. Forecast window is reasonable (1-200)"""
         else:
             return f"""Time Series Forecasting Error: {result.get('error', 'Unknown error occurred')}"""
@@ -161,12 +251,17 @@ def timeseries_forecast(
     This tool uses state-of-the-art deep learning models (currently transformer based) to predict future values based on historical time series data.
     Perfect for sales forecasting, demand planning, trend analysis, and business intelligence.
 
+    Note: This function acts as a LangChain tool wrapper and returns a human-readable formatted string
+    designed for the LLM agent to read. If you need raw structured prediction data for internal
+    programmatic use, call `call_timeseries_service` instead.
+
     Args:
         reasoning: Explanation of why forecasting is needed and what insights are expected
         input_data: Historical time series data as list of numbers or structured data with timestamps
         forecast_window: Number of future time points to predict (1-200, default: 24)
         frequency: Time series frequency - hourly, daily, weekly, monthly, etc.
-        input_length: Optional limit on how much historical data to use for prediction
+        input_length: Target historical input length; longer history is limited to the most recent
+            points, shorter history is left-padded with zeros by the service
         target_column: Column name to forecast for structured data (default: 'value')
 
     Returns:
@@ -192,12 +287,12 @@ def timeseries_forecast(
     if len(input_data) < 3:
         return "Error: Need at least 3 data points for reliable forecasting. Please provide more historical data."
 
-    # Check service availability
-    if not _check_service_health(service_url):
+    # Check service availability (also warms the min_input_length cache)
+    if not _probe_service_health(service_url):
         return """Time Series Forecasting Service Unavailable. The time series forecasting service is not running or not in service. """
 
     # Call the forecasting service
-    result = _call_timeseries_service(
+    result = call_timeseries_service(
         service_url=service_url,
         input_data=input_data,
         forecast_window=forecast_window,

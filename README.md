@@ -17,7 +17,7 @@ Join the Slack channel to discuss: https://join.slack.com/t/openchatbicommunity/
 4. **Data Catalog Management**: Automatically discovers and indexes database table structures, supports flexible catalog
    storage backends with vector-based or BM25-based retrieval, and easily maintains business explanations for tables
    and columns as well as optimizes Prompts.
-5. **Time Series Forecasting**: Forecasting models deployed in-house that can be called as tools
+5. **Time Series Forecasting**: In-house forecasting models, accessed through the data analysis agent (see feature 12)
 6. **Code Execution**: Execute Python code for data analysis and visualization
 7. **Interactive Problem-Solving**: Proactively ask users for more context when information is incomplete
 8. **Persistent Memory**: Conversation management and user characteristic memory based on LangGraph checkpointing
@@ -26,11 +26,21 @@ Join the Slack channel to discuss: https://join.slack.com/t/openchatbicommunity/
    knowledge base retrival (via MCP tools)
 11. **Web UI Interface**: Provide 2 sample UI: simple and streaming web interfaces using Gradio and Streamlit, easy to
    integrate with other web applications
+12. **Data Analysis Agent**: A specialized sub-agent (built on [deepagents](https://github.com/langchain-ai/deepagents))
+   that the main agent delegates complex analysis to. It orchestrates text2sql, time series forecasting, anomaly detection,
+   multi-dimensional drill-down (Adtributor) and Python execution to cover trend forecasting, anomaly detection,
+   anomaly root-cause drill-down, multi-metric correlation and business combination analysis. Optionally uses a
+   dedicated `analysis_llm`. See [`openchatbi/analysis/README.md`](openchatbi/analysis/README.md)
+   for the agent and the underlying anomaly detection / Adtributor algorithms.
 
 ## Roadmap
 
-1. **Anomaly Detection Algorithm**: Time series anomaly detection
-2. **Root Cause Analysis Algorithm**: Multi-dimensional drill-down capabilities for anomaly investigation
+1. **Anomaly Detection Algorithm**: Time series anomaly detection — initial version available via the data analysis
+   agent; actively being refined toward production readiness.
+2. **Root Cause Analysis Algorithm**: Multi-dimensional drill-down for anomaly investigation — initial Adtributor-based
+   drill-down tool available; actively being refined toward production readiness.
+3. **Data Analysis Agent**: End-to-end analysis orchestration — initial version available; iterating on robustness,
+   data hand-off between tools, and overall quality to reach production readiness.
 
 # Getting started
 
@@ -48,7 +58,7 @@ Join the Slack channel to discuss: https://join.slack.com/t/openchatbicommunity/
 
 ### LangGraph Version Compatibility
 
-OpenChatBI has upgraded its agent runtime to **LangGraph v1** and currently targets `langgraph==1.1.10`.
+OpenChatBI has upgraded its agent runtime to **LangGraph v1** and currently targets `langgraph>=1.2.2`.
 This upgrade also brings in the LangChain 1.x ecosystem and related compatibility changes.
 
 If you do **not** want to depend on LangGraph v1, please use OpenChatBI `v0.2.2` or an earlier release.
@@ -129,7 +139,7 @@ llm_providers:
       class: langchain_openai.ChatOpenAI
       params:
         api_key: YOUR_API_KEY_HERE
-        model: gpt-4.1
+        model: gpt-5.5
         temperature: 0.02
         max_tokens: 8192
 
@@ -199,6 +209,13 @@ streamlit run sample_ui streamlit_ui.py
 Run Gradio based UI:
 ```bash
 python sample_ui/streaming_ui.py
+```
+
+3. **Command Line Interface (CLI):**
+
+```bash
+export CONFIG_FILE=YOUR_CONFIG_FILE_PATH
+python run_cli.py
 ```
 
 ## Configuration Instructions
@@ -271,9 +288,10 @@ OpenChatBI is built using a modular architecture with clear separation of concer
 1. **LangGraph Workflows**: Core orchestration using state machines for complex multi-step processes
 2. **Catalog Management**: Flexible data catalog system with intelligent retrieval (vector-based or BM25 fallback)
 3. **Text2SQL Pipeline**: Advanced natural language to SQL conversion with schema linking
-4. **Code Execution**: Sandboxed Python execution environment for data analysis
-5. **Tool Integration**: Extensible tool system for human interaction and knowledge search
-6. **Persistent Memory**: SQLite-based conversation state management
+4. **Data Analysis Agent**: Specialized sub-agent that orchestrates forecasting, anomaly detection, root-cause drill-down and Python analysis into multi-step workflows
+5. **Code Execution**: Sandboxed Python execution environment for data analysis
+6. **Tool Integration**: Extensible tool system for human interaction and knowledge search
+7. **Persistent Memory**: SQLite-based conversation state management
 
 ## Technology Stack
 
@@ -286,10 +304,56 @@ OpenChatBI is built using a modular architecture with clear separation of concer
 - **Storage**: SQLite for conversation checkpointing, file system catalog storage
 
 ### Agent Graph
-<img src="https://github.com/zhongyu09/openchatbi/raw/main/assets/agent_graph.png" alt="Agent Graph" width="800">
+```mermaid
+graph TD
+    START((Start)) --> llm_node[llm_node]
+    
+    llm_node -->|tool_call: AskHuman| ask_human[ask_human]
+    llm_node -->|tool_call: Other Tools| use_tool[use_tool]
+    llm_node -->|final_answer| END((End))
+    
+    ask_human --> llm_node
+    use_tool --> llm_node
+    
+    subgraph use_tool [Available Tools in use_tool node]
+        text2sql
+        data_analysis
+        run_python_code
+        search_knowledge
+        show_schema
+        save_report
+        memory_tools
+        mcp_tools
+    end
+```
 
 ### Text2SQL Graph
-<img src="https://github.com/zhongyu09/openchatbi/raw/main/assets/text2sql_graph.png" alt="Text2SQL Graph" width="800">
+```mermaid
+graph TD
+    START((Start)) --> IE[information_extraction]
+    
+    IE -->|ask_human| AH[ask_human]
+    IE -->|search_knowledge| SK[search_knowledge]
+    IE -->|next| TS[table_selection]
+    IE -->|end| END((End))
+    
+    AH --> IE
+    SK --> IE
+    
+    TS --> GS[generate_sql]
+    
+    GS -->|execute_sql| ES[execute_sql]
+    GS -->|end| END
+    
+    ES -->|generate_visualization| GV[generate_visualization]
+    ES -->|regenerate_sql| RS[regenerate_sql]
+    ES -->|end| END
+    
+    RS -->|execute_sql| ES
+    RS -->|end| END
+    
+    GV --> END
+```
 
 ## Project Structure
 
@@ -311,6 +375,12 @@ openchatbi/
 │   ├── context_manager.py      # Context window and token management
 │   ├── text_segmenter.py       # Text segmentation with jieba support
 │   ├── utils.py                # Utility functions and SimpleStore (BM25-based retrieval)
+│   ├── analysis/               # Data analysis agent + algorithms (see analysis/README.md)
+│   │   ├── README.md           # Package documentation
+│   │   ├── agent.py            # Data analysis agent + `data_analysis` tool
+│   │   ├── anomaly_detection.py # Anomaly detection scoring algorithm
+│   │   ├── adtributor.py       # Adtributor root-cause / drill-down algorithm
+│   │   └── models.py           # Adtributor output models
 │   ├── catalog/                # Data catalog management
 │   │   ├── __init__.py         # Package initialization
 │   │   ├── catalog_loader.py   # Catalog loading logic
@@ -350,6 +420,8 @@ openchatbi/
 │   │   ├── text2sql_utils.py   # Text2SQL utilities
 │   │   └── visualization.py    # Data visualization functions
 │   └── tool/                   # LangGraph tools and functions
+│       ├── anomaly_detection.py # Anomaly detection tool wrapper
+│       ├── adtributor_tool.py  # Adtributor drill-down tool wrapper
 │       ├── ask_human.py        # Human-in-the-loop interactions
 │       ├── memory.py           # Memory management tool
 │       ├── mcp_tools.py        # MCP (Model Context Protocol) integration
@@ -556,20 +628,15 @@ cd timeseries_forecasting
 ./build_and_run.sh
 ```
 
-#### 2. Configure Tool Usage Rules
-
-In your `bi.yaml`, add constraints for the timeseries_forecast tool, e.g. if you are using `timer-base-84m` model:
-```yaml
-extra_tool_use_rule: |
-  - timeseries_forecast tool requires at least 96 time points in input data. If no enough input data, set input_len to 96 to pad with zeros.
-```
-
-#### 3. Configure Service URL
+#### 2. Configure Service URL
 
 In your `config.yaml`:
 ```yaml
 # Time Series Forecasting Service Configuration
 timeseries_forecasting_service_url: "http://localhost:8765"
+# Optional: override the model's minimum input length. Leave unset to fetch it automatically
+# from the service /health (which reads it from the model config, e.g. Timer's input_token_len).
+# timeseries_forecasting_min_input_length: 96
 ```
 
 **Important**: Adjust the URL based on your deployment scenario:
@@ -577,7 +644,7 @@ timeseries_forecasting_service_url: "http://localhost:8765"
 - **Remote service**: `http://your-service-host:8765`
 
 
-#### 4. Verify Service Health
+#### 3. Verify Service Health
 
 Test the service is accessible:
 ```bash
@@ -589,6 +656,7 @@ Expected response:
 {
   "status": "healthy",
   "model_initialized": true,
+  "min_input_length": 96,
   "uptime_seconds": 123.45
 }
 ``` 

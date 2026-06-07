@@ -211,7 +211,11 @@ def _configure_agent_graph(channel: JsonlChannel) -> None:
     agent_graph.build_sql_graph = lambda *_args, **_kwargs: object()
     agent_graph.get_memory_tools = lambda *_args, **_kwargs: []
     agent_graph.create_mcp_tools_sync = lambda *_args, **_kwargs: []
-    agent_graph.check_forecast_service_health = lambda: False
+    # Forecast health is now checked inside the data analysis sub-agent, not the
+    # main agent graph; stub it there to keep the eval hermetic (no network).
+    import openchatbi.analysis.agent as analysis_agent
+
+    analysis_agent.check_forecast_service_health = lambda: False
     agent_graph.call_llm_chat_model_with_retry = _stub_llm_call
 
 

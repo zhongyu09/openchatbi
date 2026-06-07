@@ -15,13 +15,13 @@ try:
 except ImportError:  # pragma: no cover
     import sqlite3
 from fastapi import FastAPI
-from langchain_core.messages import AIMessage
 
 sys.modules["sqlite3"] = sqlite3
 
 from langgraph.types import Command
 
-from openchatbi.utils import get_report_download_response, get_text_from_message_chunk, log
+from openchatbi.streaming import AgentStreamProcessor, StreamStep, StreamToken
+from openchatbi.utils import get_report_download_response, log
 from sample_ui.async_graph_manager import AsyncGraphManager
 from sample_ui.plotly_utils import create_inline_chart_markdown, visualization_dsl_to_gradio_plot
 from sample_ui.style import custom_css
@@ -69,14 +69,14 @@ async def _async_respond_helper(message, chat_history, user_id, session_id):
     """
     Helper async function that contains the actual async logic.
     This will be run in an independent event loop.
-    Collects all responses and returns them as a list.
+    Streams updates incrementally as soon as each event arrives.
     """
-    responses = []  # Collect all yield values
-
     user_session_id = f"{user_id}-{session_id}"
     full_response = ""
     plot_figure = None
     chart_panel_update = gr.update()
+    step_number = 0
+    current_token_layer = None
 
     if session_interrupt[user_session_id]:
         stream_input = Command(resume=message)
@@ -92,86 +92,77 @@ async def _async_respond_helper(message, chat_history, user_id, session_id):
         except Exception as e:
             log(f"Failed to initialize graph: {e}")
             chat_history[-1] = (chat_history[-1][0], f"Error: Failed to initialize system - {str(e)}")
-            responses.append(("", chat_history, plot_figure, chart_panel_update))
-            return responses
+            yield "", chat_history, plot_figure, chart_panel_update
+            return
 
-    data_csv = None
+    processor = AgentStreamProcessor()
+
+    def build_update():
+        chat_history[-1] = (chat_history[-1][0], full_response)
+        return ("", chat_history, plot_figure, chart_panel_update)
+
     # Asynchronously iterate through LangGraph stream
-    async for _namespace, event_type, event_value in graph_manager.graph.astream(
+    graph = await graph_manager.get_graph()
+    async for namespace, event_type, event_value in graph.astream(
         stream_input, config=config, stream_mode=["updates", "messages"], subgraphs=True, debug=True
     ):
-        token = ""
-        if event_type == "messages":
-            chunk = event_value[0]
-            metadata = event_value[1]
-            # Keep llm node messages only to avoid duplicates
-            if metadata["langgraph_node"] != "llm_node" or not metadata.get("streaming_tokens", False):
-                continue
-            token = get_text_from_message_chunk(chunk)
-        else:
-            # Process intermediate graph node updates
-            if event_value.get("llm_node"):
-                message_obj = event_value["llm_node"].get("messages")[0]
-                if message_obj and isinstance(message_obj, AIMessage) and message_obj.tool_calls:
-                    token = f"\nUse tool: {', '.join(tool['name'] for tool in message_obj.tool_calls)}\n"
+        for event in processor.process(namespace, event_type, event_value):
+            if isinstance(event, StreamToken):
+                if event.is_final:
+                    if current_token_layer != "main":
+                        full_response += "\n\n🤖 AI Response: "
+                        current_token_layer = "main"
                 else:
-                    token = "\n"
-            elif event_value.get("information_extraction"):
-                message_obj = event_value["information_extraction"].get("messages")[0]
-                if message_obj.tool_calls:
-                    token = f"Use tool: {message_obj.tool_calls[0]['name']}\n"
-                else:
-                    token = f"Rewrite question: {event_value['information_extraction'].get('rewrite_question')}\n"
-            elif event_value.get("table_selection"):
-                token = f"Selected tables: {event_value['table_selection'].get('tables')}\n"
-            elif event_value.get("generate_sql"):
-                token = f"SQL: \n ```sql \n{event_value['generate_sql'].get('sql')}\n```\n"
-            elif event_value.get("execute_sql"):
-                token = "Running SQL...\n"
-                data_csv = event_value["execute_sql"].get("data")
-            elif event_value.get("regenerate_sql"):
-                token = f"SQL: \n ```sql \n{event_value['regenerate_sql'].get('sql')}\n```\n"
-            elif event_value.get("generate_visualization"):
-                visualization_dsl = event_value["generate_visualization"].get("visualization_dsl")
-                # Check for visualization data in the final state and embed in response
-                if visualization_dsl and "error" not in visualization_dsl and data_csv:
+                    token_layer = ("think", event.level, event.label)
+                    if current_token_layer != token_layer:
+                        full_response += f"\n\n{'  ' * event.level}💭 {event.label} Thinking: "
+                        current_token_layer = token_layer
+                full_response += event.text
+                yield build_update()
+
+            elif isinstance(event, StreamStep):
+                desc = event.text
+
+                if event.kind == "visualization":
+                    data_csv = event.data.get("data")
+                    visualization_dsl = event.data.get("visualization_dsl")
+                    if not data_csv:
+                        continue
                     try:
                         plot_figure, plot_description = visualization_dsl_to_gradio_plot(data_csv, visualization_dsl)
-                        # Add markdown representation to the chat
                         chart_markdown = create_inline_chart_markdown(data_csv, visualization_dsl)
+                        desc = f"📊 Generated visualization: {plot_description}"
                         full_response += f"\n\n{chart_markdown}"
-                        chat_history[-1] = (chat_history[-1][0], full_response)
-                        # Auto-show chart panel when plot is generated
                         chart_panel_update = gr.update(visible=True)
-                        responses.append(("", chat_history, plot_figure, chart_panel_update))
                     except Exception as e:
                         log(f"Visualization generation error: {str(e)}")
-                        full_response += f"\n\n⚠️ Visualization error: {str(e)}"
-                        chat_history[-1] = (chat_history[-1][0], full_response)
-                        responses.append(("", chat_history, plot_figure, chart_panel_update))
+                        desc = f"⚠️ Visualization error: {str(e)}"
 
-        # Update chat history with new tokens and collect response
-        if token:
-            full_response += token
-            chat_history[-1] = (chat_history[-1][0], full_response)
-            responses.append(("", chat_history, plot_figure, chart_panel_update))
+                if full_response and not full_response.endswith("\n\n"):
+                    full_response += "\n\n"
+
+                if event.level == 0:
+                    step_number += 1
+                    full_response += f"**Step {step_number}:** {desc}\n"
+                else:
+                    full_response += f"{'  ' * event.level}↳ [{event.label}] {desc}\n"
+
+                current_token_layer = None
+                yield build_update()
 
     # Get final state and check for visualization data
-    state = await graph_manager.graph.aget_state(config)
+    state = await graph.aget_state(config)
 
     if state.interrupts:
         log(f"state.interrupts: {state.interrupts}")
-        output_content = state.interrupts[0].value.get("text")
+        output_content = state.interrupts[0].value.get("text", "")
         if "buttons" in state.interrupts[0].value:
             output_content += str(state.interrupts[0].value.get("buttons"))
         full_response += output_content
-        chat_history[-1] = (chat_history[-1][0], full_response)
         session_interrupt[user_session_id] = True
-        responses.append(("", chat_history, plot_figure, chart_panel_update))
+        yield build_update()
     else:
         session_interrupt[user_session_id] = False
-
-    return responses
 
 
 def respond(message, chat_history, user_id, session_id="default"):
@@ -191,12 +182,14 @@ def respond(message, chat_history, user_id, session_id="default"):
     loop = get_or_create_event_loop()
 
     # Run the async helper in the independent event loop
+    async_stream = _async_respond_helper(message, chat_history, user_id, session_id)
     try:
-        responses = loop.run_until_complete(_async_respond_helper(message, chat_history, user_id, session_id))
-
-        # Yield all collected responses
-        yield from responses
-
+        while True:
+            try:
+                next_update = loop.run_until_complete(async_stream.__anext__())
+            except StopAsyncIteration:
+                break
+            yield next_update
     except Exception as e:
         log(f"Error in respond: {e}")
         import traceback
@@ -204,6 +197,11 @@ def respond(message, chat_history, user_id, session_id="default"):
         traceback.print_exc()
         chat_history[-1] = (chat_history[-1][0], f"Error: {str(e)}")
         yield "", chat_history, plot_figure, chart_panel_update
+    finally:
+        try:
+            loop.run_until_complete(async_stream.aclose())
+        except Exception:
+            pass
 
 
 # ---------- Memory Management Functions ----------

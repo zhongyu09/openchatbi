@@ -58,6 +58,25 @@ class ErrorResponse(BaseModel):
 model_handler: TransformerModelHandler | None = None
 startup_time: float | None = None
 
+# Config attributes that may carry the model's minimum input length, in priority order.
+# For the Timer family this is `input_token_len` (the patch length); other models may differ.
+_MIN_INPUT_LENGTH_CONFIG_ATTRS = ("input_token_len", "context_length", "patch_len", "min_input_length")
+
+
+def _resolve_min_input_length() -> int | None:
+    """Best-effort read of the model's minimum required input length from its config.
+
+    Returns None when the model is not initialized or no known attribute is present, so callers
+    can fall back to their own default.
+    """
+    if not model_handler or not model_handler.initialized or model_handler.config is None:
+        return None
+    for attr in _MIN_INPUT_LENGTH_CONFIG_ATTRS:
+        value = getattr(model_handler.config, attr, None)
+        if isinstance(value, int) and value > 0:
+            return value
+    return None
+
 
 @app.on_event("startup")
 async def startup_event():
@@ -88,6 +107,7 @@ async def health_check():
     return {
         "status": "healthy",
         "model_initialized": model_handler.initialized if model_handler else False,
+        "min_input_length": _resolve_min_input_length(),
         "uptime_seconds": round(uptime, 2),
     }
 
@@ -162,7 +182,8 @@ async def model_info():
         "model_path": model_handler.model_path,
         "device": str(model_handler.device),
         "initialized": model_handler.initialized,
-        "config": str(model_handler.config) if model_handler.config else None,
+        "min_input_length": _resolve_min_input_length(),
+        "config": model_handler.config.to_dict() if model_handler.config else None,
     }
 
 

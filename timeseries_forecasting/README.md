@@ -22,10 +22,11 @@ A Docker-based time series forecasting service using Transformer based models fo
 
 Download a pre-trained model from Hugging Face and place it in the `hf_model` directory. For example, use the recommended `timer-base-84m` model from https://huggingface.co/thuml/timer-base-84m:
 
-> **Note**: The `timer-base-84m` model requires at least 96 time points in the input data. When integrating with OpenChatBI, add this restriction to your `extra_tool_use_rule` in bi.yaml:
-> ```
-> - timeseries_forecast tool requires at least 96 time points in input data. If no enough input data, set input_len to 96 to pad with zeros.
-> ```
+> **Note**: The `timer-base-84m` model requires at least 96 time points (its `input_token_len`). When
+> fewer points are available, pass `input_len` and the service left-pads the earliest points with
+> zeros. The service exposes this minimum at `/health` (`min_input_length`) and `/model/info`, read
+> from the model config. In OpenChatBI this is automatic: the client fetches `min_input_length` and
+> sets `input_len` when needed (for both `timeseries_forecast` and `anomaly_detection`).
 
 ```bash
 

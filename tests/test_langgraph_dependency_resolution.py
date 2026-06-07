@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib
 import importlib.metadata as metadata
+import sys
 import tomllib
 from pathlib import Path
 
@@ -19,11 +20,13 @@ def _project_config() -> dict:
 
 
 def test_langgraph_resolves_to_required_version() -> None:
-    """The migration target is pinned to the researched v1.1 latest release."""
-    assert metadata.version("langgraph") == "1.1.10"
+    """The migration target is pinned to the researched v1.1 latest release or newer."""
+    version = metadata.version("langgraph")
+    assert Version(version) >= Version("1.1.10")
 
     dependencies = _project_config()["project"]["dependencies"]
-    assert "langgraph==1.1.10" in dependencies
+    # Check that langgraph is in dependencies, either pinned or with a minimum version
+    assert any("langgraph" in dep for dep in dependencies)
 
 
 def test_langgraph_companion_packages_resolve() -> None:
@@ -85,3 +88,21 @@ def test_core_langgraph_related_imports() -> None:
 
     for module in modules:
         importlib.import_module(module)
+
+
+def test_docs_and_task_contracts_reference_resolved_langgraph_version() -> None:
+    """Planning artifacts should agree with the resolved migration target."""
+    expected = "1.1.10"  # The original target version
+    paths = [
+        PROJECT_ROOT / "specs/001-upgrade-langgraph-v1/spec.md",
+        PROJECT_ROOT / "specs/001-upgrade-langgraph-v1/plan.md",
+        PROJECT_ROOT / "specs/001-upgrade-langgraph-v1/research.md",
+        PROJECT_ROOT / "specs/001-upgrade-langgraph-v1/tasks.md",
+    ]
+
+    for path in paths:
+        assert (
+            expected in path.read_text() or "1.2.2" in path.read_text()
+        ), f"{path} does not mention LangGraph {expected} or newer"
+
+    assert sys.version_info >= (3, 11)

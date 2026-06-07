@@ -14,7 +14,6 @@ try:
 except ImportError:  # pragma: no cover
     import sqlite3
 import streamlit as st
-from langchain_core.messages import AIMessage
 
 sys.modules["sqlite3"] = sqlite3
 
@@ -22,7 +21,8 @@ from langgraph.types import Command  # noqa: E402
 
 from openchatbi import config as openchatbi_config  # noqa: E402
 from openchatbi.llm.llm import list_llm_providers  # noqa: E402
-from openchatbi.utils import get_text_from_message_chunk, log  # noqa: E402
+from openchatbi.streaming import AgentStreamProcessor, StreamStep, StreamToken  # noqa: E402
+from openchatbi.utils import log  # noqa: E402
 from sample_ui.async_graph_manager import AsyncGraphManager  # noqa: E402
 from sample_ui.plotly_utils import visualization_dsl_to_gradio_plot  # noqa: E402
 
@@ -48,6 +48,10 @@ async def process_user_message_stream(
     Updates the thinking_container and response_container as processing happens
     """
     thinking_steps = []
+    top_level_step_number = 0
+    # Hierarchical counters keyed by stream depth:
+    # level 0 => top-level steps, level 1+ => nested sub-steps.
+    step_counters: dict[int, int] = {0: 0}
     final_response = ""
     plot_figure = None
 
@@ -66,14 +70,16 @@ async def process_user_message_stream(
 
     config = {"configurable": {"thread_id": user_session_id, "user_id": user_id}}
 
-    data_csv = None
-
     # Use empty container for real-time updates
     thinking_placeholder = thinking_container.empty()
 
     # Build content chronologically - all events in time order
     base_content = "🔄 **Processing...**\n\n"
     chronological_content = ""  # All content in time order
+    # Tracks which layer's tokens are currently being appended, so consecutive
+    # tokens from the same source are grouped under one header. "main" = main
+    # agent, a namespace tuple = a sub-agent, None = reset (after a step line).
+    current_token_layer = None
 
     def update_display():
         full_content = base_content + chronological_content
@@ -82,81 +88,75 @@ async def process_user_message_stream(
     # Initial display
     update_display()
 
-    # Stream through the graph
-    async for _namespace, event_type, event_value in graph.astream(
+    # Stream through the graph using the shared event parser so the CLI, the
+    # HTTP API and this UI all surface the same intermediate steps.
+    processor = AgentStreamProcessor()
+    async for namespace, event_type, event_value in graph.astream(
         stream_input, config=config, stream_mode=["updates", "messages"], subgraphs=True, debug=True
     ):
-        if event_type == "messages":
-            chunk = event_value[0]
-            metadata = event_value[1]
-            # Keep llm node messages only to avoid duplicates
-            if metadata["langgraph_node"] != "llm_node" or not metadata.get("streaming_tokens", False):
-                continue
-            token = get_text_from_message_chunk(chunk)
-            if token:
-                final_response += token
-
-                # Add to thinking content during processing
-                if len(final_response) == len(token):
-                    chronological_content += "\n**🤖 AI Response:** "
-                chronological_content += token
+        for event in processor.process(namespace, event_type, event_value):
+            if isinstance(event, StreamToken):
+                if event.is_final:
+                    # Main agent streaming its (intermediate/final) answer.
+                    final_response += event.text
+                    if current_token_layer != "main":
+                        chronological_content += "\n\n**🤖 AI Response:** "
+                        current_token_layer = "main"
+                else:
+                    # Sub-agent (data analysis) thinking tokens.
+                    token_layer = ("think", event.level, event.label)
+                    if current_token_layer != token_layer:
+                        chronological_content += f"\n\n{'　' * event.level}💭 *{event.label} Thinking:* "
+                        current_token_layer = token_layer
+                chronological_content += event.text
                 update_display()
 
-        else:
-            # Process tool calls and intermediate steps
-            step_description = ""
-            if event_value.get("llm_node"):
-                message_obj = event_value["llm_node"].get("messages")[0]
-                if message_obj and isinstance(message_obj, AIMessage) and message_obj.tool_calls:
-                    step_description = f"🛠️ Using tools: {', '.join(tool['name'] for tool in message_obj.tool_calls)}"
+            elif isinstance(event, StreamStep):
+                desc = event.text
 
-            elif event_value.get("information_extraction"):
-                message_obj = event_value["information_extraction"].get("messages")[0]
-                if message_obj and message_obj.tool_calls:
-                    step_description = f"🛠️ Using tool: {message_obj.tool_calls[0]['name']}"
-                else:
-                    rewrite_q = event_value["information_extraction"].get("rewrite_question")
-                    if rewrite_q:
-                        step_description = f"📝 Rewriting question: {rewrite_q}"
-
-            elif event_value.get("table_selection"):
-                tables = event_value["table_selection"].get("tables")
-                if tables:
-                    step_description = f"🗂️ Selected tables: {tables}"
-
-            elif event_value.get("generate_sql"):
-                sql = event_value["generate_sql"].get("sql")
-                if sql:
-                    step_description = f"💾 Generated SQL:\n```sql\n{sql}\n```"
-
-            elif event_value.get("execute_sql"):
-                step_description = "⚡ Executing SQL query..."
-                data_csv = event_value["execute_sql"].get("data")
-
-            elif event_value.get("regenerate_sql"):
-                sql = event_value["regenerate_sql"].get("sql")
-                if sql:
-                    step_description = f"🔄 Regenerated SQL:\n```sql\n{sql}\n```"
-
-            elif event_value.get("generate_visualization"):
-                visualization_dsl = event_value["generate_visualization"].get("visualization_dsl")
-                if visualization_dsl and "error" not in visualization_dsl and data_csv:
+                # Building the Plotly figure is UI-specific, so it stays here.
+                # The shared parser hands us the DSL plus the latest CSV data.
+                if event.kind == "visualization":
+                    data_csv = event.data.get("data")
+                    visualization_dsl = event.data.get("visualization_dsl")
+                    if not data_csv:
+                        # Match prior behavior: no chart without data.
+                        continue
                     try:
                         plot_figure, plot_description = visualization_dsl_to_gradio_plot(data_csv, visualization_dsl)
-                        step_description = f"📊 Generated visualization: {plot_description}"
+                        desc = f"📊 Generated visualization: {plot_description}"
                     except Exception as e:
-                        step_description = f"⚠️ Visualization error: {str(e)}"
+                        desc = f"⚠️ Visualization error: {str(e)}"
 
-            if step_description:
-                thinking_steps.append(step_description)
-
-                # Append new step to chronological content in time order
-                step_number = len(thinking_steps)
-                # Ensure proper spacing before new step
+                thinking_steps.append(desc)
                 if chronological_content and not chronological_content.endswith("\n\n"):
                     chronological_content += "\n\n"
-                chronological_content += f"**Step {step_number}:** {step_description}\n\n"
+                if event.level == 0:
+                    top_level_step_number += 1
+                    step_counters[0] = top_level_step_number
+                    # Reset nested counters when entering a new top-level step.
+                    step_counters = {k: v for k, v in step_counters.items() if k == 0}
+                    chronological_content += f"**Step {top_level_step_number}:** {desc}\n\n"
+                else:
+                    # Ensure we always have a top-level context, even if a
+                    # nested step appears first due to event ordering.
+                    if step_counters.get(0, 0) == 0:
+                        top_level_step_number = 1
+                        step_counters[0] = top_level_step_number
 
+                    step_counters[event.level] = step_counters.get(event.level, 0) + 1
+                    # Drop deeper levels when we move back up.
+                    step_counters = {k: v for k, v in step_counters.items() if k <= event.level}
+
+                    step_number_parts = [
+                        str(step_counters[level]) for level in sorted(step_counters.keys()) if level <= event.level
+                    ]
+                    hierarchical_step_number = ".".join(step_number_parts)
+                    chronological_content += (
+                        f"{'　' * event.level}↳ Step {hierarchical_step_number} " f"[{event.label}] {desc}\n\n"
+                    )
+                # Reset token grouping so the next streamed tokens get a header.
+                current_token_layer = None
                 update_display()
 
     # Check for interrupts in final state

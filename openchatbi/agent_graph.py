@@ -35,7 +35,6 @@ from openchatbi.tool.memory import get_memory_tools
 from openchatbi.tool.run_python_code import run_python_code
 from openchatbi.tool.save_report import save_report
 from openchatbi.tool.search_knowledge import search_knowledge, show_schema
-from openchatbi.tool.timeseries_forecast import check_forecast_service_health, timeseries_forecast
 from openchatbi.utils import log, recover_incomplete_tool_calls
 
 logger = logging.getLogger(__name__)
@@ -74,11 +73,13 @@ class CallSQLGraphInput(BaseModel):
     reasoning: str = Field(
         description="Explanation of why Text2SQL tool is needed",
     )
-    context: str | dict[str, Any] | list[Any] = Field(
-        description="""The full context pass to Text2SQL tool, make sure do not miss any potential information that related to user's question.
-        Following the format: History Conversation: (user and assistant history dialog)
-        Information: (the knowledge you retrival that is relevant, like metrics and dimensions)
-        User's latest question:""",
+    context: str | dict[str, Any] | list[dict[str, Any]] | list[str] = Field(
+        description="""Context payload passed to Text2SQL.
+        Prefer a structured format to preserve information while isolating scope:
+        - Shared Context: stable business background, entities, metrics, key filters
+        - Current Subtask (User's latest question): The ONLY specific query to execute NOW.
+        - Carry-over From Previous Step: prior SQL/result and the exact delta to apply (optional)
+        - Deferred Tasks: remaining stages to ignore for now (optional)""",
     )
 
 
@@ -92,10 +93,12 @@ Returns:
 Important notes:
 - If user want to change the visualization chart type or style, add the requirement in the question
 - Make sure to provide question in English
+- In staged workflows, pass subtask-scoped context only for this call and keep other stages under Deferred Tasks
+- If this call depends on the previous SQL intent, use Carry-over with an explicit delta instead of resending the whole multi-stage ask
 """
 
 
-def _normalize_text2sql_context(context: str | dict[str, Any] | list[Any]) -> str:
+def _normalize_text2sql_context(context: str | dict[str, Any] | list[dict[str, Any]] | list[str]) -> str:
     """Normalize tool context to the string payload expected by SQL graph."""
     if isinstance(context, str):
         return context
@@ -147,7 +150,7 @@ def get_sql_tools(sql_graph: CompiledStateGraph, sync_mode: bool = False) -> Cal
         function: Tool function for SQL generation.
     """
 
-    def call_sql_graph_sync(reasoning: str, context: str | dict[str, Any] | list[Any]) -> str:
+    def call_sql_graph_sync(reasoning: str, context: str | dict[str, Any] | list[dict[str, Any]] | list[str]) -> str:
         """Sync node function for Text2SQL tool"""
         normalized_context = _normalize_text2sql_context(context)
         log(f"Call SQL graph (sync) with reasoning: {reasoning}, context: {normalized_context}")
@@ -162,7 +165,9 @@ def get_sql_tools(sql_graph: CompiledStateGraph, sync_mode: bool = False) -> Cal
             traceback.print_exc()
         return "Error occurred when calling Text2SQL tool."
 
-    async def call_sql_graph_async(reasoning: str, context: str | dict[str, Any] | list[Any]) -> str:
+    async def call_sql_graph_async(
+        reasoning: str, context: str | dict[str, Any] | list[dict[str, Any]] | list[str]
+    ) -> str:
         """Async node function for Text2SQL tool"""
         normalized_context = _normalize_text2sql_context(context)
         log(f"Call SQL graph (async) with reasoning: {reasoning}, context: {normalized_context}")
@@ -310,6 +315,17 @@ def _build_graph_core(
     sql_graph = build_sql_graph(catalog, checkpointer, memory_store, llm_provider=llm_provider)
     call_sql_graph_tool = get_sql_tools(sql_graph=sql_graph, sync_mode=sync_mode)
 
+    # Add data analysis agent tool
+    from openchatbi.analysis.agent import get_data_analysis_tool
+
+    data_analysis_tool = get_data_analysis_tool(
+        sql_graph=sql_graph,
+        sync_mode=sync_mode,
+        llm_provider=llm_provider,
+        checkpointer=checkpointer,
+        memory_store=memory_store,
+    )
+
     # Use provided memory tools or create them
     if not memory_tools:
         memory_tools = get_memory_tools(get_llm(llm_provider), sync_mode=sync_mode, store=memory_store)
@@ -319,15 +335,15 @@ def _build_graph_core(
         search_knowledge,
         show_schema,
         call_sql_graph_tool,
+        data_analysis_tool,
         run_python_code,
         save_report,
     ]
     if memory_tools:
         normal_tools.extend(memory_tools)
-    if check_forecast_service_health():
-        normal_tools.append(timeseries_forecast)
-    else:
-        logger.warning("Time series forecasting service is not healthy. Skipping timeseries_forecast tool.")
+    # Forecasting/anomaly/drill-down analysis is delegated to the data analysis
+    # agent (the `data_analysis` tool), which owns timeseries_forecast and the
+    # related health check. It is intentionally not exposed directly here.
     normal_tools.extend(mcp_tools)
 
     # Initialize context manager if enabled

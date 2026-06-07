@@ -100,12 +100,13 @@ class TestAgentGraphIntegration:
             patch("openchatbi.agent_graph.show_schema", create_mock_tool("show_schema")),
             patch("openchatbi.agent_graph.run_python_code", create_mock_tool("run_python_code")),
             patch("openchatbi.agent_graph.save_report", create_mock_tool("save_report")),
-            patch("openchatbi.agent_graph.timeseries_forecast", create_mock_tool("timeseries_forecast")),
             patch("openchatbi.agent_graph.get_sql_tools") as mock_get_sql_tools,
             patch("openchatbi.agent_graph.build_sql_graph") as mock_sql_graph,
             patch("openchatbi.agent_graph.get_memory_tools") as mock_memory_tools,
             patch("openchatbi.agent_graph.create_mcp_tools_sync") as mock_mcp_tools,
             patch("openchatbi.agent_graph.get_llm", return_value=mock_llm),
+            patch("openchatbi.analysis.agent.get_analysis_llm", return_value=mock_llm),
+            patch("openchatbi.analysis.agent.create_deep_agent", return_value=Mock()),
         ):
 
             # Setup function-based mocks
@@ -147,12 +148,13 @@ class TestAgentGraphIntegration:
             patch("openchatbi.agent_graph.show_schema", create_mock_tool("show_schema")),
             patch("openchatbi.agent_graph.run_python_code", create_mock_tool("run_python_code")),
             patch("openchatbi.agent_graph.save_report", create_mock_tool("save_report")),
-            patch("openchatbi.agent_graph.timeseries_forecast", create_mock_tool("timeseries_forecast")),
             patch("openchatbi.agent_graph.get_sql_tools") as mock_get_sql_tools,
             patch("openchatbi.agent_graph.build_sql_graph") as mock_sql_graph,
             patch("openchatbi.agent_graph.get_memory_tools") as mock_memory_tools,
             patch("openchatbi.agent_graph.create_mcp_tools_sync") as mock_mcp_tools,
             patch("openchatbi.agent_graph.get_llm", return_value=mock_llm),
+            patch("openchatbi.analysis.agent.get_analysis_llm", return_value=mock_llm),
+            patch("openchatbi.analysis.agent.create_deep_agent", return_value=Mock()),
         ):
 
             # Setup function-based mocks

@@ -1,0 +1,471 @@
+import pytest
+
+from openchatbi.analysis import anomaly_detection as ad
+from openchatbi.analysis.anomaly_detection import (
+    _default_evaluation_window,
+    _default_stride,
+    _deviation_significance,
+    _estimate_noise_scale,
+    _evaluate_window,
+    _extract_values,
+    _historical_anomaly_frequency,
+    _merge_intervals,
+    _segment_intervals,
+    _volume_factor,
+    detect_anomaly_range,
+    evaluate_anomalies,
+    format_anomaly_range_report,
+    format_anomaly_report,
+)
+
+# Smooth, mildly noisy history with mean ~ 1000.
+SMOOTH_HISTORY = [1000.0, 1010.0, 990.0, 1005.0, 995.0, 1002.0, 998.0, 1008.0, 992.0, 1004.0] * 3
+# Longer history used by service-path tests.
+LONG_HISTORY = SMOOTH_HISTORY * 4
+
+
+def test_extract_values():
+    assert _extract_values([1.0, 2.0, 3.0]) == [1.0, 2.0, 3.0]
+    assert _extract_values([1, 2, 3]) == [1.0, 2.0, 3.0]
+    assert _extract_values([{"value": 10}, {"value": 20}]) == [10.0, 20.0]
+    assert _extract_values([{"custom": 10}, {"custom": 20}], target_column="custom") == [10.0, 20.0]
+
+    # Boundary cases
+    assert _extract_values([]) == []
+    assert _extract_values([{"wrong_col": 10}]) == []
+    assert _extract_values([{"value": "not_a_number"}, {"value": 20}]) == [20.0]
+    assert _extract_values([None, "string", 10.0]) == [10.0]
+    # bool must not be treated as numeric data
+    assert _extract_values([True, False, 5]) == [5.0]
+
+
+def test_estimate_noise_scale():
+    # Constant series has no noise.
+    assert _estimate_noise_scale([100.0, 100.0, 100.0]) == 0.0
+    # Too short to estimate.
+    assert _estimate_noise_scale([]) == 0.0
+    assert _estimate_noise_scale([100.0]) == 0.0
+    # A series with variation produces a positive scale.
+    assert _estimate_noise_scale(SMOOTH_HISTORY) > 0.0
+
+
+def test_deviation_significance():
+    # No deviation.
+    sig, z = _deviation_significance(100.0, 100.0, 10.0)
+    assert sig == 0.0
+    assert z == 0.0
+    # Exactly at the 3-sigma bound -> 0.5.
+    sig, z = _deviation_significance(130.0, 100.0, 10.0)
+    assert sig == pytest.approx(0.5)
+    assert z == pytest.approx(3.0)
+    # At/beyond 6 sigma -> saturates at 1.0.
+    sig, _ = _deviation_significance(160.0, 100.0, 10.0)
+    assert sig == pytest.approx(1.0)
+    # Direction is captured by the sign of z.
+    _, z_down = _deviation_significance(70.0, 100.0, 10.0)
+    assert z_down < 0
+    # Zero sigma is floored so a clear jump on a flat series is still detected.
+    sig, _ = _deviation_significance(101.0, 100.0, 0.0)
+    assert sig > 0.5
+
+
+def test_volume_factor():
+    # Empty history -> neutral.
+    assert _volume_factor(1000.0, []) == 1.0
+    # Non-positive mean -> neutral.
+    assert _volume_factor(1000.0, [0.0, 0.0]) == 1.0
+    # Level above the historical mean -> full weight.
+    assert _volume_factor(1500.0, SMOOTH_HISTORY) == pytest.approx(1.0)
+    # Low-traffic moment is damped towards 0.6.
+    assert _volume_factor(0.0, SMOOTH_HISTORY) == pytest.approx(0.6)
+    # Mid-level is between the two extremes.
+    assert 0.6 < _volume_factor(500.0, SMOOTH_HISTORY) < 0.9
+
+
+def test_historical_anomaly_frequency():
+    # Smooth history -> ~no historical anomalies.
+    assert _historical_anomaly_frequency(SMOOTH_HISTORY, _estimate_noise_scale(SMOOTH_HISTORY)) < 0.1
+    # Degenerate inputs.
+    assert _historical_anomaly_frequency([1.0, 2.0], 1.0) == 0.0
+    assert _historical_anomaly_frequency(SMOOTH_HISTORY, 0.0) == 0.0
+
+
+def test_historical_anomaly_frequency_detects_spikes():
+    # Mostly smooth series with a few isolated spikes: the robust noise scale
+    # stays small, so the spikes are counted as historical anomalies.
+    spiky = [1000.0 + (5.0 if i % 2 else -5.0) for i in range(30)]
+    for idx in (7, 15, 23):
+        spiky[idx] = 1600.0
+    freq = _historical_anomaly_frequency(spiky, _estimate_noise_scale(spiky))
+    assert freq > 0.0
+
+
+def test_evaluate_window_normal():
+    actual = [1000.0, 1010.0, 990.0]
+    predicted = [1000.0, 1000.0, 1000.0]
+    score, details = _evaluate_window(actual, predicted, SMOOTH_HISTORY)
+    assert score < 0.3
+    assert details["consecutive_anomalies"] == 0
+
+
+def test_evaluate_window_legit_growth_not_flagged():
+    # A large but expected value (actual matches forecast) must NOT be flagged,
+    # even though its absolute magnitude is high.
+    actual = [2000.0, 2000.0, 2000.0]
+    predicted = [2000.0, 2000.0, 2000.0]
+    score, _ = _evaluate_window(actual, predicted, SMOOTH_HISTORY)
+    assert score < 0.1
+
+
+def test_evaluate_window_drop_to_zero_high_traffic():
+    # A drop to zero on a high-traffic metric is the most severe anomaly and
+    # must score near 1 (regression test for the relative-size sign bug).
+    actual = [1000.0, 500.0, 0.0]
+    predicted = [1000.0, 1000.0, 1000.0]
+    score, details = _evaluate_window(actual, predicted, SMOOTH_HISTORY)
+    assert score > 0.8
+    assert details["point_details"][-1]["direction"] == "drop"
+
+
+def test_evaluate_window_direction_weighting():
+    # Use a mild deviation that stays inside the linear (<3 sigma) band so the
+    # direction weight is not masked by saturation. SMOOTH_HISTORY sigma ~ 10.
+    predicted = [1000.0, 1000.0, 1000.0]
+    drop_actual = [1000.0, 1000.0, 985.0]
+    rise_actual = [1000.0, 1000.0, 1015.0]
+
+    drop_default, _ = _evaluate_window(drop_actual, predicted, SMOOTH_HISTORY)
+    drop_emphasised, _ = _evaluate_window(drop_actual, predicted, SMOOTH_HISTORY, drop_weight=2.0, rise_weight=1.0)
+    rise_default, _ = _evaluate_window(rise_actual, predicted, SMOOTH_HISTORY)
+
+    # Emphasising drops raises the score for a downward deviation.
+    assert drop_emphasised > drop_default
+    # With neutral weights, a symmetric drop and rise score the same.
+    assert drop_default == pytest.approx(rise_default)
+
+
+def test_evaluate_window_noisy_history_dampens():
+    # The same absolute deviation is far less significant on a high-variance
+    # series (large noise scale) than on a smooth one, so it scores lower.
+    actual = [1000.0, 1000.0, 1500.0]
+    predicted = [1000.0, 1000.0, 1000.0]
+    noisy_history = [1000.0, 100.0, 1900.0, 200.0, 1800.0, 50.0, 1950.0, 150.0] * 3
+
+    smooth_score, _ = _evaluate_window(actual, predicted, SMOOTH_HISTORY)
+    noisy_score, _ = _evaluate_window(actual, predicted, noisy_history)
+    assert noisy_score < smooth_score
+
+
+def test_evaluate_window_duration_boost():
+    actual = [400.0, 350.0, 300.0]
+    predicted = [1000.0, 1000.0, 1000.0]
+    score, details = _evaluate_window(actual, predicted, SMOOTH_HISTORY)
+    assert details["consecutive_anomalies"] == 3
+    assert details["duration_boost"] > 0.0
+    assert score > 0.8
+
+
+def test_evaluate_window_boundary_cases():
+    # Empty inputs.
+    score, details = _evaluate_window([], [], SMOOTH_HISTORY)
+    assert score == 0.0
+    assert "error" in details
+    # Mismatched lengths -> evaluate the overlap only.
+    _, details = _evaluate_window([100.0], [100.0, 100.0], SMOOTH_HISTORY)
+    assert details["window_size"] == 1
+    # Per-point sigmas are honoured when supplied.
+    score, _ = _evaluate_window([100.0], [100.0], SMOOTH_HISTORY, sigmas=[1.0])
+    assert score == 0.0
+
+
+def _patch_service(monkeypatch, predictions, status="success", healthy=True):
+    """Patch the forecast service dependencies used by evaluate_anomalies."""
+    monkeypatch.setattr(ad, "check_forecast_service_health", lambda: healthy)
+
+    class _FakeCfg:
+        timeseries_forecasting_service_url = "http://fake"
+
+    monkeypatch.setattr(ad.config, "get", lambda: _FakeCfg())
+
+    def _fake_call(**kwargs):
+        if status != "success":
+            return {"status": status, "error": "boom"}
+        return {"predictions": predictions, "status": "success"}
+
+    monkeypatch.setattr(ad, "call_timeseries_service", _fake_call)
+
+
+def test_evaluate_anomalies_success(monkeypatch):
+    data = LONG_HISTORY + [1000.0, 500.0, 0.0]
+    _patch_service(monkeypatch, predictions=[1000.0, 1000.0, 1000.0])
+    score, details = evaluate_anomalies(data, evaluation_window=3)
+    assert "error" not in details
+    assert score > 0.8
+
+
+def test_evaluate_anomalies_input_too_short():
+    score, details = evaluate_anomalies([1.0, 2.0], evaluation_window=3)
+    assert score == 0.0
+    assert "error" in details
+
+
+def test_evaluate_anomalies_short_history_proceeds(monkeypatch):
+    # Short history must NOT hard-error; padding to the model minimum is delegated
+    # to the service (call_timeseries_service), so detection proceeds.
+    _patch_service(monkeypatch, predictions=[1.0, 2.0, 3.0])
+    short = SMOOTH_HISTORY + [1.0, 2.0, 3.0]  # 30 history < model minimum
+    score, details = evaluate_anomalies(short, evaluation_window=3)
+    assert "error" not in details
+
+
+def test_evaluate_anomalies_service_unavailable(monkeypatch):
+    monkeypatch.setattr(ad, "check_forecast_service_health", lambda: False)
+    score, details = evaluate_anomalies(LONG_HISTORY + [1.0, 2.0, 3.0], evaluation_window=3)
+    assert score == 0.0
+    assert "Unavailable" in details["error"]
+
+
+def test_evaluate_anomalies_forecast_error(monkeypatch):
+    _patch_service(monkeypatch, predictions=[], status="error")
+    score, details = evaluate_anomalies(LONG_HISTORY + [1.0, 2.0, 3.0], evaluation_window=3)
+    assert score == 0.0
+    assert "error" in details
+
+
+def test_evaluate_anomalies_prediction_length_mismatch(monkeypatch):
+    _patch_service(monkeypatch, predictions=[1000.0])  # only 1, need 3
+    score, details = evaluate_anomalies(LONG_HISTORY + [1.0, 2.0, 3.0], evaluation_window=3)
+    assert score == 0.0
+    assert "Mismatch" in details["error"]
+
+
+def test_format_anomaly_report():
+    score, details = _evaluate_window([1000.0, 500.0, 0.0], [1000.0, 1000.0, 1000.0], SMOOTH_HISTORY)
+    report = format_anomaly_report(score, details)
+    assert "Anomaly Detection Report" in report
+    assert "Severity" in report
+    # Error details render an error report.
+    assert "Anomaly Detection Error" in format_anomaly_report(0.0, {"error": "boom"})
+
+
+# ---------------------------------------------------------------------------
+# Lower-window anchor attribution & smoothing
+# ---------------------------------------------------------------------------
+
+
+def test_evaluate_window_anchor_attribution():
+    # Only the anchor (last point) deviates; the score must reflect it.
+    predicted = [1000.0, 1000.0, 1000.0]
+    anchor_only = [1000.0, 1000.0, 940.0]
+    score, details = _evaluate_window(anchor_only, predicted, SMOOTH_HISTORY)
+    assert score > 0.0
+    assert details["point_details"][-1]["direction"] == "drop"
+
+
+def test_evaluate_window_smoothing_strength():
+    # A lone anchor spike scores higher with no smoothing (pure anchor) than with
+    # full smoothing, where the two preceding normal points pull the score down.
+    predicted = [1000.0, 1000.0, 1000.0]
+    spike = [1000.0, 1000.0, 940.0]
+    sharp, _ = _evaluate_window(spike, predicted, SMOOTH_HISTORY, smoothing=0.0)
+    smoothed, _ = _evaluate_window(spike, predicted, SMOOTH_HISTORY, smoothing=1.0)
+    assert sharp > smoothed
+
+
+# ---------------------------------------------------------------------------
+# Frequency-driven defaults
+# ---------------------------------------------------------------------------
+
+
+def test_default_evaluation_window():
+    assert _default_evaluation_window("10min") == 6
+    assert _default_evaluation_window("minutely") == 6
+    assert _default_evaluation_window("hourly") == 3
+    assert _default_evaluation_window("daily") == 3
+    assert _default_evaluation_window("weekly") == 3
+    assert _default_evaluation_window("") == 3
+
+
+def test_default_stride():
+    assert _default_stride("5min") == 12
+    assert _default_stride("hourly") == 12
+    assert _default_stride("daily") == 7
+    assert _default_stride("weekly") == 4
+    assert _default_stride("monthly") == 4
+    assert _default_stride("quarterly") == 10  # fallback
+
+
+# ---------------------------------------------------------------------------
+# Hysteresis segmentation & merging
+# ---------------------------------------------------------------------------
+
+
+def test_segment_intervals_hysteresis():
+    # Opens at >= t_high (0.6), stays open until < t_low (0.4).
+    severity = [0.0, 0.7, 0.5, 0.45, 0.2, 0.0, 0.9, 0.1]
+    intervals = _segment_intervals(severity, t_high=0.6, t_low=0.4)
+    assert intervals == [(1, 3), (6, 6)]
+
+
+def test_segment_intervals_open_until_end():
+    severity = [0.1, 0.7, 0.8]
+    assert _segment_intervals(severity, t_high=0.6, t_low=0.4) == [(1, 2)]
+
+
+def test_merge_intervals():
+    # Gap of 1 point (index 3) between (1,2) and (4,5) -> merged when gap >= 1.
+    assert _merge_intervals([(1, 2), (4, 5)], gap=1) == [(1, 5)]
+    # Larger separation is kept separate.
+    assert _merge_intervals([(1, 2), (6, 7)], gap=1) == [(1, 2), (6, 7)]
+    assert _merge_intervals([], gap=1) == []
+
+
+# ---------------------------------------------------------------------------
+# Upper layer: detect_anomaly_range
+# ---------------------------------------------------------------------------
+
+
+def _patch_block_service(monkeypatch, predict_fn, healthy=True):
+    """Patch the service so each block forecast is computed by ``predict_fn``.
+
+    ``predict_fn(history, horizon)`` returns the list of predicted values.
+    """
+    monkeypatch.setattr(ad, "check_forecast_service_health", lambda: healthy)
+
+    class _FakeCfg:
+        timeseries_forecasting_service_url = "http://fake"
+
+    monkeypatch.setattr(ad.config, "get", lambda: _FakeCfg())
+
+    calls = {"count": 0}
+
+    def _fake_call(**kwargs):
+        calls["count"] += 1
+        history = kwargs["input_data"]
+        horizon = kwargs["forecast_window"]
+        return {"predictions": predict_fn(history, horizon), "status": "success"}
+
+    monkeypatch.setattr(ad, "call_timeseries_service", _fake_call)
+    return calls
+
+
+def test_detect_anomaly_range_finds_interval(monkeypatch):
+    # Flat history at 1000; scan range has a clear sustained drop in the middle.
+    history = [1000.0] * 60
+    scan = [1000.0] * 24
+    for i in range(8, 12):
+        scan[i] = 100.0  # sustained drop
+    data = history + scan
+
+    # The forecast model predicts the flat baseline 1000 for every block.
+    calls = _patch_block_service(monkeypatch, lambda hist, horizon: [1000.0] * horizon)
+
+    score, details = detect_anomaly_range(data, detection_range=24, frequency="hourly", stride=12)
+    assert "error" not in details
+    assert score > 0.6
+    assert len(details["intervals"]) >= 1
+    # The detected interval should cover the injected drop region.
+    iv = details["intervals"][0]
+    assert iv["direction"] == "drop"
+    assert iv["start_index"] <= 11 and iv["end_index"] >= 8
+    # Block forecasting: ceil(24/12) = 2 calls.
+    assert calls["count"] == 2
+    assert details["forecast_calls"] == 2
+
+
+def test_detect_anomaly_range_normal_no_intervals(monkeypatch):
+    # History carries realistic mild noise (sigma ~ 10), so similar mild noise in
+    # the scan range stays around ~1 sigma and is not flagged.
+    history = SMOOTH_HISTORY * 4  # 120 points, mean ~1000, sigma ~10
+    scan = [1000.0, 1010.0, 990.0, 1005.0, 995.0, 1002.0] * 4  # 24 mild points
+    data = history + scan
+    _patch_block_service(monkeypatch, lambda hist, horizon: [1000.0] * horizon)
+
+    score, details = detect_anomaly_range(data, detection_range=24, frequency="hourly", stride=12)
+    assert "error" not in details
+    assert details["intervals"] == []
+    assert score == 0.0
+
+
+def test_detect_anomaly_range_multiple_intervals(monkeypatch):
+    history = [1000.0] * 60
+    scan = [1000.0] * 30
+    for i in range(3, 6):
+        scan[i] = 50.0  # first anomaly (drop)
+    for i in range(20, 23):
+        scan[i] = 2000.0  # second anomaly (rise)
+    data = history + scan
+    _patch_block_service(monkeypatch, lambda hist, horizon: [1000.0] * horizon)
+
+    score, details = detect_anomaly_range(data, detection_range=30, frequency="hourly", stride=10)
+    assert len(details["intervals"]) >= 2
+    directions = {iv["direction"] for iv in details["intervals"]}
+    assert "drop" in directions and "rise" in directions
+
+
+def test_detect_anomaly_range_input_too_short():
+    score, details = detect_anomaly_range([1.0, 2.0, 3.0], detection_range=5)
+    assert score == 0.0
+    assert "error" in details
+
+
+def test_detect_anomaly_range_service_unavailable(monkeypatch):
+    monkeypatch.setattr(ad, "check_forecast_service_health", lambda: False)
+    score, details = detect_anomaly_range([1000.0] * 80, detection_range=24)
+    assert score == 0.0
+    assert "Unavailable" in details["error"]
+
+
+def test_detect_anomaly_range_all_blocks_fail(monkeypatch):
+    monkeypatch.setattr(ad, "check_forecast_service_health", lambda: True)
+
+    class _FakeCfg:
+        timeseries_forecasting_service_url = "http://fake"
+
+    monkeypatch.setattr(ad.config, "get", lambda: _FakeCfg())
+    monkeypatch.setattr(ad, "call_timeseries_service", lambda **k: {"status": "error", "error": "boom"})
+
+    score, details = detect_anomaly_range([1000.0] * 80, detection_range=24, stride=12)
+    assert score == 0.0
+    assert "All block forecasts failed" in details["error"]
+
+
+def test_detect_anomaly_range_partial_block_failure(monkeypatch):
+    # First block fails, second succeeds -> degraded but still returns a result.
+    monkeypatch.setattr(ad, "check_forecast_service_health", lambda: True)
+
+    class _FakeCfg:
+        timeseries_forecasting_service_url = "http://fake"
+
+    monkeypatch.setattr(ad.config, "get", lambda: _FakeCfg())
+
+    state = {"first": True}
+
+    def _fake_call(**kwargs):
+        if state["first"]:
+            state["first"] = False
+            return {"status": "error", "error": "boom"}
+        return {"predictions": [1000.0] * kwargs["forecast_window"], "status": "success"}
+
+    monkeypatch.setattr(ad, "call_timeseries_service", _fake_call)
+
+    data = [1000.0] * 60 + [1000.0] * 24
+    score, details = detect_anomaly_range(data, detection_range=24, frequency="hourly", stride=12)
+    assert "error" not in details
+    assert len(details["failed_blocks"]) == 1
+
+
+def test_format_anomaly_range_report(monkeypatch):
+    history = [1000.0] * 60
+    scan = [1000.0] * 24
+    for i in range(8, 12):
+        scan[i] = 100.0
+    data = history + scan
+    _patch_block_service(monkeypatch, lambda hist, horizon: [1000.0] * horizon)
+
+    score, details = detect_anomaly_range(data, detection_range=24, frequency="hourly", stride=12)
+    report = format_anomaly_range_report(score, details)
+    assert "Anomaly Range Detection Report" in report
+    assert "Interval 1" in report
+    # Error path.
+    assert "Anomaly Detection Error" in format_anomaly_range_report(0.0, {"error": "boom"})

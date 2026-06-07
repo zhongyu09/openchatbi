@@ -33,13 +33,16 @@ class FakeSQLGraph:
 
 def _patch_agent_graph_dependencies(monkeypatch: pytest.MonkeyPatch) -> None:
     import openchatbi.agent_graph as agent_graph
+    import openchatbi.analysis.agent as analysis_agent
 
     monkeypatch.setattr(agent_graph, "get_llm", lambda provider=None: DummyLLM())
+    monkeypatch.setattr(analysis_agent, "get_analysis_llm", lambda provider=None: DummyLLM())
+    monkeypatch.setattr(analysis_agent, "create_deep_agent", lambda *args, **kwargs: FakeSQLGraph())
     monkeypatch.setattr(agent_graph, "build_sql_graph", lambda *args, **kwargs: FakeSQLGraph())
     monkeypatch.setattr(agent_graph, "get_memory_tools", lambda *args, **kwargs: None)
     monkeypatch.setattr(agent_graph, "create_mcp_tools_sync", lambda servers: [])
     monkeypatch.setattr(agent_graph, "get_mcp_tools_async", lambda servers: _async_empty_tools())
-    monkeypatch.setattr(agent_graph, "check_forecast_service_health", lambda: False)
+    monkeypatch.setattr(analysis_agent, "check_forecast_service_health", lambda: False)
 
 
 async def _async_empty_tools() -> list:

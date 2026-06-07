@@ -215,7 +215,8 @@ hf_model
 timeseries_forecasting/hf_model
 runledger_out/
 specs
+openspec
 .specify
 .cursor
-chroma_db_new
 .claude
+chroma_db_new

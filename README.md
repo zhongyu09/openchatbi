@@ -211,6 +211,13 @@ Run Gradio based UI:
 python sample_ui/streaming_ui.py
 ```
 
+3. **Command Line Interface (CLI):**
+
+```bash
+export CONFIG_FILE=YOUR_CONFIG_FILE_PATH
+python run_cli.py
+```
+
 ## Configuration Instructions
 
 The configuration template is provided at `config.yaml.template`. Key configuration sections include:
@@ -297,10 +304,56 @@ OpenChatBI is built using a modular architecture with clear separation of concer
 - **Storage**: SQLite for conversation checkpointing, file system catalog storage
 
 ### Agent Graph
-<img src="https://github.com/zhongyu09/openchatbi/raw/main/assets/agent_graph.png" alt="Agent Graph" width="800">
+```mermaid
+graph TD
+    START((Start)) --> llm_node[llm_node]
+    
+    llm_node -->|tool_call: AskHuman| ask_human[ask_human]
+    llm_node -->|tool_call: Other Tools| use_tool[use_tool]
+    llm_node -->|final_answer| END((End))
+    
+    ask_human --> llm_node
+    use_tool --> llm_node
+    
+    subgraph use_tool [Available Tools in use_tool node]
+        text2sql
+        data_analysis
+        run_python_code
+        search_knowledge
+        show_schema
+        save_report
+        memory_tools
+        mcp_tools
+    end
+```
 
 ### Text2SQL Graph
-<img src="https://github.com/zhongyu09/openchatbi/raw/main/assets/text2sql_graph.png" alt="Text2SQL Graph" width="800">
+```mermaid
+graph TD
+    START((Start)) --> IE[information_extraction]
+    
+    IE -->|ask_human| AH[ask_human]
+    IE -->|search_knowledge| SK[search_knowledge]
+    IE -->|next| TS[table_selection]
+    IE -->|end| END((End))
+    
+    AH --> IE
+    SK --> IE
+    
+    TS --> GS[generate_sql]
+    
+    GS -->|execute_sql| ES[execute_sql]
+    GS -->|end| END
+    
+    ES -->|generate_visualization| GV[generate_visualization]
+    ES -->|regenerate_sql| RS[regenerate_sql]
+    ES -->|end| END
+    
+    RS -->|execute_sql| ES
+    RS -->|end| END
+    
+    GV --> END
+```
 
 ## Project Structure
 

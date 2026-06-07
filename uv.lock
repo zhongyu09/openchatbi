@@ -2957,7 +2957,7 @@ wheels = [
 
 [[package]]
 name = "openchatbi"
-version = "0.3.0"
+version = "1.0.0b1"
 source = { editable = "." }
 dependencies = [
     { name = "aiosqlite" },

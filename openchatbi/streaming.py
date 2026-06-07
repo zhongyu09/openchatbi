@@ -66,7 +66,7 @@ class StreamStep:
     level: int  # 0 = main agent, >0 = nested / sub-agent
     label: str  # "main", "data_analysis", or a namespace label
     kind: str  # "tool" | "sub_agent" | "rewrite" | "tables" | "sql" |
-    # "execute_sql" | "visualization" | "generic"
+    # "execute_sql" | "visualization" | "tool_error" | "generic"
     data: dict[str, Any] = field(default_factory=dict)  # structured payload
 
 
@@ -107,6 +107,17 @@ def preview_text(text: object, limit: int = 300) -> str:
     if len(collapsed) <= limit:
         return collapsed
     return collapsed[:limit] + " …(truncated)"
+
+
+def _extract_tool_error_message(content: object) -> str:
+    """Extract concise error details from a tool error payload."""
+    text = str(content)
+    marker = "with error:"
+    if marker in text:
+        error_detail = text.split(marker, 1)[1]
+        # Keep only the actionable part and drop generic tail guidance.
+        text = error_detail.split("Please fix", 1)[0].strip() or error_detail
+    return preview_text(text, 300)
 
 
 def _describe_generic_node(node_output: dict) -> list[str]:
@@ -208,11 +219,14 @@ class AgentStreamProcessor:
             kind = "generic"
             desc: str | None = None
             data: dict[str, Any] = {}
+            extra_steps: list[StreamStep] = []
 
             if node_name == "llm_node":
                 message_obj = (node_output.get("messages") or [None])[0]
                 if isinstance(message_obj, AIMessage) and message_obj.tool_calls:
-                    sub_agents = [t["name"] for t in message_obj.tool_calls if t["name"] in ("data_analysis", "text2sql")]
+                    sub_agents = [
+                        t["name"] for t in message_obj.tool_calls if t["name"] in ("data_analysis", "text2sql")
+                    ]
                     normal_tools = [t["name"] for t in message_obj.tool_calls if t["name"] not in sub_agents]
                     if normal_tools:
                         desc = f"🛠️ Using tools: {', '.join(normal_tools)}"
@@ -270,8 +284,28 @@ class AgentStreamProcessor:
                     desc = "📊 Generated visualization"
                     kind = "visualization"
                     data = {"visualization_dsl": visualization_dsl, "data": self._data_csv}
+            elif node_name == "use_tool":
+                for message in node_output.get("messages") or []:
+                    if not isinstance(message, ToolMessage):
+                        continue
+                    if getattr(message, "status", None) != "error":
+                        continue
+                    tool_name = getattr(message, "name", None) or "tool"
+                    error_preview = _extract_tool_error_message(message.content)
+                    extra_steps.append(
+                        StreamStep(
+                            text=f"❌ Tool `{tool_name}` failed: {error_preview}",
+                            level=level,
+                            label=label,
+                            kind="tool_error",
+                            data={"tool": tool_name, "error": str(message.content)},
+                        )
+                    )
             else:
                 matched = False
+
+            for step in extra_steps:
+                yield step
 
             if desc:
                 yield StreamStep(text=desc, level=level, label=label, kind=kind, data=data)

@@ -9,6 +9,11 @@ You will be provided with:
 
 [basic_knowledge_glossary]
 
+# Input Structure Awareness
+The user question may be formatted with structural slots (e.g., Shared Context, Current Subtask, Deferred Tasks).
+- **CRITICAL**: You MUST ONLY extract keywords, dimensions, metrics, and time ranges from the "Shared Context" and "Current Subtask".
+- **IGNORE**: Completely IGNORE any information mentioned in "Deferred Tasks". Do not include them in `rewrite_question` or extraction results.
+
 # Core Processing Steps
 
 ## Step 1: Information Extraction

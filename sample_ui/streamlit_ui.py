@@ -39,6 +39,7 @@ if "session_interrupts" not in st.session_state:
 if "event_loop" not in st.session_state:
     st.session_state.event_loop = None
 
+
 async def process_user_message_stream(
     message: str, user_id: str, session_id: str, llm_provider: str | None, thinking_container, response_container
 ):
@@ -47,6 +48,10 @@ async def process_user_message_stream(
     Updates the thinking_container and response_container as processing happens
     """
     thinking_steps = []
+    top_level_step_number = 0
+    # Hierarchical counters keyed by stream depth:
+    # level 0 => top-level steps, level 1+ => nested sub-steps.
+    step_counters: dict[int, int] = {0: 0}
     final_response = ""
     plot_figure = None
 
@@ -124,13 +129,35 @@ async def process_user_message_stream(
                         desc = f"⚠️ Visualization error: {str(e)}"
 
                 thinking_steps.append(desc)
-                step_number = len(thinking_steps)
                 if chronological_content and not chronological_content.endswith("\n\n"):
                     chronological_content += "\n\n"
                 if event.level == 0:
-                    chronological_content += f"**Step {step_number}:** {desc}\n\n"
+                    top_level_step_number += 1
+                    step_counters[0] = top_level_step_number
+                    # Reset nested counters when entering a new top-level step.
+                    step_counters = {k: v for k, v in step_counters.items() if k == 0}
+                    chronological_content += f"**Step {top_level_step_number}:** {desc}\n\n"
                 else:
-                    chronological_content += f"{'　' * event.level}↳ *[{event.label}]* {desc}\n\n"
+                    # Ensure we always have a top-level context, even if a
+                    # nested step appears first due to event ordering.
+                    if step_counters.get(0, 0) == 0:
+                        top_level_step_number = 1
+                        step_counters[0] = top_level_step_number
+
+                    step_counters[event.level] = step_counters.get(event.level, 0) + 1
+                    # Drop deeper levels when we move back up.
+                    step_counters = {k: v for k, v in step_counters.items() if k <= event.level}
+
+                    step_number_parts = [
+                        str(step_counters[level])
+                        for level in sorted(step_counters.keys())
+                        if level <= event.level
+                    ]
+                    hierarchical_step_number = ".".join(step_number_parts)
+                    chronological_content += (
+                        f"{'　' * event.level}↳ Step {hierarchical_step_number} "
+                        f"[{event.label}] {desc}\n\n"
+                    )
                 # Reset token grouping so the next streamed tokens get a header.
                 current_token_layer = None
                 update_display()

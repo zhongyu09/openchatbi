@@ -66,13 +66,7 @@ def _validate_sql_safety(sql: str) -> tuple[bool, str]:
         if re.search(pattern, sql, flags=re.IGNORECASE):
             return False, f"Operation not allowed: {pattern}"
 
-    if re.match(r"^\s*SELECT\b", sql, flags=re.IGNORECASE):
-        return True, ""
-
-    if re.match(r"^\s*WITH\b", sql, flags=re.IGNORECASE) and re.search(r"\bSELECT\b", sql, flags=re.IGNORECASE):
-        return True, ""
-
-    return False, "Operation not supported. Only SELECT queries are allowed"
+    return True, ""
 
 
 def _get_sql_result_limit_config() -> tuple[bool, int]:
@@ -87,6 +81,56 @@ def _get_sql_result_limit_config() -> tuple[bool, int]:
     if not isinstance(limit, int) or limit <= 0:
         limit = SQL_RESULT_LIMIT
     return bool(enabled), limit
+
+
+def _extract_exception_message(exc: BaseException) -> str:
+    """Collect exception text from SQLAlchemy wrappers and native DB errors."""
+    message_parts = [str(exc)]
+    orig_error = getattr(exc, "orig", None)
+    if orig_error is not None:
+        message_parts.append(str(orig_error))
+        orig_args = getattr(orig_error, "args", None) or []
+        message_parts.extend(str(arg) for arg in orig_args if arg is not None)
+
+    exc_args = getattr(exc, "args", None) or []
+    message_parts.extend(str(arg) for arg in exc_args if arg is not None)
+    return " ".join(message_parts).lower()
+
+
+def _classify_operational_error(exc: OperationalError) -> str:
+    """Classify operational errors into timeout/connection, syntax, or other."""
+    timeout_or_connection_markers = (
+        "timeout",
+        "timed out",
+        "connection refused",
+        "connection reset",
+        "connection aborted",
+        "connection closed",
+        "connection failed",
+        "server has gone away",
+        "lost connection",
+        "could not connect",
+        "can't connect",
+        "network is unreachable",
+    )
+    syntax_error_markers = (
+        "syntax error",
+        "parse error",
+        "unexpected token",
+        "unexpected character",
+        "unexpected end of input",
+        "invalid syntax",
+        "near ",
+    )
+
+    message = _extract_exception_message(exc)
+    if getattr(exc, "connection_invalidated", False):
+        return "timeout_or_connection"
+    if any(marker in message for marker in timeout_or_connection_markers):
+        return "timeout_or_connection"
+    if any(marker in message for marker in syntax_error_markers):
+        return "syntax"
+    return "other"
 
 
 def create_sql_nodes(
@@ -310,12 +354,36 @@ def create_sql_nodes(
                 "data": csv_result,
                 "messages": [AIMessage(result)],
             }
-        except (OperationalError, TimeoutError) as e:
+        except TimeoutError as e:
             log(f"Database connection/timeout error: {str(e)}")
             error_result = (
                 f"```sql\n{sql_query}\n```\nDatabase Connection Timeout: {str(e)}\nPlease check database connectivity."
             )
             return {"sql_execution_result": SQL_EXECUTE_TIMEOUT, "messages": [AIMessage(error_result)]}
+        except OperationalError as e:
+            error_category = _classify_operational_error(e)
+            if error_category == "timeout_or_connection":
+                log(f"Database connection/timeout error: {str(e)}")
+                error_result = f"```sql\n{sql_query}\n```\nDatabase Connection Timeout: {str(e)}\nPlease check database connectivity."
+                return {"sql_execution_result": SQL_EXECUTE_TIMEOUT, "messages": [AIMessage(error_result)]}
+
+            previous_errors = list(state.get("previous_sql_errors", []))
+            if error_category == "syntax":
+                error_type = "SQL syntax error"
+                previous_errors.append({"sql": sql_query, "error": f"{error_type}: {str(e)}", "error_type": error_type})
+                log(f"{error_type}: {str(e)}")
+                return {
+                    "sql_execution_result": SQL_SYNTAX_ERROR,
+                    "previous_sql_errors": previous_errors,
+                }
+
+            error_type = "Database operational error"
+            previous_errors.append({"sql": sql_query, "error": f"{error_type}: {str(e)}", "error_type": error_type})
+            log(f"{error_type}: {str(e)}")
+            return {
+                "sql_execution_result": SQL_UNKNOWN_ERROR,
+                "previous_sql_errors": previous_errors,
+            }
         except SQLSecurityError as e:
             error_type = "SQL security error"
             log(f"{error_type}: {str(e)}")
@@ -329,8 +397,10 @@ def create_sql_nodes(
             }
         except Exception as e:
             error_type = "Unexpected error"
+            execution_result = SQL_UNKNOWN_ERROR
             if isinstance(e, ProgrammingError):
                 error_type = "SQL syntax error"
+                execution_result = SQL_SYNTAX_ERROR
             elif isinstance(e, DatabaseError):
                 error_type = "Database error"
 
@@ -341,7 +411,7 @@ def create_sql_nodes(
             previous_errors.append({"sql": sql_query, "error": f"{error_type}: {str(e)}", "error_type": error_type})
 
             return {
-                "sql_execution_result": SQL_UNKNOWN_ERROR if error_type == "Unexpected error" else SQL_SYNTAX_ERROR,
+                "sql_execution_result": execution_result,
                 "previous_sql_errors": previous_errors,
             }
 

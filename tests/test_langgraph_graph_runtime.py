@@ -19,12 +19,15 @@ class DummyLLM:
 class FakeSQLGraph:
     """Compiled graph double that preserves dict-like invoke outputs."""
 
+    def __init__(self, expected_messages: str = "show revenue") -> None:
+        self.expected_messages = expected_messages
+
     def invoke(self, payload: dict) -> dict:
-        assert payload == {"messages": "show revenue"}
+        assert payload == {"messages": self.expected_messages}
         return {"sql": "SELECT 1", "data": "value\n1", "visualization_dsl": {"chart_type": "bar"}}
 
     async def ainvoke(self, payload: dict) -> dict:
-        assert payload == {"messages": "show revenue"}
+        assert payload == {"messages": self.expected_messages}
         return {"sql": "SELECT 1", "data": "value\n1", "visualization_dsl": {"chart_type": "bar"}}
 
 
@@ -102,3 +105,22 @@ async def test_text2sql_nested_ainvoke_keeps_dict_like_output() -> None:
     assert "SQL Query" in result
     assert "SELECT 1" in result
     assert "Visualization Created: bar chart" in result
+
+
+def test_text2sql_context_dict_is_serialized_for_sync_tool() -> None:
+    tool = get_sql_tools(FakeSQLGraph('{"user_question": "show revenue"}'), sync_mode=True)
+
+    result = tool.invoke({"reasoning": "need SQL", "context": {"user_question": "show revenue"}})
+
+    assert "SQL Query" in result
+    assert "SELECT 1" in result
+
+
+@pytest.mark.asyncio
+async def test_text2sql_context_dict_is_serialized_for_async_tool() -> None:
+    tool = get_sql_tools(FakeSQLGraph('{"user_question": "show revenue"}'), sync_mode=False)
+
+    result = await tool.ainvoke({"reasoning": "need SQL", "context": {"user_question": "show revenue"}})
+
+    assert "SQL Query" in result
+    assert "SELECT 1" in result

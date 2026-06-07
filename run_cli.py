@@ -111,9 +111,21 @@ class CliRenderer:
 
     def _emit_json(self, event) -> None:
         if isinstance(event, StreamStep):
-            payload = {"type": "step", "kind": event.kind, "level": event.level, "label": event.label, "text": event.text}
+            payload = {
+                "type": "step",
+                "kind": event.kind,
+                "level": event.level,
+                "label": event.label,
+                "text": event.text,
+            }
         elif isinstance(event, StreamToken):
-            payload = {"type": "token", "level": event.level, "label": event.label, "is_final": event.is_final, "text": event.text}
+            payload = {
+                "type": "token",
+                "level": event.level,
+                "label": event.label,
+                "is_final": event.is_final,
+                "text": event.text,
+            }
         else:  # StreamInterrupt
             payload = {"type": "interrupt", "text": event.text, "buttons": event.buttons}
         print(json.dumps(payload, ensure_ascii=False, default=_json_default), flush=True)
@@ -252,8 +264,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--session-id", default="cli", help="Session id (default: cli).")
     parser.add_argument("--provider", default=None, help="LLM provider name (optional).")
     parser.add_argument("--async", dest="use_async", action="store_true", help="Use the async graph.")
-    parser.add_argument("--no-stream", dest="stream", action="store_false", help="Disable step streaming; print only the final answer.")
-    parser.add_argument("--json", dest="as_json", action="store_true", help="Emit NDJSON events instead of human-readable output.")
+    parser.add_argument(
+        "--no-stream", dest="stream", action="store_false", help="Disable step streaming; print only the final answer."
+    )
+    parser.add_argument(
+        "--json", dest="as_json", action="store_true", help="Emit NDJSON events instead of human-readable output."
+    )
     parser.add_argument("--no-color", dest="color", action="store_false", help="Disable ANSI colors.")
     args = parser.parse_args(argv)
 

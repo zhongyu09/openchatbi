@@ -115,3 +115,26 @@ class TestScoreSqlNode:
         out = score_sql_node(state)
         # No confidence computed for non-success executions.
         assert out == {}
+
+
+class TestRouteAfterConfidence:
+    def test_route_approve_goes_to_visualization(self):
+        from openchatbi.text2sql.sql_graph import route_after_confidence
+
+        assert route_after_confidence({"human_sql_decision": "approve"}) == "generate_visualization"
+
+    def test_route_reject_goes_to_regenerate(self):
+        from openchatbi.text2sql.sql_graph import route_after_confidence
+
+        assert route_after_confidence({"human_sql_decision": "reject"}) == "regenerate_sql"
+
+    def test_route_edit_goes_to_execute(self):
+        from openchatbi.text2sql.sql_graph import route_after_confidence
+
+        # An edited SQL must be re-executed before visualization.
+        assert route_after_confidence({"human_sql_decision": "edit"}) == "execute_sql"
+
+    def test_route_default_when_no_decision(self):
+        from openchatbi.text2sql.sql_graph import route_after_confidence
+
+        assert route_after_confidence({}) == "generate_visualization"

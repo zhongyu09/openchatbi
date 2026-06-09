@@ -88,6 +88,21 @@ def _should_generate_visualization_or_retry(state: SQLGraphState) -> str:
     return "end"
 
 
+def route_after_confidence(state: SQLGraphState) -> str:
+    """Route after the confidence gate based on the human decision.
+
+    approve -> visualization; reject -> regenerate; edit -> re-execute the
+    user-edited SQL. Defaults to visualization when no decision is present
+    (gate disabled or score above threshold).
+    """
+    decision = state.get("human_sql_decision", "approve")
+    if decision == "reject":
+        return "regenerate_sql"
+    if decision == "edit":
+        return "execute_sql"
+    return "generate_visualization"
+
+
 def build_sql_graph(
     catalog: CatalogStore, checkpointer: Checkpointer, memory_store: BaseStore, llm_provider: str | None = None
 ) -> CompiledStateGraph:
@@ -109,7 +124,14 @@ def build_sql_graph(
     else:
         llm_with_tools = default_llm.bind_tools(tools)
     # Create SQL processing nodes with visualization configuration
-    generate_sql_node, execute_sql_node, regenerate_sql_node, generate_visualization_node = create_sql_nodes(
+    (
+        generate_sql_node,
+        execute_sql_node,
+        regenerate_sql_node,
+        generate_visualization_node,
+        score_sql_node,
+        confidence_gate_node,
+    ) = create_sql_nodes(
         get_text2sql_llm(llm_provider),
         catalog,
         dialect=config.get().dialect,
@@ -128,6 +150,8 @@ def build_sql_graph(
     graph.add_node("execute_sql", execute_sql_node)
     graph.add_node("regenerate_sql", regenerate_sql_node)
     graph.add_node("generate_visualization", generate_visualization_node)
+    graph.add_node("score_sql", score_sql_node)
+    graph.add_node("confidence_gate", confidence_gate_node)
 
     # Add basic edges
     graph.add_edge(START, "information_extraction")
@@ -168,14 +192,31 @@ def build_sql_graph(
         },
     )
 
-    # Add conditional edges for execute_sql - either retry, generate visualization, or end
+    # Add conditional edges for execute_sql - either retry, score the SQL
+    # (post_exec confidence gate), or end. On success we route to score_sql,
+    # which feeds the confidence gate before visualization.
     graph.add_conditional_edges(
         "execute_sql",
         _should_generate_visualization_or_retry,
         {
-            "generate_visualization": "generate_visualization",
+            "generate_visualization": "score_sql",
             "regenerate_sql": "regenerate_sql",
             "end": END,
+        },
+    )
+
+    # score_sql -> confidence_gate -> {visualization | regenerate | re-execute}.
+    # When the gate is disabled (default), confidence_gate returns "approve"
+    # immediately and route_after_confidence sends control to visualization,
+    # preserving the prior SUCCESS -> visualization behavior.
+    graph.add_edge("score_sql", "confidence_gate")
+    graph.add_conditional_edges(
+        "confidence_gate",
+        route_after_confidence,
+        {
+            "generate_visualization": "generate_visualization",
+            "regenerate_sql": "regenerate_sql",
+            "execute_sql": "execute_sql",
         },
     )
 

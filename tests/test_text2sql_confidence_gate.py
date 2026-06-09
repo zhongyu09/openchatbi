@@ -255,3 +255,25 @@ class TestInterruptThroughToolBoundary:
             assert "__interrupt__" not in resumed
             assert "Query Results" in resumed["tool_result"]
             assert parent.get_state(run_cfg).next == ()
+
+
+class TestConfidenceStreaming:
+    def test_score_sql_emits_confidence_step(self):
+        from openchatbi.streaming import AgentStreamProcessor, StreamStep
+
+        proc = AgentStreamProcessor()
+        events = proc.process(
+            namespace=(),
+            event_type="updates",
+            event_value={"score_sql": {"sql_confidence": 0.42, "confidence_reasons": ["WHERE missing"]}},
+        )
+        conf = [e for e in events if isinstance(e, StreamStep) and e.kind == "confidence"]
+        assert len(conf) == 1
+        assert conf[0].data["sql_confidence"] == 0.42
+        assert "0.42" in conf[0].text
+
+    def test_score_sql_node_in_subgraph_nodes(self):
+        from openchatbi.streaming import SQL_SUBGRAPH_NODES
+
+        assert "score_sql" in SQL_SUBGRAPH_NODES
+        assert "confidence_gate" in SQL_SUBGRAPH_NODES

@@ -36,6 +36,8 @@ SQL_SUBGRAPH_NODES = {
     "execute_sql",
     "regenerate_sql",
     "generate_visualization",
+    "score_sql",
+    "confidence_gate",
 }
 
 # Node names of the top-level agent graph (openchatbi). Anything else that
@@ -67,7 +69,7 @@ class StreamStep:
     level: int  # 0 = main agent, >0 = nested / sub-agent
     label: str  # "main", "data_analysis", or a namespace label
     kind: str  # "tool" | "sub_agent" | "rewrite" | "tables" | "sql" |
-    # "execute_sql" | "visualization" | "tool_error" | "generic"
+    # "execute_sql" | "visualization" | "confidence" | "tool_error" | "generic"
     data: dict[str, Any] = field(default_factory=dict)  # structured payload
 
 
@@ -318,6 +320,15 @@ class AgentStreamProcessor:
                     desc = "📊 Generated visualization"
                     kind = "visualization"
                     data = {"visualization_dsl": visualization_dsl, "data": self._data_csv}
+
+            elif node_name == "score_sql":
+                score = node_output.get("sql_confidence")
+                if score is not None:
+                    reasons = node_output.get("confidence_reasons", [])
+                    reason_txt = f" — {'; '.join(reasons)}" if reasons else ""
+                    desc = f"🎯 SQL confidence: {score:.2f}{reason_txt}"
+                    kind = "confidence"
+                    data = {"sql_confidence": score, "confidence_reasons": reasons}
             elif node_name == "use_tool":
                 for message in node_output.get("messages") or []:
                     if not isinstance(message, ToolMessage):

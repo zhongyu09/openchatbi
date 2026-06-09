@@ -9,6 +9,7 @@ from typing import Any
 
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import StructuredTool
 from langchain_openai.chat_models.base import BaseChatOpenAI
 from langgraph.constants import START
@@ -150,12 +151,16 @@ def get_sql_tools(sql_graph: CompiledStateGraph, sync_mode: bool = False) -> Cal
         function: Tool function for SQL generation.
     """
 
-    def call_sql_graph_sync(reasoning: str, context: str | dict[str, Any] | list[dict[str, Any]] | list[str]) -> str:
+    def call_sql_graph_sync(
+        reasoning: str,
+        context: str | dict[str, Any] | list[dict[str, Any]] | list[str],
+        config: RunnableConfig | None = None,
+    ) -> str:
         """Sync node function for Text2SQL tool"""
         normalized_context = _normalize_text2sql_context(context)
         log(f"Call SQL graph (sync) with reasoning: {reasoning}, context: {normalized_context}")
         try:
-            sql_graph_response = sql_graph.invoke({"messages": normalized_context})
+            sql_graph_response = sql_graph.invoke({"messages": normalized_context}, config=config)
             return _format_sql_response(sql_graph_response)
         except GraphInterrupt as e:
             log(f"Sql graph interrupted:\n{repr(e)}")
@@ -166,13 +171,15 @@ def get_sql_tools(sql_graph: CompiledStateGraph, sync_mode: bool = False) -> Cal
         return "Error occurred when calling Text2SQL tool."
 
     async def call_sql_graph_async(
-        reasoning: str, context: str | dict[str, Any] | list[dict[str, Any]] | list[str]
+        reasoning: str,
+        context: str | dict[str, Any] | list[dict[str, Any]] | list[str],
+        config: RunnableConfig | None = None,
     ) -> str:
         """Async node function for Text2SQL tool"""
         normalized_context = _normalize_text2sql_context(context)
         log(f"Call SQL graph (async) with reasoning: {reasoning}, context: {normalized_context}")
         try:
-            sql_graph_response = await sql_graph.ainvoke({"messages": normalized_context})
+            sql_graph_response = await sql_graph.ainvoke({"messages": normalized_context}, config=config)
             return _format_sql_response(sql_graph_response)
         except GraphInterrupt as e:
             log(f"Sql graph interrupted:\n{repr(e)}")

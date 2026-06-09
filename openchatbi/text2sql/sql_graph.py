@@ -14,6 +14,7 @@ from openchatbi.constants import SQL_EXECUTE_TIMEOUT, SQL_SUCCESS
 from openchatbi.text2sql.errors import RecoveryStrategy
 from openchatbi.graph_state import InputState, SQLGraphState, SQLOutputState
 from openchatbi.llm.llm import get_llm, get_text2sql_llm
+from openchatbi.text2sql.data import get_learned_sql_store
 from openchatbi.text2sql.extraction import information_extraction, information_extraction_conditional_edges
 from openchatbi.text2sql.generate_sql import create_sql_nodes, should_execute_sql
 from openchatbi.text2sql.schema_linking import schema_linking
@@ -136,6 +137,7 @@ def build_sql_graph(
         catalog,
         dialect=config.get().dialect,
         visualization_mode=config.get().visualization_mode,
+        learned_sql_store=get_learned_sql_store(),
     )
 
     # Define the SQL generation graph

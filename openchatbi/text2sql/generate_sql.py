@@ -12,6 +12,8 @@ from sqlalchemy.exc import DatabaseError, OperationalError, ProgrammingError, Ti
 
 from openchatbi import config
 from openchatbi.catalog import CatalogStore
+from openchatbi.memory_config import get_memory_config
+from openchatbi.memory_scoring import composite_score
 from openchatbi.constants import (
     SQL_EXECUTE_TIMEOUT,
     SQL_NA,
@@ -158,7 +160,11 @@ def _classify_operational_error(exc: OperationalError) -> str:
 
 
 def create_sql_nodes(
-    llm: BaseChatModel, catalog: CatalogStore, dialect: str, visualization_mode: str | None = "rule"
+    llm: BaseChatModel,
+    catalog: CatalogStore,
+    dialect: str,
+    visualization_mode: str | None = "rule",
+    learned_sql_store: Any | None = None,
 ) -> tuple[Callable, Callable, Callable, Callable, Callable, Callable]:
     """Creates the SQL processing nodes for LangGraph.
 
@@ -167,6 +173,9 @@ def create_sql_nodes(
         catalog (CatalogStore): The catalog store containing schema information.
         dialect (str): The SQL dialect to use (e.g., 'presto', 'mysql').
         visualization_mode (str | None): Visualization analysis mode ("rule", "llm", or None to skip).
+        learned_sql_store: Optional LearnedSQLStore handle for blended retrieval and
+            gated auto-capture. When None, falls back to the legacy static retriever
+            and capture is a no-op (default-off, zero regression).
 
     Returns:
         tuple: Six node functions (generate, execute, regenerate, visualization, score_sql, confidence_gate)
@@ -211,6 +220,10 @@ def create_sql_nodes(
     def _get_relevant_sql_examples_prompt(question, tables_columns: list[dict[str, Any]]) -> str:
         """Retrieves relevant SQL examples based on the question and selected tables.
 
+        Blends static + golden + auto-captured patterns via LearnedSQLStore when a
+        store is wired and pattern memory is enabled; otherwise preserves the legacy
+        static-retriever behavior (strict subset filter) for zero regression.
+
         Args:
             question (str): The natural language question.
             tables_columns (List[str]): List of selected tables with selected columns.
@@ -219,6 +232,40 @@ def create_sql_nodes(
             str: Formatted string of relevant SQL examples.
         """
         tables = [d["table"] for d in tables_columns]
+        mem_cfg = get_memory_config()
+
+        if learned_sql_store is not None and getattr(mem_cfg, "enable_pattern_memory", False):
+            cap = int(getattr(mem_cfg, "max_patterns_per_query", 5))
+
+            # Convention #5: score_fn is a (metadata, base_rank) adapter wrapping composite_score.
+            def score_fn(meta: dict, base_rank: int) -> float:
+                return composite_score(
+                    1.0 / (1.0 + base_rank),
+                    float(meta.get("importance", 1.0) or 1.0),
+                    meta.get("last_used", ""),
+                    int(meta.get("use_count", 0) or 0),
+                    mem_cfg,
+                )
+            try:
+                retrieved = learned_sql_store.retrieve(
+                    question, k=max(cap * 2, 10), score_fn=score_fn
+                )
+            except Exception as e:  # fall back to static path on store failure
+                log(f"Blended retrieval failed, falling back to static examples: {e}")
+                retrieved = None
+            if retrieved is not None:
+                examples = []
+                for ex_question, example_sql, used_tables in retrieved:
+                    # Soft filter: keep when the pattern touches any selected table
+                    # (relaxed from strict subset so learned patterns aren't silently dropped).
+                    if not used_tables or any(t in tables for t in used_tables):
+                        examples.append(f"<example>\nQ: {ex_question}\nA: {example_sql}\n</example>\n")
+                    if len(examples) >= cap:
+                        break
+                log(f"Blended examples (store): {examples}")
+                return "\n".join(examples)
+
+        # Legacy path: static retriever + strict subset filter (unchanged behavior).
         relevant_questions = sql_example_retriever.invoke(question)
         # log(f"Retrieved examples for question: {question} \n Relevant questions: {relevant_questions}")
         # filter examples that only use the selected tables
@@ -307,6 +354,55 @@ def create_sql_nodes(
 
             connection.commit()
             return schema_info, csv_data
+
+    def _maybe_capture_pattern(state: SQLGraphState) -> None:
+        """Fire-and-forget: capture (question -> SQL -> tables) into LearnedSQLStore.
+
+        Gated by enable_pattern_memory AND the S2 confidence gate (success != correct).
+        Honors the HITL approval semantics (Convention #10): on an unapproved 'edit'
+        re-entry this is a no-op; it captures only on terminal success / approval.
+        Never raises; never blocks the response.
+        """
+        if learned_sql_store is None:
+            return
+        try:
+            mem_cfg = get_memory_config()
+            if not getattr(mem_cfg, "enable_pattern_memory", False):
+                return
+            # Convention #10: do not capture an unapproved HITL 'edit' re-entry.
+            decision = state.get("human_sql_decision")
+            if decision is not None and decision != "approve":
+                return
+            question = state.get("rewrite_question", "")
+            sql_query = state.get("sql", "").strip()
+            tables = [
+                d["table"] for d in state.get("tables", []) if isinstance(d, dict) and d.get("table")
+            ]
+            if not question or not sql_query:
+                return
+            # S2 gate: only promote SQL the evaluator considers correct (success != correct).
+            try:
+                threshold = float(getattr(config.get(), "sql_confidence_threshold", 0.7))
+            except ValueError:
+                threshold = 0.7
+            schema_info = state.get("schema_info", {})
+            data_sample = state.get("data", "")
+            verdict = SimpleSQLEvaluator(llm).evaluate(question, sql_query, schema_info, data_sample)
+            if verdict.score < threshold:
+                log(f"Pattern capture skipped: confidence {verdict.score:.2f} < {threshold:.2f}")
+                return
+            retry_count = int(state.get("sql_retry_count", 0) or 0)
+            importance = 1.0 / (1.0 + retry_count)  # first-try success weighted highest
+            learned_sql_store.add(
+                question,
+                sql_query,
+                tables,
+                source="auto",
+                importance=importance,
+                namespace=getattr(mem_cfg, "pattern_scope", "global"),
+            )
+        except Exception as e:  # never let capture break the response
+            log(f"Pattern capture error (ignored): {e}")
 
     def generate_sql_node(state: SQLGraphState) -> dict:
         """First node: Generates initial SQL query based on the state.
@@ -416,6 +512,8 @@ def create_sql_nodes(
             else:
                 result_label = "SQL Result"
             result = f"```sql\n{sql_query}\n```\n{result_label}:\n```csv\n{csv_result}\n```"
+            # Gated auto-capture into the learned SQL pattern pool (fire-and-forget).
+            _maybe_capture_pattern({**state, "schema_info": schema_info, "data": csv_result})
             return {
                 "sql_execution_result": SQL_SUCCESS,
                 "schema_info": schema_info,
@@ -584,10 +682,15 @@ def create_sql_nodes(
         try:
             cfg = config.get()
             gate_on = getattr(cfg, "enable_confidence_gate", False)
-            # enable_pattern_memory is added later (Task 13); getattr keeps this forward-compatible
-            pattern_on = getattr(cfg, "enable_pattern_memory", False)
         except ValueError:
-            gate_on = pattern_on = False
+            gate_on = False
+        # enable_pattern_memory lives on memory_config (Task 13), NOT as a top-level
+        # Config attr; read it via get_memory_config so the auto-capture confidence
+        # gate actually gets a score when pattern memory is on.
+        try:
+            pattern_on = bool(getattr(get_memory_config(), "enable_pattern_memory", False))
+        except Exception:
+            pattern_on = False
         if not gate_on and not pattern_on:
             return {}  # cost-inert: no scoring needed when neither consumer is enabled
 

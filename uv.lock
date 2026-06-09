@@ -3041,6 +3041,10 @@ docs = [
     { name = "sphinx-autodoc-typehints" },
     { name = "sphinx-rtd-theme" },
 ]
+eval = [
+    { name = "pyyaml" },
+    { name = "runledger" },
+]
 observability = [
     { name = "langfuse" },
     { name = "langsmith" },
@@ -3107,11 +3111,13 @@ requires-dist = [
     { name = "pytest-sugar", marker = "extra == 'test'", specifier = ">=1.0.0,<2.0.0" },
     { name = "python-dotenv", marker = "extra == 'observability'", specifier = ">=1.0.0,<2.0.0" },
     { name = "python-levenshtein", specifier = ">=0.27.1" },
+    { name = "pyyaml", marker = "extra == 'eval'", specifier = ">=6.0,<7.0" },
     { name = "rank-bm25", specifier = ">=0.2.2,<1.0.0" },
     { name = "requests", specifier = ">=2.31.0,<3.0.0" },
     { name = "responses", marker = "extra == 'test'", specifier = ">=0.25.3,<1.0.0" },
     { name = "restrictedpython", specifier = ">=8.0,<9.0" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.8.0,<1.0.0" },
+    { name = "runledger", marker = "extra == 'eval'", specifier = ">=0.1.1,<0.2.0" },
     { name = "seaborn", specifier = ">=0.13.0,<1.0.0" },
     { name = "sphinx", marker = "extra == 'docs'", specifier = ">=8.2.3,<9.0.0" },
     { name = "sphinx-autodoc-typehints", marker = "extra == 'docs'", specifier = ">=2.5.0,<3.0.0" },
@@ -3123,7 +3129,7 @@ requires-dist = [
     { name = "twine", marker = "extra == 'dev'", specifier = ">=6.0.0,<7.0.0" },
     { name = "types-setuptools", marker = "extra == 'dev'", specifier = ">=75.6.0.20241126" },
 ]
-provides-extras = ["docs", "test", "observability", "dev"]
+provides-extras = ["docs", "test", "eval", "observability", "dev"]
 
 [package.metadata.requires-dev]
 dev = [{ name = "openchatbi", extras = ["dev"] }]
@@ -4666,6 +4672,24 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/c8/fa/05b6428a008e60f79546c943e54068316f32ec8ab5c4f73e4563934fbdc7/ruff-0.12.12-py3-none-win32.whl", hash = "sha256:173be2bfc142af07a01e3a759aba6f7791aa47acf3604f610b1c36db888df7b1", size = 12052870, upload-time = "2025-09-04T16:50:09.121Z" },
     { url = "https://files.pythonhosted.org/packages/85/60/d1e335417804df452589271818749d061b22772b87efda88354cf35cdb7a/ruff-0.12.12-py3-none-win_amd64.whl", hash = "sha256:e99620bf01884e5f38611934c09dd194eb665b0109104acae3ba6102b600fd0d", size = 13178016, upload-time = "2025-09-04T16:50:12.559Z" },
     { url = "https://files.pythonhosted.org/packages/28/7e/61c42657f6e4614a4258f1c3b0c5b93adc4d1f8575f5229d1906b483099b/ruff-0.12.12-py3-none-win_arm64.whl", hash = "sha256:2a8199cab4ce4d72d158319b63370abf60991495fb733db96cd923a34c52d093", size = 12256762, upload-time = "2025-09-04T16:50:15.737Z" },
+]
+
+[[package]]
+name = "runledger"
+version = "0.1.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "jinja2" },
+    { name = "jsonschema" },
+    { name = "pydantic" },
+    { name = "pyyaml" },
+    { name = "rich", version = "13.9.4", source = { registry = "https://pypi.org/simple" }, marker = "platform_python_implementation == 'PyPy'" },
+    { name = "rich", version = "14.1.0", source = { registry = "https://pypi.org/simple" }, marker = "platform_python_implementation != 'PyPy'" },
+    { name = "typer" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/4e/00/42e40c32bf01ab2ee0ebdd25eed9d0c735f82a21034b0650cedf384bcf31/runledger-0.1.1.tar.gz", hash = "sha256:342d41cbdd951a717c09ff438a1a0b6a058747c7809edecec0763140b16eb345", size = 36754, upload-time = "2025-12-26T23:47:11.611Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/76/2a/c7d38e7b871d56ae06ced141583576c5fa9b61d51631a7385bdeaf1074fb/runledger-0.1.1-py3-none-any.whl", hash = "sha256:07e67aa91dbcaa4c195a104a559dd23d4b009e8d02428620fe493c461d98af21", size = 42908, upload-time = "2025-12-26T23:47:10.407Z" },
 ]
 
 [[package]]

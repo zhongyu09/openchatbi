@@ -104,6 +104,12 @@ class Config(BaseModel):
     enable_sql_result_limit: bool = True
     sql_result_limit: int = SQL_RESULT_LIMIT
 
+    # HITL Confidence Gate Configuration (default OFF for zero-regression)
+    enable_confidence_gate: bool = False
+    sql_confidence_threshold: float = 0.7
+    confidence_gate_mode: str = "post_exec"  # Options: "post_exec" (default), "pre_exec" (phase-2)
+    confidence_evaluator_mode: str = "simple"
+
     # Treat zero-row results as a soft failure (EmptyResultError). Default OFF:
     # empty results stay SQL_SUCCESS to preserve existing visualization-entry behavior.
     enable_empty_result_error: bool = False

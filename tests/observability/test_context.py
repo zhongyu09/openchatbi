@@ -2,12 +2,21 @@
 
 import asyncio
 
+import pytest
+
 from openchatbi.observability.context import (
     current_request_id,
     current_user_id,
     get_run_context,
     set_run_context,
 )
+
+
+@pytest.fixture(autouse=True)
+def _reset_run_context():
+    yield
+    current_user_id.set(None)
+    current_request_id.set(None)
 
 
 def test_defaults_are_none() -> None:

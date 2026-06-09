@@ -1,5 +1,6 @@
 import datetime
 import re
+import time as _time
 from collections.abc import Callable
 from typing import Any
 
@@ -22,10 +23,14 @@ from openchatbi.constants import (
     datetime_format,
 )
 from openchatbi.graph_state import SQLGraphState
+from openchatbi.observability.audit import AuditLogger
+from openchatbi.observability.context import get_run_context
 from openchatbi.prompts.system_prompt import get_text2sql_dialect_prompt_template
 from openchatbi.text2sql.data import sql_example_dicts, sql_example_retriever
 from openchatbi.text2sql.visualization import VisualizationService
 from openchatbi.utils import get_text_from_content, log
+
+_audit_logger = AuditLogger()
 
 
 class SQLSecurityError(ValueError):
@@ -341,8 +346,21 @@ def create_sql_nodes(
         if not sql_query:
             return {"sql_execution_result": SQL_NA, "messages": [AIMessage("No SQL query to execute")]}
 
+        user_id, _ = get_run_context()
+        _start = _time.time()
+
         try:
             schema_info, csv_result = _execute_sql(sql_query)
+            duration_ms = (_time.time() - _start) * 1000.0
+            row_count = schema_info.get("row_count") if isinstance(schema_info, dict) else None
+            _audit_logger.log_sql_exec(
+                sql=sql_query,
+                dialect=dialect,
+                row_count=row_count,
+                duration_ms=duration_ms,
+                status=SQL_SUCCESS,
+                user_id=user_id,
+            )
             if "result_limit" in schema_info:
                 result_label = f"SQL Result (limited to first {schema_info['result_limit']} rows)"
             else:
@@ -356,6 +374,15 @@ def create_sql_nodes(
             }
         except TimeoutError as e:
             log(f"Database connection/timeout error: {str(e)}")
+            _audit_logger.log_sql_exec(
+                sql=sql_query,
+                dialect=dialect,
+                row_count=None,
+                duration_ms=(_time.time() - _start) * 1000.0,
+                status=SQL_EXECUTE_TIMEOUT,
+                user_id=user_id,
+                error=str(e),
+            )
             error_result = (
                 f"```sql\n{sql_query}\n```\nDatabase Connection Timeout: {str(e)}\nPlease check database connectivity."
             )
@@ -364,6 +391,15 @@ def create_sql_nodes(
             error_category = _classify_operational_error(e)
             if error_category == "timeout_or_connection":
                 log(f"Database connection/timeout error: {str(e)}")
+                _audit_logger.log_sql_exec(
+                    sql=sql_query,
+                    dialect=dialect,
+                    row_count=None,
+                    duration_ms=(_time.time() - _start) * 1000.0,
+                    status=SQL_EXECUTE_TIMEOUT,
+                    user_id=user_id,
+                    error=str(e),
+                )
                 error_result = f"```sql\n{sql_query}\n```\nDatabase Connection Timeout: {str(e)}\nPlease check database connectivity."
                 return {"sql_execution_result": SQL_EXECUTE_TIMEOUT, "messages": [AIMessage(error_result)]}
 
@@ -372,6 +408,15 @@ def create_sql_nodes(
                 error_type = "SQL syntax error"
                 previous_errors.append({"sql": sql_query, "error": f"{error_type}: {str(e)}", "error_type": error_type})
                 log(f"{error_type}: {str(e)}")
+                _audit_logger.log_sql_exec(
+                    sql=sql_query,
+                    dialect=dialect,
+                    row_count=None,
+                    duration_ms=(_time.time() - _start) * 1000.0,
+                    status=SQL_SYNTAX_ERROR,
+                    user_id=user_id,
+                    error=str(e),
+                )
                 return {
                     "sql_execution_result": SQL_SYNTAX_ERROR,
                     "previous_sql_errors": previous_errors,
@@ -380,6 +425,15 @@ def create_sql_nodes(
             error_type = "Database operational error"
             previous_errors.append({"sql": sql_query, "error": f"{error_type}: {str(e)}", "error_type": error_type})
             log(f"{error_type}: {str(e)}")
+            _audit_logger.log_sql_exec(
+                sql=sql_query,
+                dialect=dialect,
+                row_count=None,
+                duration_ms=(_time.time() - _start) * 1000.0,
+                status=SQL_UNKNOWN_ERROR,
+                user_id=user_id,
+                error=str(e),
+            )
             return {
                 "sql_execution_result": SQL_UNKNOWN_ERROR,
                 "previous_sql_errors": previous_errors,
@@ -389,6 +443,15 @@ def create_sql_nodes(
             log(f"{error_type}: {str(e)}")
             previous_errors = list(state.get("previous_sql_errors", []))
             previous_errors.append({"sql": sql_query, "error": f"{error_type}: {str(e)}", "error_type": error_type})
+            _audit_logger.log_sql_exec(
+                sql=sql_query,
+                dialect=dialect,
+                row_count=None,
+                duration_ms=(_time.time() - _start) * 1000.0,
+                status=SQL_SECURITY_ERROR,
+                user_id=user_id,
+                error=str(e),
+            )
             error_result = f"```sql\n{sql_query}\n```\n{error_type}: {str(e)}"
             return {
                 "sql_execution_result": SQL_SECURITY_ERROR,
@@ -410,6 +473,15 @@ def create_sql_nodes(
             previous_errors = list(state.get("previous_sql_errors", []))
             previous_errors.append({"sql": sql_query, "error": f"{error_type}: {str(e)}", "error_type": error_type})
 
+            _audit_logger.log_sql_exec(
+                sql=sql_query,
+                dialect=dialect,
+                row_count=None,
+                duration_ms=(_time.time() - _start) * 1000.0,
+                status=execution_result,
+                user_id=user_id,
+                error=str(e),
+            )
             return {
                 "sql_execution_result": execution_result,
                 "previous_sql_errors": previous_errors,

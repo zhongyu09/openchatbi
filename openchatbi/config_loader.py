@@ -23,6 +23,31 @@ class LLMProviderConfig(BaseModel):
     analysis_llm: MagicMock | BaseChatModel | None = None
 
 
+class TracingConfig(BaseModel):
+    enabled: bool = False
+    provider: str | None = None  # 'langfuse' | 'langsmith' | None
+    langfuse_host: str | None = None
+    sample_rate: float = 1.0
+
+
+class MetricsConfig(BaseModel):
+    enabled: bool = False
+    prometheus_port: int | None = None
+
+
+class AuditConfig(BaseModel):
+    enabled: bool = False
+    sink: str = "log"  # 'log' | 'file'
+    path: str | None = None
+    mask_sql_literals: bool = True
+
+
+class ObservabilityConfig(BaseModel):
+    tracing: TracingConfig = TracingConfig()
+    metrics: MetricsConfig = MetricsConfig()
+    audit: AuditConfig = AuditConfig()
+
+
 class Config(BaseModel):
     """Configuration model for the OpenChatBI application.
 
@@ -81,6 +106,9 @@ class Config(BaseModel):
 
     # Context Management Configuration
     context_config: dict[str, Any] = {}
+
+    # Observability Configuration (S1 — all sub-flags default OFF)
+    observability: ObservabilityConfig = ObservabilityConfig()
 
     # Time Series Service Configuration
     timeseries_forecasting_service_url: str = "http://localhost:8765"

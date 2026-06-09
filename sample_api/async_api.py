@@ -46,6 +46,12 @@ async def get_or_build_graph(provider: str | None):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Manage application lifespan events."""
+    try:
+        from dotenv import load_dotenv
+
+        load_dotenv()
+    except ImportError:
+        pass
     # Startup: Initialize the async graph
     graphs["__default__"] = await build_agent_graph_async(config.get().catalog_store)
     yield
@@ -121,7 +127,9 @@ async def chat_stream(req: UserRequest):
     user_session_id = f"{user_id}-{session_id}"
 
     stream_input = {"messages": [("user", req.input)]}
-    config = {"configurable": {"thread_id": user_session_id, "user_id": user_id}}
+    from openchatbi.observability.tracing import build_run_config
+
+    config = build_run_config(user_id=user_id, session_id=session_id)
     set_run_context(user_id, user_session_id)
 
     try:

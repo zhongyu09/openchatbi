@@ -104,6 +104,13 @@ test = [
     "langsmith[pytest]>=0.4.8,<1.0.0",
     "openevals>=0.1.0,<1.0.0",
 ]
+observability = [
+    "langfuse>=3,<4",
+    "langsmith>=0.4.8,<1.0.0",
+    "prometheus-client>=0.20.0,<1.0.0",
+    "tiktoken>=0.7.0,<1.0.0",
+    "python-dotenv>=1.0.0,<2.0.0",
+]
 dev = [
     "openchatbi[test,docs]",
     "black>=24.10.0,<25.0.0",

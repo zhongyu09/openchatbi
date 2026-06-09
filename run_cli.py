@@ -38,6 +38,13 @@ import dataclasses
 import json
 import sys
 
+try:
+    from dotenv import load_dotenv
+
+    load_dotenv()
+except ImportError:
+    pass
+
 from openchatbi.observability.context import set_run_context
 from openchatbi.streaming import (
     AgentStreamProcessor,
@@ -279,7 +286,9 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     renderer = CliRenderer(as_json=args.as_json, color=args.color)
-    config = {"configurable": {"thread_id": f"{args.user_id}-{args.session_id}", "user_id": args.user_id}}
+    from openchatbi.observability.tracing import build_run_config
+
+    config = build_run_config(user_id=args.user_id, session_id=args.session_id)
 
     if args.use_async:
         return asyncio.run(_run_async(args, config, renderer))

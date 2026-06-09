@@ -28,6 +28,7 @@ from openchatbi.observability.context import get_run_context
 from openchatbi.prompts.system_prompt import get_text2sql_dialect_prompt_template
 from openchatbi.text2sql.data import sql_example_dicts, sql_example_retriever
 from openchatbi.text2sql.errors import (
+    EmptyResultError,
     RecoveryStrategy,
     SQLSecurityError,
     Text2SQLError,
@@ -88,6 +89,20 @@ def _get_sql_result_limit_config() -> tuple[bool, int]:
     if not isinstance(limit, int) or limit <= 0:
         limit = SQL_RESULT_LIMIT
     return bool(enabled), limit
+
+
+def _get_empty_result_config() -> tuple[bool, None]:
+    """Read whether zero-row results should be treated as a soft failure.
+
+    Defaults to OFF so empty results stay SQL_SUCCESS (preserves the existing
+    generate_visualization entry path). Returns a tuple for symmetry with the
+    result-limit config reader.
+    """
+    try:
+        cfg = config.get()
+    except ValueError:
+        return False, None
+    return bool(getattr(cfg, "enable_empty_result_error", False)), None
 
 
 def _extract_exception_message(exc: BaseException) -> str:
@@ -355,6 +370,37 @@ def create_sql_nodes(
             schema_info, csv_result = _execute_sql(sql_query)
             duration_ms = (_time.time() - _start) * 1000.0
             row_count = schema_info.get("row_count") if isinstance(schema_info, dict) else None
+
+            # Empty-result gate (default OFF — zero rows stay SQL_SUCCESS).
+            empty_result_enabled, _ = _get_empty_result_config()
+            if empty_result_enabled and row_count == 0:
+                _audit_logger.log_sql_exec(
+                    sql=sql_query,
+                    dialect=dialect,
+                    row_count=0,
+                    duration_ms=duration_ms,
+                    status=SQL_NA,
+                    user_id=user_id,
+                )
+                previous_errors = list(state.get("previous_sql_errors", []))
+                attempt = len(previous_errors) + 1
+                err = EmptyResultError("Query returned no rows")
+                previous_errors.append(
+                    {
+                        "sql": sql_query,
+                        "error": f"{err.error_type}: no rows returned",
+                        "error_type": err.error_type,
+                        "error_code": err.code,
+                        "error_class": type(err).__name__,
+                        "recovery_strategy": err.recovery_strategy.value,
+                        "attempt": attempt,
+                    }
+                )
+                return {
+                    "sql_execution_result": SQL_NA,
+                    "previous_sql_errors": previous_errors,
+                }
+
             _audit_logger.log_sql_exec(
                 sql=sql_query,
                 dialect=dialect,
@@ -374,120 +420,49 @@ def create_sql_nodes(
                 "data": csv_result,
                 "messages": [AIMessage(result)],
             }
-        except TimeoutError as e:
-            log(f"Database connection/timeout error: {str(e)}")
-            _audit_logger.log_sql_exec(
-                sql=sql_query,
-                dialect=dialect,
-                row_count=None,
-                duration_ms=(_time.time() - _start) * 1000.0,
-                status=SQL_EXECUTE_TIMEOUT,
-                user_id=user_id,
-                error=str(e),
-            )
-            error_result = (
-                f"```sql\n{sql_query}\n```\nDatabase Connection Timeout: {str(e)}\nPlease check database connectivity."
-            )
-            return {"sql_execution_result": SQL_EXECUTE_TIMEOUT, "messages": [AIMessage(error_result)]}
-        except OperationalError as e:
-            error_category = _classify_operational_error(e)
-            if error_category == "timeout_or_connection":
-                log(f"Database connection/timeout error: {str(e)}")
-                _audit_logger.log_sql_exec(
-                    sql=sql_query,
-                    dialect=dialect,
-                    row_count=None,
-                    duration_ms=(_time.time() - _start) * 1000.0,
-                    status=SQL_EXECUTE_TIMEOUT,
-                    user_id=user_id,
-                    error=str(e),
-                )
-                error_result = f"```sql\n{sql_query}\n```\nDatabase Connection Timeout: {str(e)}\nPlease check database connectivity."
-                return {"sql_execution_result": SQL_EXECUTE_TIMEOUT, "messages": [AIMessage(error_result)]}
-
-            previous_errors = list(state.get("previous_sql_errors", []))
-            if error_category == "syntax":
-                error_type = "SQL syntax error"
-                previous_errors.append({"sql": sql_query, "error": f"{error_type}: {str(e)}", "error_type": error_type})
-                log(f"{error_type}: {str(e)}")
-                _audit_logger.log_sql_exec(
-                    sql=sql_query,
-                    dialect=dialect,
-                    row_count=None,
-                    duration_ms=(_time.time() - _start) * 1000.0,
-                    status=SQL_SYNTAX_ERROR,
-                    user_id=user_id,
-                    error=str(e),
-                )
-                return {
-                    "sql_execution_result": SQL_SYNTAX_ERROR,
-                    "previous_sql_errors": previous_errors,
-                }
-
-            error_type = "Database operational error"
-            previous_errors.append({"sql": sql_query, "error": f"{error_type}: {str(e)}", "error_type": error_type})
-            log(f"{error_type}: {str(e)}")
-            _audit_logger.log_sql_exec(
-                sql=sql_query,
-                dialect=dialect,
-                row_count=None,
-                duration_ms=(_time.time() - _start) * 1000.0,
-                status=SQL_UNKNOWN_ERROR,
-                user_id=user_id,
-                error=str(e),
-            )
-            return {
-                "sql_execution_result": SQL_UNKNOWN_ERROR,
-                "previous_sql_errors": previous_errors,
-            }
-        except SQLSecurityError as e:
-            error_type = "SQL security error"
-            log(f"{error_type}: {str(e)}")
-            previous_errors = list(state.get("previous_sql_errors", []))
-            previous_errors.append({"sql": sql_query, "error": f"{error_type}: {str(e)}", "error_type": error_type})
-            _audit_logger.log_sql_exec(
-                sql=sql_query,
-                dialect=dialect,
-                row_count=None,
-                duration_ms=(_time.time() - _start) * 1000.0,
-                status=SQL_SECURITY_ERROR,
-                user_id=user_id,
-                error=str(e),
-            )
-            error_result = f"```sql\n{sql_query}\n```\n{error_type}: {str(e)}"
-            return {
-                "sql_execution_result": SQL_SECURITY_ERROR,
-                "previous_sql_errors": previous_errors,
-                "messages": [AIMessage(error_result)],
-            }
         except Exception as e:
-            error_type = "Unexpected error"
-            execution_result = SQL_UNKNOWN_ERROR
-            if isinstance(e, ProgrammingError):
-                error_type = "SQL syntax error"
-                execution_result = SQL_SYNTAX_ERROR
-            elif isinstance(e, DatabaseError):
-                error_type = "Database error"
-
-            log(f"{error_type}: {str(e)}")
-
-            # Add error to previous errors list
-            previous_errors = list(state.get("previous_sql_errors", []))
-            previous_errors.append({"sql": sql_query, "error": f"{error_type}: {str(e)}", "error_type": error_type})
+            err = classify_sql_exception(e)
+            log(f"{err.error_type}: {str(e)}")
 
             _audit_logger.log_sql_exec(
                 sql=sql_query,
                 dialect=dialect,
                 row_count=None,
                 duration_ms=(_time.time() - _start) * 1000.0,
-                status=execution_result,
+                status=err.code,
                 user_id=user_id,
                 error=str(e),
             )
-            return {
-                "sql_execution_result": execution_result,
+
+            previous_errors = list(state.get("previous_sql_errors", []))
+            attempt = len(previous_errors) + 1
+            previous_errors.append(
+                {
+                    "sql": sql_query,
+                    "error": f"{err.error_type}: {str(e)}",
+                    "error_type": err.error_type,
+                    "error_code": err.code,
+                    "error_class": type(err).__name__,
+                    "recovery_strategy": err.recovery_strategy.value,
+                    "attempt": attempt,
+                }
+            )
+
+            update: dict = {
+                "sql_execution_result": err.code,
                 "previous_sql_errors": previous_errors,
             }
+            # Branches that historically surfaced a message to the user keep doing so.
+            if err.code == SQL_EXECUTE_TIMEOUT:
+                error_result = (
+                    f"```sql\n{sql_query}\n```\nDatabase Connection Timeout: {str(e)}\n"
+                    "Please check database connectivity."
+                )
+                update["messages"] = [AIMessage(error_result)]
+            elif err.code == SQL_SECURITY_ERROR:
+                error_result = f"```sql\n{sql_query}\n```\n{err.error_type}: {str(e)}"
+                update["messages"] = [AIMessage(error_result)]
+            return update
 
     def regenerate_sql_node(state: SQLGraphState) -> dict:
         """Third node: Regenerates SQL based on previous errors.

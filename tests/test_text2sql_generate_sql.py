@@ -626,3 +626,77 @@ class TestText2SQLGenerateSQL:
         from openchatbi.constants import SQL_NA
 
         assert result["sql_execution_result"] == SQL_NA
+
+    # --- Task 9: enriched previous_sql_errors fields + empty-result default OFF ---
+
+    def test_execute_sql_node_syntax_error_enriched_fields(self, mock_llm, mock_catalog):
+        """Syntax errors carry new structured fields without changing legacy strings."""
+        _, execute_node, _, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
+        mock_engine = mock_catalog.get_sql_engine.return_value
+        mock_connection = mock_engine.connect.return_value.__enter__.return_value
+        from sqlalchemy.exc import ProgrammingError
+
+        mock_connection.execute.side_effect = ProgrammingError("", "", "Syntax error")
+        state = SQLGraphState(messages=[], sql="SELECT * FRON users")
+
+        result = execute_node(state)
+
+        from openchatbi.constants import SQL_SYNTAX_ERROR
+
+        entry = result["previous_sql_errors"][-1]
+        # Legacy human-readable contract preserved:
+        assert entry["error_type"] == "SQL syntax error"
+        assert entry["error"].startswith("SQL syntax error:")
+        # New structured fields:
+        assert entry["error_code"] == SQL_SYNTAX_ERROR
+        assert entry["error_class"] == "SQLSyntaxError"
+        assert entry["recovery_strategy"] == "retry"
+        assert entry["attempt"] == 1
+
+    def test_execute_sql_node_security_error_enriched_fields(self, mock_llm, mock_catalog):
+        """Security errors keep legacy strings and gain surface_to_user strategy."""
+        _, execute_node, _, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
+        state = SQLGraphState(messages=[], sql="SELECT * FROM users; DELETE FROM users")
+
+        result = execute_node(state)
+
+        from openchatbi.constants import SQL_SECURITY_ERROR
+
+        entry = result["previous_sql_errors"][-1]
+        assert entry["error_type"] == "SQL security error"
+        assert entry["error_code"] == SQL_SECURITY_ERROR
+        assert entry["error_class"] == "SQLSecurityError"
+        assert entry["recovery_strategy"] == "surface_to_user"
+
+    def test_execute_sql_node_attempt_increments_with_history(self, mock_llm, mock_catalog):
+        """attempt counts existing previous_sql_errors + 1."""
+        _, execute_node, _, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
+        mock_engine = mock_catalog.get_sql_engine.return_value
+        mock_connection = mock_engine.connect.return_value.__enter__.return_value
+        from sqlalchemy.exc import ProgrammingError
+
+        mock_connection.execute.side_effect = ProgrammingError("", "", "Syntax error")
+        state = SQLGraphState(
+            messages=[],
+            sql="SELECT * FRON users",
+            previous_sql_errors=[
+                {"sql": "x", "error": "SQL syntax error: x", "error_type": "SQL syntax error"}
+            ],
+        )
+
+        result = execute_node(state)
+        assert result["previous_sql_errors"][-1]["attempt"] == 2
+
+    def test_execute_sql_node_empty_result_default_success(self, mock_llm, mock_catalog):
+        """Zero-row results stay SQL_SUCCESS when the empty-result gate is off (default)."""
+        _, execute_node, _, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
+        mock_engine = mock_catalog.get_sql_engine.return_value
+        mock_connection = mock_engine.connect.return_value.__enter__.return_value
+        mock_result = mock_connection.execute.return_value
+        mock_result.fetchmany.return_value = []
+        mock_result.fetchall.return_value = []
+
+        state = SQLGraphState(messages=[], sql="SELECT * FROM users")
+        result = execute_node(state)
+
+        assert result["sql_execution_result"] == SQL_SUCCESS

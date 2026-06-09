@@ -104,6 +104,10 @@ class Config(BaseModel):
     enable_sql_result_limit: bool = True
     sql_result_limit: int = SQL_RESULT_LIMIT
 
+    # Treat zero-row results as a soft failure (EmptyResultError). Default OFF:
+    # empty results stay SQL_SUCCESS to preserve existing visualization-entry behavior.
+    enable_empty_result_error: bool = False
+
     # Context Management Configuration
     context_config: dict[str, Any] = {}
 

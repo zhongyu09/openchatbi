@@ -130,6 +130,9 @@ class Config(BaseModel):
     # Context Management Configuration
     context_config: dict[str, Any] = {}
 
+    # Memory & Pattern Learning Configuration (mirrors context_config; see memory_config.py)
+    memory_config: dict[str, Any] = {}
+
     # Observability Configuration (S1 — all sub-flags default OFF)
     observability: ObservabilityConfig = ObservabilityConfig()
 

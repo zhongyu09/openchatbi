@@ -101,3 +101,68 @@ def test_gold_trajectory_matches_driver_table():
         prompt = case["input"]["prompt"]
         driver_traj = [t for t in agent._TRAJECTORIES[prompt] if t is not None]
         assert driver_traj == case["gold"]["expected_tool_trajectory"], path
+
+
+def test_cassette_args_byte_match_driver():
+    """Regression: every cassette tool+args must byte-match what the driver emits.
+
+    This test iterates all cases/*.yaml files that declare a cassette, replays
+    each tool turn through _TOOL_ARGS_BUILDERS, and asserts exact equality with
+    the corresponding cassette line.  If the save_report builder uses q[:40]
+    instead of q[:40].rstrip() the test will fail on c19 and c20.
+    """
+    import json as _json
+
+    agent = _load_agent()
+    _evals_dir = os.path.join(os.path.dirname(__file__), "..", "..", "evals", "runledger")
+
+    case_paths = sorted(glob.glob(os.path.join(_CASES_DIR, "*.yaml")))
+    assert case_paths, "No case YAML files found"
+
+    cases_with_cassettes = 0
+    for path in case_paths:
+        with open(path) as fh:
+            case = yaml.safe_load(fh)
+        cassette_rel = case.get("cassette")
+        if not cassette_rel:
+            continue
+        cases_with_cassettes += 1
+
+        prompt = case["input"]["prompt"]
+        traj = agent._TRAJECTORIES.get(prompt)
+        if traj is None:
+            continue  # novel prompt — no driver table entry to compare
+
+        tool_calls_in_traj = [t for t in traj if t is not None]
+
+        cassette_path = os.path.join(_evals_dir, cassette_rel)
+        cassette_lines = []
+        with open(cassette_path) as cf:
+            for line in cf:
+                line = line.strip()
+                if line:
+                    cassette_lines.append(_json.loads(line))
+
+        for turn_idx, tool_name in enumerate(tool_calls_in_traj):
+            assert turn_idx < len(cassette_lines), (
+                f"{os.path.basename(path)} turn {turn_idx}: cassette has only "
+                f"{len(cassette_lines)} lines, expected >{turn_idx}"
+            )
+            cassette_line = cassette_lines[turn_idx]
+
+            # tool name must match
+            assert cassette_line["tool"] == tool_name, (
+                f"{os.path.basename(path)} turn {turn_idx}: "
+                f"cassette tool={cassette_line['tool']!r}, driver={tool_name!r}"
+            )
+
+            # args must byte-match (exact dict equality)
+            expected_args = agent._TOOL_ARGS_BUILDERS[tool_name](prompt)
+            assert cassette_line["args"] == expected_args, (
+                f"{os.path.basename(path)} turn {turn_idx} tool={tool_name!r}: "
+                f"args mismatch\n"
+                f"  driver : {_json.dumps(expected_args)}\n"
+                f"  cassette: {_json.dumps(cassette_line['args'])}"
+            )
+
+    assert cases_with_cassettes > 0, "No cases with cassettes found — check _CASES_DIR"

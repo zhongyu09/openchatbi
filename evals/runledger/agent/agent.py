@@ -227,7 +227,7 @@ _TOOL_ARGS_BUILDERS = {
     },
     "save_report": lambda q: {
         "content": f"Report for: {q}",
-        "title": q[:40] or "report",
+        "title": q[:40].rstrip() or "report",
         "file_format": "md",
     },
 }

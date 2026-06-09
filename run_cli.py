@@ -45,7 +45,6 @@ try:
 except ImportError:
     pass
 
-from openchatbi.observability.context import set_run_context
 from openchatbi.streaming import (
     AgentStreamProcessor,
     StreamInterrupt,
@@ -208,8 +207,6 @@ def _json_default(obj):
 def run_turn_sync(graph, stream_input, config, renderer: CliRenderer, stream: bool) -> bool:
     """Run one turn synchronously. Returns True if the graph is now interrupted."""
     processor = AgentStreamProcessor()
-    cfg = config.get("configurable", {}) if isinstance(config, dict) else {}
-    set_run_context(cfg.get("user_id"), cfg.get("thread_id"))
     if stream:
         for namespace, event_type, event_value in graph.stream(
             stream_input, config=config, stream_mode=["updates", "messages"], subgraphs=True
@@ -226,8 +223,6 @@ def run_turn_sync(graph, stream_input, config, renderer: CliRenderer, stream: bo
 async def run_turn_async(graph, stream_input, config, renderer: CliRenderer, stream: bool) -> bool:
     """Run one turn asynchronously. Returns True if the graph is now interrupted."""
     processor = AgentStreamProcessor()
-    cfg = config.get("configurable", {}) if isinstance(config, dict) else {}
-    set_run_context(cfg.get("user_id"), cfg.get("thread_id"))
     if stream:
         async for namespace, event_type, event_value in graph.astream(
             stream_input, config=config, stream_mode=["updates", "messages"], subgraphs=True

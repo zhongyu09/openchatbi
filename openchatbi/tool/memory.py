@@ -12,7 +12,7 @@ except ImportError:  # pragma: no cover
 # Make sure langgraph sqlite connector uses the same sqlite module.
 sys.modules["sqlite3"] = sqlite3
 
-from langchain_core.tools import StructuredTool
+from langchain_core.tools import StructuredTool, tool
 from langchain_core.language_models import BaseChatModel
 from langchain_openai.chat_models.base import BaseChatOpenAI
 from langgraph.store.sqlite import SqliteStore
@@ -24,6 +24,8 @@ from langmem import (
 )
 
 from openchatbi import config
+from openchatbi.memory_config import get_memory_config
+from openchatbi.memory_scoring import bump_on_access, composite_score
 
 try:
     from pydantic import BaseModel, ConfigDict
@@ -141,6 +143,48 @@ def get_memory_manager() -> Any:
     return memory_manager
 
 
+def _item_value(item: Any) -> dict:
+    """Extract the value dict from a langgraph Item or a plain dict result."""
+    if isinstance(item, dict):
+        return item.get("value", {}) or {}
+    return getattr(item, "value", {}) or {}
+
+
+def _item_base_score(item: Any) -> float:
+    """Extract the retrieval similarity/score from an Item or dict, defaulting to 1.0."""
+    if isinstance(item, dict):
+        return float(item.get("score", 1.0) or 1.0)
+    return float(getattr(item, "score", 1.0) or 1.0)
+
+
+def _rerank_search_results(items: list) -> list:
+    """Re-rank langmem search results by composite_score(similarity, importance, decay, use_count)."""
+    cfg = get_memory_config()
+
+    def _key(item: Any) -> float:
+        value = _item_value(item)
+        return composite_score(
+            _item_base_score(item),
+            float(value.get("importance", 1.0) or 1.0),
+            value.get("last_used", ""),
+            int(value.get("use_count", 0) or 0),
+            cfg,
+        )
+
+    return sorted(items, key=_key, reverse=True)
+
+
+def _stamp_memory_value(value: dict) -> dict:
+    """Stamp importance/last_used/use_count provenance on a memory write payload."""
+    from datetime import datetime, timezone
+
+    out = dict(value)
+    out.setdefault("importance", 1.0)
+    out.setdefault("use_count", 0)
+    out.setdefault("last_used", datetime.now(timezone.utc).isoformat())
+    return out
+
+
 class StructuredToolWithRequired(StructuredTool):
     def __init__(self, orig_tool: StructuredTool):
         name = getattr(orig_tool, "name", None)
@@ -184,7 +228,28 @@ def get_memory_tools(
     if isinstance(llm, BaseChatOpenAI):
         manage_memory_tool = StructuredToolWithRequired(manage_memory_tool)
         search_memory_tool = StructuredToolWithRequired(search_memory_tool)
-    return [manage_memory_tool, search_memory_tool]
+
+    mem_cfg = get_memory_config()
+    if not getattr(mem_cfg, "enable_memory_decay_rerank", False):
+        return [manage_memory_tool, search_memory_tool]
+
+    _raw_search = search_memory_tool
+    _raw_manage = manage_memory_tool
+
+    @tool("search_memory", description=getattr(_raw_search, "description", "Search long-term memory."))
+    def reranked_search_memory(query: str) -> Any:
+        """Search long-term memory, re-ranked by importance/recency decay."""
+        results = _raw_search.invoke({"query": query})
+        if isinstance(results, list):
+            return _rerank_search_results(results)
+        return results
+
+    @tool("manage_memory", description=getattr(_raw_manage, "description", "Create or update long-term memory."))
+    def stamped_manage_memory(content: str) -> Any:
+        """Create/update long-term memory, stamping importance/last_used/use_count provenance."""
+        return _raw_manage.invoke({"content": _stamp_memory_value({"text": content})})
+
+    return [stamped_manage_memory, reranked_search_memory]
 
 
 async def get_async_memory_tools(llm: BaseChatModel) -> list[StructuredTool]:

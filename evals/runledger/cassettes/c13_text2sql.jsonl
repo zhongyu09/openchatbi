@@ -1,0 +1,1 @@
+{"tool":"show_schema","args":{"reasoning":"Inspect schema","tables":["Explain the orders fact table"]},"ok":true,"result":{"schema":"# orders\n- order_id: bigint PRIMARY KEY\n- customer_id: bigint FK → customers.customer_id\n- product_id: bigint FK → products.product_id\n- order_date: date\n- order_total: numeric(12,2)\n- status: varchar(20)"}}

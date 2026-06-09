@@ -1,0 +1,1 @@
+{"tool":"text2sql","args":{"reasoning":"Generate SQL","context":"How many active users signed up last week?"},"ok":true,"result":{"sql":"SELECT COUNT(DISTINCT user_id) AS active_users FROM users WHERE signup_date >= CURRENT_DATE - INTERVAL '7' DAY","data":"active_users\n1247"}}

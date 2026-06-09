@@ -1,0 +1,1 @@
+{"tool":"text2sql","args":{"reasoning":"Generate SQL","context":"What is the total revenue by region?"},"ok":true,"result":{"sql":"SELECT region, SUM(revenue) AS total_revenue FROM orders GROUP BY region","data":"region,total_revenue\nNorth,1000\nSouth,800"}}

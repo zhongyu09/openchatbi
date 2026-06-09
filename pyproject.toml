@@ -104,6 +104,10 @@ test = [
     "langsmith[pytest]>=0.4.8,<1.0.0",
     "openevals>=0.1.0,<1.0.0",
 ]
+eval = [
+    "runledger>=0.1.1,<0.2.0",
+    "pyyaml>=6.0,<7.0",
+]
 observability = [
     "langfuse>=3,<4",
     "langsmith>=0.4.8,<1.0.0",

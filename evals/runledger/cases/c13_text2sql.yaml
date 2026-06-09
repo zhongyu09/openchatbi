@@ -1,0 +1,10 @@
+id: c13_text2sql
+category: text2sql
+description: "schema inspection for the orders fact table"
+input:
+  prompt: "Explain the orders fact table"
+cassette: cassettes/c13_text2sql.jsonl
+gold:
+  expected_sql: ""
+  expected_tool_trajectory: ["show_schema"]
+  expected_result_contains: ["orders"]

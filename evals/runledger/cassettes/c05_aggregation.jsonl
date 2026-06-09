@@ -1,0 +1,1 @@
+{"tool":"text2sql","args":{"reasoning":"Generate SQL","context":"Show daily active users for the last 30 days"},"ok":true,"result":{"sql":"SELECT event_date, COUNT(DISTINCT user_id) AS dau FROM events WHERE event_date >= CURRENT_DATE - INTERVAL '30' DAY GROUP BY event_date ORDER BY event_date","data":"event_date,dau\n2024-05-01,350\n2024-05-02,420"}}

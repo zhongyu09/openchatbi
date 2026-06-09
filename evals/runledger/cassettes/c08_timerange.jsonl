@@ -1,0 +1,1 @@
+{"tool":"text2sql","args":{"reasoning":"Generate SQL","context":"What were sales between 2024-01-01 and 2024-03-31?"},"ok":true,"result":{"sql":"SELECT SUM(order_total) AS sales FROM orders WHERE order_date >= DATE '2024-01-01' AND order_date <= DATE '2024-03-31'","data":"sales\n125000"}}

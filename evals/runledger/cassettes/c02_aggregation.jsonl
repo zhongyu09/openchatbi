@@ -1,0 +1,1 @@
+{"tool":"text2sql","args":{"reasoning":"Generate SQL","context":"How many orders were placed in 2024?"},"ok":true,"result":{"sql":"SELECT COUNT(*) FROM orders WHERE order_date >= DATE '2024-01-01' AND order_date < DATE '2025-01-01'","data":"count\n42"}}

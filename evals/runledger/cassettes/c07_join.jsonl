@@ -1,0 +1,1 @@
+{"tool":"text2sql","args":{"reasoning":"Generate SQL","context":"Which products have orders but no shipments?"},"ok":true,"result":{"sql":"SELECT p.product_id FROM products p JOIN orders o ON o.product_id = p.product_id LEFT JOIN shipments s ON s.order_id = o.order_id WHERE s.order_id IS NULL","data":"product_id\n101\n205\n310"}}

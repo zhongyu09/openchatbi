@@ -1,0 +1,1 @@
+{"tool":"text2sql","args":{"reasoning":"Generate SQL","context":"Compare this month's revenue to last month"},"ok":true,"result":{"sql":"SELECT date_trunc('month', order_date) AS month, SUM(revenue) AS revenue FROM orders WHERE order_date >= date_trunc('month', CURRENT_DATE) - INTERVAL '1' MONTH GROUP BY 1 ORDER BY 1","data":"month,revenue\n2024-05-01,45000\n2024-06-01,52000"}}

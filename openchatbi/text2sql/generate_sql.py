@@ -27,14 +27,16 @@ from openchatbi.observability.audit import AuditLogger
 from openchatbi.observability.context import get_run_context
 from openchatbi.prompts.system_prompt import get_text2sql_dialect_prompt_template
 from openchatbi.text2sql.data import sql_example_dicts, sql_example_retriever
+from openchatbi.text2sql.errors import (
+    RecoveryStrategy,
+    SQLSecurityError,
+    Text2SQLError,
+    classify_sql_exception,
+)
 from openchatbi.text2sql.visualization import VisualizationService
 from openchatbi.utils import get_text_from_content, log
 
 _audit_logger = AuditLogger()
-
-
-class SQLSecurityError(ValueError):
-    """Raised when generated SQL fails safety validation."""
 
 
 _COLUMN_PROMPT_TEMPLATE = """### Columns

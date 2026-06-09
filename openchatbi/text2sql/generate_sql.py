@@ -34,8 +34,10 @@ from openchatbi.text2sql.errors import (
     Text2SQLError,
     classify_sql_exception,
 )
+from openchatbi.text2sql.confidence import SimpleSQLEvaluator
 from openchatbi.text2sql.visualization import VisualizationService
 from openchatbi.utils import get_text_from_content, log
+from langgraph.types import interrupt
 
 _audit_logger = AuditLogger()
 
@@ -157,8 +159,8 @@ def _classify_operational_error(exc: OperationalError) -> str:
 
 def create_sql_nodes(
     llm: BaseChatModel, catalog: CatalogStore, dialect: str, visualization_mode: str | None = "rule"
-) -> tuple[Callable, Callable, Callable, Callable]:
-    """Creates the four SQL processing nodes for LangGraph.
+) -> tuple[Callable, Callable, Callable, Callable, Callable, Callable]:
+    """Creates the SQL processing nodes for LangGraph.
 
     Args:
         llm (BaseChatModel): The language model to use for SQL generation.
@@ -167,7 +169,7 @@ def create_sql_nodes(
         visualization_mode (str | None): Visualization analysis mode ("rule", "llm", or None to skip).
 
     Returns:
-        tuple: Four node functions (generate_sql_node, execute_sql_node, regenerate_sql_node, generate_visualization_node)
+        tuple: Six node functions (generate, execute, regenerate, visualization, score_sql, confidence_gate)
     """
 
     # Initialize visualization service based on configuration
@@ -563,7 +565,67 @@ def create_sql_nodes(
             log(f"Visualization generation error: {str(e)}")
             return {"visualization_dsl": {"error": f"Failed to generate visualization: {str(e)}"}}
 
-    return generate_sql_node, execute_sql_node, regenerate_sql_node, generate_visualization_node
+    def score_sql_node(state: SQLGraphState) -> dict:
+        """Score the executed SQL with the S2 confidence evaluator.
+
+        Only runs after a successful execution (post_exec mode); other
+        execution results are passed through unscored.
+        """
+        if state.get("sql_execution_result", "") != SQL_SUCCESS:
+            return {}
+        sql_query = state.get("sql", "").strip()
+        if not sql_query:
+            return {}
+        question = state.get("rewrite_question", "")
+        schema_info = state.get("schema_info", {})
+        data_sample = state.get("data", "")
+        try:
+            evaluator = SimpleSQLEvaluator(llm)
+            result = evaluator.evaluate(question, sql_query, schema_info, data_sample)
+        except Exception as e:  # never block the answer on evaluator failure
+            log(f"Confidence evaluation failed: {str(e)}")
+            return {}
+        log(f"SQL confidence={result.score:.2f} reasons={result.reasons}")
+        return {"sql_confidence": result.score, "confidence_reasons": list(result.reasons)}
+
+    def confidence_gate_node(state: SQLGraphState) -> dict:
+        """Interrupt for human review when confidence is below threshold.
+
+        Reuses the ask_human interrupt channel (buttons approve/reject/edit).
+        Returns the human decision (and edited SQL on 'edit').
+        """
+        try:
+            cfg = config.get()
+            enabled = bool(getattr(cfg, "enable_confidence_gate", False))
+            threshold = float(getattr(cfg, "sql_confidence_threshold", 0.7))
+        except ValueError:
+            enabled, threshold = False, 0.7
+        score = state.get("sql_confidence", 1.0)
+        if not enabled or score is None or score >= threshold:
+            return {"human_sql_decision": "approve"}
+        reasons = state.get("confidence_reasons", [])
+        feedback = interrupt(
+            {
+                "text": f"Low-confidence SQL ({score:.2f}). Reasons: {'; '.join(reasons) or 'n/a'}. Approve?",
+                "buttons": ["approve", "reject", "edit"],
+                "sql": state.get("sql", ""),
+            }
+        )
+        decision = feedback if isinstance(feedback, str) else (feedback or {}).get("decision", "approve")
+        if decision == "edit":
+            edited = feedback.get("sql") if isinstance(feedback, dict) else None
+            if edited:
+                return {"human_sql_decision": "edit", "sql": edited}
+        return {"human_sql_decision": decision}
+
+    return (
+        generate_sql_node,
+        execute_sql_node,
+        regenerate_sql_node,
+        generate_visualization_node,
+        score_sql_node,
+        confidence_gate_node,
+    )
 
 
 def should_execute_sql(state: SQLGraphState) -> str:

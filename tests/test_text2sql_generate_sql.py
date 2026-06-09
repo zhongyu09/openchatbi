@@ -63,7 +63,7 @@ class TestText2SQLGenerateSQL:
 
     def test_create_sql_nodes(self, mock_llm, mock_catalog):
         """Test creating SQL processing nodes."""
-        generate_node, execute_node, regenerate_node, visualization_node = create_sql_nodes(
+        generate_node, execute_node, regenerate_node, visualization_node, _, _ = create_sql_nodes(
             mock_llm, mock_catalog, "presto"
         )
 
@@ -74,7 +74,7 @@ class TestText2SQLGenerateSQL:
 
     def test_generate_sql_node_success(self, mock_llm, mock_catalog):
         """Test successful SQL generation."""
-        generate_node, _, _, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
+        generate_node, _, _, _, _, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
 
         state = SQLGraphState(
             messages=[],
@@ -94,7 +94,7 @@ class TestText2SQLGenerateSQL:
     def test_generate_sql_node_null_response_does_not_execute(self, mock_llm, mock_catalog):
         """Test NULL SQL generation is treated as no executable SQL."""
         mock_llm.invoke.return_value = AIMessage(content="NULL")
-        generate_node, _, _, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
+        generate_node, _, _, _, _, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
 
         state = SQLGraphState(
             messages=[],
@@ -112,7 +112,7 @@ class TestText2SQLGenerateSQL:
 
     def test_generate_sql_node_missing_rewrite_question(self, mock_llm, mock_catalog):
         """Test SQL generation with missing rewrite question."""
-        generate_node, _, _, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
+        generate_node, _, _, _, _, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
 
         state = SQLGraphState(
             messages=[],
@@ -125,7 +125,7 @@ class TestText2SQLGenerateSQL:
 
     def test_generate_sql_node_missing_tables(self, mock_llm, mock_catalog):
         """Test SQL generation with missing tables."""
-        generate_node, _, _, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
+        generate_node, _, _, _, _, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
 
         state = SQLGraphState(
             messages=[], question="Show all users", rewrite_question="Show all users", tables=[]  # Empty tables
@@ -136,7 +136,7 @@ class TestText2SQLGenerateSQL:
 
     def test_execute_sql_node_success(self, mock_llm, mock_catalog):
         """Test successful SQL execution."""
-        _, execute_node, _, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
+        _, execute_node, _, _, _, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
 
         state = SQLGraphState(messages=[], sql="SELECT * FROM users")
 
@@ -150,7 +150,7 @@ class TestText2SQLGenerateSQL:
 
     def test_execute_sql_node_applies_result_limit(self, mock_llm, mock_catalog):
         """Test SQL execution limits rows returned to the agent."""
-        _, execute_node, _, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
+        _, execute_node, _, _, _, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
 
         state = SQLGraphState(messages=[], sql="SELECT * FROM users")
 
@@ -170,7 +170,7 @@ class TestText2SQLGenerateSQL:
 
     def test_execute_sql_node_uses_configured_result_limit(self, mock_llm, mock_catalog):
         """Test SQL execution uses the configured row limit."""
-        _, execute_node, _, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
+        _, execute_node, _, _, _, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
         state = SQLGraphState(messages=[], sql="SELECT * FROM users")
 
         with patch("openchatbi.text2sql.generate_sql.config") as mock_config:
@@ -192,7 +192,7 @@ class TestText2SQLGenerateSQL:
 
     def test_execute_sql_node_can_disable_result_limit(self, mock_llm, mock_catalog):
         """Test SQL execution can opt out of the configured row limit."""
-        _, execute_node, _, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
+        _, execute_node, _, _, _, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
         state = SQLGraphState(messages=[], sql="SELECT * FROM users")
 
         with patch("openchatbi.text2sql.generate_sql.config") as mock_config:
@@ -215,7 +215,7 @@ class TestText2SQLGenerateSQL:
 
     def test_execute_sql_node_limit_disabled_invalid_prefix_returns_syntax_error(self, mock_llm, mock_catalog):
         """Test malformed SQL prefix returns syntax error when limit wrapper is disabled."""
-        _, execute_node, _, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
+        _, execute_node, _, _, _, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
         state = SQLGraphState(messages=[], sql="<SQL> SELECT * FROM users")
 
         with patch("openchatbi.text2sql.generate_sql.config") as mock_config:
@@ -239,7 +239,7 @@ class TestText2SQLGenerateSQL:
 
     def test_execute_sql_node_allows_with_select_query(self, mock_llm, mock_catalog):
         """Test SQL execution allows CTE-based SELECT queries."""
-        _, execute_node, _, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
+        _, execute_node, _, _, _, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
         state = SQLGraphState(
             messages=[],
             sql="WITH active_users AS (SELECT * FROM users WHERE active = 1) SELECT * FROM active_users",
@@ -256,7 +256,7 @@ class TestText2SQLGenerateSQL:
 
     def test_execute_sql_node_rejects_disallowed_operation_after_select(self, mock_llm, mock_catalog):
         """Test SQL execution rejects disallowed operations after a SELECT."""
-        _, execute_node, _, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
+        _, execute_node, _, _, _, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
         state = SQLGraphState(messages=[], sql="SELECT * FROM users; DELETE FROM users")
 
         result = execute_node(state)
@@ -293,7 +293,7 @@ class TestText2SQLGenerateSQL:
     )
     def test_execute_sql_node_rejects_disallowed_operations(self, mock_llm, mock_catalog, sql):
         """Test SQL execution rejects write and DDL operations."""
-        _, execute_node, _, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
+        _, execute_node, _, _, _, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
         state = SQLGraphState(messages=[], sql=sql)
 
         result = execute_node(state)
@@ -309,7 +309,7 @@ class TestText2SQLGenerateSQL:
 
     def test_execute_sql_node_allows_ddl_words_in_string_literals(self, mock_llm, mock_catalog):
         """Test operation words in string literals do not trigger object-level checks."""
-        _, execute_node, _, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
+        _, execute_node, _, _, _, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
         state = SQLGraphState(
             messages=[],
             sql="SELECT * FROM audit_logs WHERE action IN ('INSERT', 'UPDATE', 'DELETE', 'DROP', 'CREATE', 'ALTER')",
@@ -325,7 +325,7 @@ class TestText2SQLGenerateSQL:
 
     def test_execute_sql_node_allows_select_into_table(self, mock_llm, mock_catalog):
         """Test SELECT INTO table syntax is not blocked by the file export rule."""
-        _, execute_node, _, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
+        _, execute_node, _, _, _, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
         state = SQLGraphState(messages=[], sql="SELECT * INTO archived_users FROM users")
 
         result = execute_node(state)
@@ -338,7 +338,7 @@ class TestText2SQLGenerateSQL:
 
     def test_execute_sql_node_allows_operation_phrase_after_quote(self, mock_llm, mock_catalog):
         """Test operation phrases after quotes are not treated as SQL operations."""
-        _, execute_node, _, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
+        _, execute_node, _, _, _, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
         state = SQLGraphState(messages=[], sql="SELECT * FROM audit_logs WHERE action='ALTER TABLE'")
 
         result = execute_node(state)
@@ -351,7 +351,7 @@ class TestText2SQLGenerateSQL:
 
     def test_execute_sql_node_rejects_disallowed_operations_in_comments(self, mock_llm, mock_catalog):
         """Test dangerous keywords in comments are rejected by the safety check."""
-        _, execute_node, _, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
+        _, execute_node, _, _, _, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
         state = SQLGraphState(messages=[], sql="/* harmless */ SELECT * FROM users -- ignored DROP TABLE users")
 
         result = execute_node(state)
@@ -367,7 +367,7 @@ class TestText2SQLGenerateSQL:
 
     def test_execute_sql_node_rejects_dangerous_statement_after_comment(self, mock_llm, mock_catalog):
         """Test dangerous statements remain blocked when comments are present."""
-        _, execute_node, _, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
+        _, execute_node, _, _, _, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
         state = SQLGraphState(messages=[], sql="SELECT * FROM users /* comment */; DROP TABLE users")
 
         result = execute_node(state)
@@ -383,7 +383,7 @@ class TestText2SQLGenerateSQL:
 
     def test_execute_sql_node_empty_sql(self, mock_llm, mock_catalog):
         """Test SQL execution with empty SQL."""
-        _, execute_node, _, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
+        _, execute_node, _, _, _, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
 
         state = SQLGraphState(messages=[], sql="")  # Empty SQL
 
@@ -396,7 +396,7 @@ class TestText2SQLGenerateSQL:
 
     def test_execute_sql_node_syntax_error(self, mock_llm, mock_catalog):
         """Test SQL execution with syntax error."""
-        _, execute_node, _, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
+        _, execute_node, _, _, _, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
 
         # Mock SQL execution to raise syntax error
         mock_engine = mock_catalog.get_sql_engine.return_value
@@ -417,7 +417,7 @@ class TestText2SQLGenerateSQL:
 
     def test_regenerate_sql_node_success(self, mock_llm, mock_catalog):
         """Test successful SQL regeneration."""
-        _, _, regenerate_node, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
+        _, _, regenerate_node, _, _, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
 
         state = SQLGraphState(
             messages=[],
@@ -565,7 +565,7 @@ class TestText2SQLGenerateSQL:
 
     def test_sql_generation_with_examples(self, mock_llm, mock_catalog):
         """Test SQL generation with relevant examples."""
-        generate_node, _, _, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
+        generate_node, _, _, _, _, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
 
         state = SQLGraphState(
             messages=[],
@@ -591,7 +591,7 @@ class TestText2SQLGenerateSQL:
 
     def test_sql_error_handling_database_error(self, mock_llm, mock_catalog):
         """Test handling of database connection errors."""
-        _, execute_node, _, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
+        _, execute_node, _, _, _, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
 
         # Mock database connection error
         mock_engine = mock_catalog.get_sql_engine.return_value
@@ -611,7 +611,7 @@ class TestText2SQLGenerateSQL:
 
     def test_sql_error_handling_operational_syntax_error(self, mock_llm, mock_catalog):
         """Test handling of syntax errors wrapped by OperationalError."""
-        _, execute_node, _, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
+        _, execute_node, _, _, _, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
 
         mock_engine = mock_catalog.get_sql_engine.return_value
         mock_connection = mock_engine.connect.return_value.__enter__.return_value
@@ -634,7 +634,7 @@ class TestText2SQLGenerateSQL:
 
     def test_sql_error_handling_operational_timeout_takes_priority(self, mock_llm, mock_catalog):
         """Test timeout markers take precedence over syntax markers."""
-        _, execute_node, _, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
+        _, execute_node, _, _, _, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
 
         mock_engine = mock_catalog.get_sql_engine.return_value
         mock_connection = mock_engine.connect.return_value.__enter__.return_value
@@ -655,7 +655,7 @@ class TestText2SQLGenerateSQL:
 
     def test_sql_error_handling_operational_unknown_error(self, mock_llm, mock_catalog):
         """Test non-timeout, non-syntax operational errors are treated as unknown."""
-        _, execute_node, _, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
+        _, execute_node, _, _, _, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
 
         mock_engine = mock_catalog.get_sql_engine.return_value
         mock_connection = mock_engine.connect.return_value.__enter__.return_value
@@ -680,7 +680,7 @@ class TestText2SQLGenerateSQL:
         """Test regeneration with empty LLM response."""
         mock_llm.invoke.return_value = AIMessage(content="")
 
-        _, _, regenerate_node, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
+        _, _, regenerate_node, _, _, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
 
         state = SQLGraphState(
             messages=[],
@@ -706,7 +706,7 @@ class TestText2SQLGenerateSQL:
 
     def test_execute_sql_node_syntax_error_enriched_fields(self, mock_llm, mock_catalog):
         """Syntax errors carry new structured fields without changing legacy strings."""
-        _, execute_node, _, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
+        _, execute_node, _, _, _, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
         mock_engine = mock_catalog.get_sql_engine.return_value
         mock_connection = mock_engine.connect.return_value.__enter__.return_value
         from sqlalchemy.exc import ProgrammingError
@@ -730,7 +730,7 @@ class TestText2SQLGenerateSQL:
 
     def test_execute_sql_node_security_error_enriched_fields(self, mock_llm, mock_catalog):
         """Security errors keep legacy strings and gain surface_to_user strategy."""
-        _, execute_node, _, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
+        _, execute_node, _, _, _, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
         state = SQLGraphState(messages=[], sql="SELECT * FROM users; DELETE FROM users")
 
         result = execute_node(state)
@@ -745,7 +745,7 @@ class TestText2SQLGenerateSQL:
 
     def test_execute_sql_node_attempt_increments_with_history(self, mock_llm, mock_catalog):
         """attempt counts existing previous_sql_errors + 1."""
-        _, execute_node, _, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
+        _, execute_node, _, _, _, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
         mock_engine = mock_catalog.get_sql_engine.return_value
         mock_connection = mock_engine.connect.return_value.__enter__.return_value
         from sqlalchemy.exc import ProgrammingError
@@ -764,7 +764,7 @@ class TestText2SQLGenerateSQL:
 
     def test_execute_sql_node_empty_result_default_success(self, mock_llm, mock_catalog):
         """Zero-row results stay SQL_SUCCESS when the empty-result gate is off (default)."""
-        _, execute_node, _, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
+        _, execute_node, _, _, _, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
         mock_engine = mock_catalog.get_sql_engine.return_value
         mock_connection = mock_engine.connect.return_value.__enter__.return_value
         mock_result = mock_connection.execute.return_value
@@ -785,7 +785,7 @@ class TestText2SQLGenerateSQL:
             return AIMessage(content="SELECT 1")
 
         mock_llm.invoke.side_effect = _capture
-        _, _, regenerate_node, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
+        _, _, regenerate_node, _, _, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
 
         state = SQLGraphState(
             messages=[],

@@ -3,7 +3,7 @@
 Drives execution via the same mock_catalog.get_sql_engine pattern used in
 tests/test_text2sql_generate_sql.py (error-path tests). Uses the real
 create_sql_nodes(llm, catalog, dialect) signature and unpacks the returned
-4-tuple to get execute_sql_node at position 1.
+6-tuple to get execute_sql_node at position 1.
 """
 
 import logging
@@ -50,8 +50,8 @@ def test_execute_sql_node_audits_success(caplog) -> None:
     mock_llm = Mock()
     mock_catalog = _make_mock_catalog(rows=[("42",)])
 
-    # create_sql_nodes(llm, catalog, dialect) — real 4-tuple signature
-    _, execute_sql_node, _, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
+    # create_sql_nodes(llm, catalog, dialect) — real 6-tuple signature
+    _, execute_sql_node, _, _, _, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
 
     state = SQLGraphState(messages=[], sql="SELECT COUNT(*) FROM users WHERE id = 7")
 
@@ -81,7 +81,7 @@ def test_execute_sql_node_audits_operational_timeout(caplog) -> None:
         "", {}, Exception("connection timed out")
     )
 
-    _, execute_sql_node, _, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
+    _, execute_sql_node, _, _, _, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
     state = SQLGraphState(messages=[], sql="SELECT * FROM users")
 
     with caplog.at_level(logging.INFO, logger="openchatbi.audit"):

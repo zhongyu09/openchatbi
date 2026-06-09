@@ -55,3 +55,63 @@ class TestConfidenceStateFields:
         assert "sql_confidence" in SQLOutputState.__annotations__
         assert "confidence_reasons" in SQLOutputState.__annotations__
         assert "human_sql_decision" in SQLOutputState.__annotations__
+
+
+class TestCreateSqlNodesArity:
+    def test_create_sql_nodes_returns_six_callables(self):
+        from openchatbi.text2sql.generate_sql import create_sql_nodes
+
+        nodes = create_sql_nodes(Mock(), Mock(), "presto")
+        # Convention #2: Task 11 onward, create_sql_nodes is a 6-tuple.
+        assert len(nodes) == 6
+        assert all(callable(n) for n in nodes)
+
+
+class TestScoreSqlNode:
+    def _nodes(self, mock_llm, mock_catalog):
+        from openchatbi.text2sql.generate_sql import create_sql_nodes
+
+        return create_sql_nodes(mock_llm, mock_catalog, "presto")
+
+    @pytest.fixture
+    def mock_llm(self):
+        llm = Mock()
+        llm.invoke.return_value = AIMessage(content="SELECT * FROM users")
+        return llm
+
+    @pytest.fixture
+    def mock_catalog(self):
+        return Mock()
+
+    def test_score_sql_node_returns_confidence(self, mock_llm, mock_catalog):
+        nodes = self._nodes(mock_llm, mock_catalog)
+        # create_sql_nodes now returns 6 callables (was 4): + score_sql, confidence_gate
+        score_sql_node = nodes[4]
+        fake_result = ConfidenceResult(
+            score=0.35, reasons=["WHERE missing"], checks={"where": False}
+        )
+        with patch(
+            "openchatbi.text2sql.generate_sql.SimpleSQLEvaluator"
+        ) as MockEval:
+            MockEval.return_value.evaluate.return_value = fake_result
+            state = SQLGraphState(
+                messages=[],
+                rewrite_question="how many users",
+                sql="SELECT * FROM users",
+                schema_info={"columns": ["id"]},
+                data="id\n1\n",
+                sql_execution_result=SQL_SUCCESS,
+            )
+            out = score_sql_node(state)
+        assert out["sql_confidence"] == 0.35
+        assert out["confidence_reasons"] == ["WHERE missing"]
+
+    def test_score_sql_node_skips_on_failed_sql(self, mock_llm, mock_catalog):
+        nodes = self._nodes(mock_llm, mock_catalog)
+        score_sql_node = nodes[4]
+        state = SQLGraphState(
+            messages=[], rewrite_question="q", sql="SELECT 1", sql_execution_result="SQL_SYNTAX_ERROR"
+        )
+        out = score_sql_node(state)
+        # No confidence computed for non-success executions.
+        assert out == {}

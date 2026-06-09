@@ -570,12 +570,27 @@ def create_sql_nodes(
 
         Only runs after a successful execution (post_exec mode); other
         execution results are passed through unscored.
+
+        Cost-inert by default: skips the LLM evaluator entirely when neither
+        the confidence gate nor pattern memory is enabled.
         """
         if state.get("sql_execution_result", "") != SQL_SUCCESS:
             return {}
         sql_query = state.get("sql", "").strip()
         if not sql_query:
             return {}
+
+        # Short-circuit: no LLM call when neither consumer is enabled.
+        try:
+            cfg = config.get()
+            gate_on = getattr(cfg, "enable_confidence_gate", False)
+            # enable_pattern_memory is added later (Task 13); getattr keeps this forward-compatible
+            pattern_on = getattr(cfg, "enable_pattern_memory", False)
+        except ValueError:
+            gate_on = pattern_on = False
+        if not gate_on and not pattern_on:
+            return {}  # cost-inert: no scoring needed when neither consumer is enabled
+
         question = state.get("rewrite_question", "")
         schema_info = state.get("schema_info", {})
         data_sample = state.get("data", "")

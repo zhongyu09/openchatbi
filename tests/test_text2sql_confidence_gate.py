@@ -90,7 +90,14 @@ class TestScoreSqlNode:
         fake_result = ConfidenceResult(
             score=0.35, reasons=["WHERE missing"], checks={"where": False}
         )
-        with patch(
+        from openchatbi.config_loader import Config
+
+        cfg = Config(
+            default_llm=MagicMock(),
+            data_warehouse_config={"uri": "sqlite:///:memory:"},
+            enable_confidence_gate=True,
+        )
+        with patch("openchatbi.text2sql.generate_sql.config.get", return_value=cfg), patch(
             "openchatbi.text2sql.generate_sql.SimpleSQLEvaluator"
         ) as MockEval:
             MockEval.return_value.evaluate.return_value = fake_result
@@ -115,6 +122,56 @@ class TestScoreSqlNode:
         out = score_sql_node(state)
         # No confidence computed for non-success executions.
         assert out == {}
+
+    def test_score_sql_node_cost_inert_when_gate_and_pattern_both_off(self, mock_llm, mock_catalog):
+        """score_sql_node returns {} without calling SimpleSQLEvaluator when both gate and
+        pattern memory are disabled (the default path)."""
+        nodes = self._nodes(mock_llm, mock_catalog)
+        score_sql_node = nodes[4]
+        state = SQLGraphState(
+            messages=[],
+            rewrite_question="how many users",
+            sql="SELECT * FROM users",
+            schema_info={"columns": ["id"]},
+            data="id\n1\n",
+            sql_execution_result=SQL_SUCCESS,
+        )
+        with patch("openchatbi.text2sql.generate_sql.SimpleSQLEvaluator") as MockEval, patch(
+            "openchatbi.text2sql.generate_sql.config.get",
+            side_effect=ValueError,  # simulates no config context
+        ):
+            out = score_sql_node(state)
+        MockEval.assert_not_called()
+        assert out == {}
+        assert "sql_confidence" not in out
+
+    def test_score_sql_node_runs_when_only_gate_on(self, mock_llm, mock_catalog):
+        """Scoring still runs when enable_confidence_gate=True even if pattern_memory is off."""
+        nodes = self._nodes(mock_llm, mock_catalog)
+        score_sql_node = nodes[4]
+        fake_result = ConfidenceResult(score=0.9, reasons=[], checks={})
+        from openchatbi.config_loader import Config
+
+        cfg = Config(
+            default_llm=MagicMock(),
+            data_warehouse_config={"uri": "sqlite:///:memory:"},
+            enable_confidence_gate=True,
+        )
+        state = SQLGraphState(
+            messages=[],
+            rewrite_question="q",
+            sql="SELECT 1",
+            schema_info={},
+            data="",
+            sql_execution_result=SQL_SUCCESS,
+        )
+        with patch("openchatbi.text2sql.generate_sql.config.get", return_value=cfg), patch(
+            "openchatbi.text2sql.generate_sql.SimpleSQLEvaluator"
+        ) as MockEval:
+            MockEval.return_value.evaluate.return_value = fake_result
+            out = score_sql_node(state)
+        MockEval.assert_called_once()
+        assert out.get("sql_confidence") == 0.9
 
 
 class TestRouteAfterConfidence:

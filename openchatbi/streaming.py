@@ -21,6 +21,7 @@ from typing import Any
 
 from langchain_core.messages import AIMessage, AIMessageChunk, ToolMessage
 
+from openchatbi.observability.pricing import estimate_cost
 from openchatbi.utils import get_text_from_message_chunk
 
 # Node names that belong to the text2sql SQL subgraph. Their intermediate token
@@ -78,7 +79,16 @@ class StreamInterrupt:
     buttons: list[Any] = field(default_factory=list)
 
 
-StreamEvent = StreamToken | StreamStep | StreamInterrupt
+@dataclass
+class StreamUsage:
+    """Per-turn token / cost rollup, surfaced once at the end of a turn."""
+
+    turn_tokens: int
+    turn_cost_usd: float
+    by_model: dict[str, int] = field(default_factory=dict)
+
+
+StreamEvent = StreamToken | StreamStep | StreamInterrupt | StreamUsage
 
 
 def format_namespace_label(namespace: tuple) -> str:
@@ -165,6 +175,7 @@ class AgentStreamProcessor:
     def __init__(self) -> None:
         self._data_csv: Any = None
         self.final_response: str = ""
+        self.turn_usage: StreamUsage = StreamUsage(turn_tokens=0, turn_cost_usd=0.0, by_model={})
 
     def process(self, namespace: tuple, event_type: str, event_value: Any) -> list[StreamEvent]:
         """Parse a single astream triple into zero or more stream events."""
@@ -175,11 +186,34 @@ class AgentStreamProcessor:
             return list(self._process_message(namespace, depth, layer_label, event_value))
         return list(self._process_updates(depth, layer_label, event_value))
 
+    def emit_turn_usage(self) -> StreamUsage | None:
+        """Return the accumulated per-turn usage, or None if nothing was recorded."""
+        if self.turn_usage.turn_tokens <= 0:
+            return None
+        return self.turn_usage
+
     def _process_message(
         self, namespace: tuple, depth: int, layer_label: str, event_value: Any
     ) -> Iterator[StreamEvent]:
         chunk, metadata = event_value[0], event_value[1]
         node = metadata.get("langgraph_node")
+
+        # Fold usage_metadata from this chunk into the per-turn accumulator
+        # before the early-return guard so that the final (often empty-text)
+        # chunk is still captured.
+        usage = getattr(chunk, "usage_metadata", None)
+        if usage:
+            total = int(usage.get("total_tokens", 0) or 0)
+            model_name = (getattr(chunk, "response_metadata", None) or {}).get("model_name", "") or "unknown"
+            if total:
+                self.turn_usage.turn_tokens += total
+                self.turn_usage.by_model[model_name] = self.turn_usage.by_model.get(model_name, 0) + total
+                self.turn_usage.turn_cost_usd += estimate_cost(
+                    model_name,
+                    int(usage.get("input_tokens", 0) or 0),
+                    int(usage.get("output_tokens", 0) or 0),
+                )
+
         token = get_text_from_message_chunk(chunk) if isinstance(chunk, AIMessageChunk | AIMessage) else ""
         if not token:
             return

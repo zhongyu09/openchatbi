@@ -50,6 +50,7 @@ from openchatbi.streaming import (
     StreamInterrupt,
     StreamStep,
     StreamToken,
+    StreamUsage,
     extract_final_answer,
 )
 
@@ -133,6 +134,13 @@ class CliRenderer:
                 "is_final": event.is_final,
                 "text": event.text,
             }
+        elif isinstance(event, StreamUsage):
+            payload = {
+                "type": "usage",
+                "turn_tokens": event.turn_tokens,
+                "turn_cost_usd": event.turn_cost_usd,
+                "by_model": event.by_model,
+            }
         else:  # StreamInterrupt
             payload = {"type": "interrupt", "text": event.text, "buttons": event.buttons}
         print(json.dumps(payload, ensure_ascii=False, default=_json_default), flush=True)
@@ -168,6 +176,12 @@ class CliRenderer:
                 indent = "  " * event.level
                 tag = self._c(f"↳ [{event.label}] ", _Color.DIM)
                 print(f"\n{indent}{tag}{event.text}")
+
+        elif isinstance(event, StreamUsage):
+            self._end_token_line()
+            self._token_layer = None
+            line = self._c(f"Turn: {event.turn_tokens} tokens (~${event.turn_cost_usd:.4f})", _Color.DIM)
+            print(f"\n{line}")
 
         elif isinstance(event, StreamInterrupt):
             self._end_token_line()
@@ -242,6 +256,11 @@ def _handle_state(state, processor: AgentStreamProcessor, renderer: CliRenderer)
         value = state.interrupts[0].value or {}
         renderer.render(StreamInterrupt(text=value.get("text", ""), buttons=value.get("buttons", []) or []))
         return True
+
+    # Emit per-turn token/cost rollup before the final answer.
+    usage = processor.emit_turn_usage()
+    if usage is not None:
+        renderer.render(usage)
 
     final = extract_final_answer(processor.final_response)
     if not final:

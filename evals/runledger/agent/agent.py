@@ -14,7 +14,9 @@ import openchatbi.agent_graph as agent_graph
 from openchatbi import config
 
 _CALL_COUNTER = count(1)
-_ORIG_PRINT = builtins.print
+
+
+_REAL_PRINT = builtins.print  # captured at import time, before any patching
 
 
 def _safe_print(*args: Any, **kwargs: Any) -> None:
@@ -22,10 +24,11 @@ def _safe_print(*args: Any, **kwargs: Any) -> None:
     target = kwargs.get("file")
     if target is None or target is sys.stdout:
         return
-    _ORIG_PRINT(*args, **kwargs)
+    _REAL_PRINT(*args, **kwargs)
 
 
-builtins.print = _safe_print
+# NOTE: builtins.print is patched inside main() only, not at import time.
+# Patching at module level breaks test isolation (capsys sees empty stdout).
 
 
 class JsonlChannel:
@@ -284,6 +287,11 @@ def _bootstrap_config() -> None:
 
 
 def main() -> int:
+    # Suppress stdout prints inside main() so JSONL output stays clean.
+    # This is intentionally scoped to main() and NOT done at import time so that
+    # importing this module in tests does not pollute capsys/stdout capture.
+    builtins.print = _safe_print
+
     channel = JsonlChannel(sys.stdin)
     message = channel.read()
     if not message or message.get("type") != "task_start":

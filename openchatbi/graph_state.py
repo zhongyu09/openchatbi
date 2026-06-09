@@ -67,3 +67,4 @@ class SQLOutputState(MessagesState):
     schema_info: dict[str, Any]  # Data schema analysis results
     data: str  # CSV data for display
     visualization_dsl: dict[str, Any]
+    recovery_strategy: str  # Last error's recovery strategy (empty if none); see RecoveryStrategy

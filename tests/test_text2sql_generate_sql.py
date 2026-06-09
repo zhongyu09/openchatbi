@@ -467,6 +467,81 @@ class TestText2SQLGenerateSQL:
         result = _should_generate_visualization_or_retry(state)
         assert result == "end"
 
+    # --- Strategy-driven routing tests (Task 10) ---
+
+    def test_routing_surface_to_user_ends(self):
+        """recovery_strategy=surface_to_user ends instead of retrying."""
+        from openchatbi.constants import SQL_SECURITY_ERROR
+
+        state = SQLGraphState(
+            sql_execution_result=SQL_SECURITY_ERROR,
+            sql_retry_count=0,
+            previous_sql_errors=[{"recovery_strategy": "surface_to_user"}],
+        )
+        assert _should_generate_visualization_or_retry(state) == "end"
+
+    def test_routing_abort_ends(self):
+        """recovery_strategy=abort ends (timeout case, convention #7: use SYMBOL)."""
+        from openchatbi.constants import SQL_EXECUTE_TIMEOUT
+
+        state = SQLGraphState(
+            sql_execution_result=SQL_EXECUTE_TIMEOUT,
+            sql_retry_count=0,
+            previous_sql_errors=[{"recovery_strategy": "abort"}],
+        )
+        assert _should_generate_visualization_or_retry(state) == "end"
+
+    def test_routing_retry_regenerates(self):
+        """recovery_strategy=retry routes to regenerate when under the retry cap."""
+        from openchatbi.constants import SQL_SYNTAX_ERROR
+
+        state = SQLGraphState(
+            sql_execution_result=SQL_SYNTAX_ERROR,
+            sql_retry_count=1,
+            previous_sql_errors=[{"recovery_strategy": "retry"}],
+        )
+        assert _should_generate_visualization_or_retry(state) == "regenerate_sql"
+
+    def test_routing_retry_with_new_table_treated_as_retry(self):
+        """RETRY_WITH_NEW_TABLE is treated as RETRY (phase-2 edge not wired yet)."""
+        from openchatbi.constants import SQL_NA
+
+        state = SQLGraphState(
+            sql_execution_result=SQL_NA,
+            sql_retry_count=1,
+            previous_sql_errors=[{"recovery_strategy": "retry_with_new_table"}],
+        )
+        assert _should_generate_visualization_or_retry(state) == "regenerate_sql"
+
+    def test_routing_retry_respects_config_max(self):
+        """sql_max_retries comes from Config, not a hardcoded 3."""
+        from openchatbi.constants import SQL_SYNTAX_ERROR
+
+        state = SQLGraphState(
+            sql_execution_result=SQL_SYNTAX_ERROR,
+            sql_retry_count=1,
+            previous_sql_errors=[{"recovery_strategy": "retry"}],
+        )
+        with patch("openchatbi.text2sql.sql_graph.config") as mock_cfg:
+            mock_cfg.get.return_value = SimpleNamespace(sql_max_retries=1, retry_on_timeout=False)
+            assert _should_generate_visualization_or_retry(state) == "end"
+
+    def test_routing_no_strategy_falls_back_to_legacy(self):
+        """Without recovery_strategy, legacy code-based routing still applies."""
+        state = SQLGraphState(sql_execution_result="SYNTAX_ERROR", sql_retry_count=1)
+        assert _should_generate_visualization_or_retry(state) == "regenerate_sql"
+
+    def test_routing_timeout_symbol_routes_to_end_via_abort(self):
+        """Convention #7: SQL_EXECUTE_TIMEOUT symbol (value='SQL_CHECK_TIMEOUT') with abort → end."""
+        from openchatbi.constants import SQL_EXECUTE_TIMEOUT
+
+        state = SQLGraphState(
+            sql_execution_result=SQL_EXECUTE_TIMEOUT,
+            sql_retry_count=0,
+            previous_sql_errors=[{"recovery_strategy": "abort"}],
+        )
+        assert _should_generate_visualization_or_retry(state) == "end"
+
     def test_should_execute_sql_with_sql(self):
         """Test execute decision with SQL present."""
         state = SQLGraphState(sql="SELECT * FROM users")
@@ -700,3 +775,33 @@ class TestText2SQLGenerateSQL:
         result = execute_node(state)
 
         assert result["sql_execution_result"] == SQL_SUCCESS
+
+    def test_regenerate_attempt_includes_error_type_hint(self, mock_llm, mock_catalog):
+        """Cumulative regenerate prompt annotates each Attempt with its error_type."""
+        captured = {}
+
+        def _capture(messages):
+            captured["prompt"] = messages[-1].content
+            return AIMessage(content="SELECT 1")
+
+        mock_llm.invoke.side_effect = _capture
+        _, _, regenerate_node, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
+
+        state = SQLGraphState(
+            messages=[],
+            rewrite_question="Show all users",
+            tables=[{"table": "users", "columns": []}],
+            previous_sql_errors=[
+                {
+                    "sql": "SELECT * FRON users",
+                    "error": "SQL syntax error: bad",
+                    "error_type": "SQL syntax error",
+                }
+            ],
+            sql_retry_count=1,
+        )
+        with patch("openchatbi.text2sql.generate_sql.sql_example_retriever") as mock_retriever:
+            mock_retriever.invoke.return_value = []
+            regenerate_node(state)
+
+        assert "Error type: SQL syntax error" in captured["prompt"]

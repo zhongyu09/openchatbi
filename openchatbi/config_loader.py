@@ -108,6 +108,15 @@ class Config(BaseModel):
     # empty results stay SQL_SUCCESS to preserve existing visualization-entry behavior.
     enable_empty_result_error: bool = False
 
+    # SQL Retry / Recovery Configuration
+    sql_max_retries: int = 3
+    # When True, timeout/connection failures may be retried; default OFF keeps
+    # the existing "timeout ends immediately" behavior.
+    retry_on_timeout: bool = False
+    # Optional per-error-class strategy overrides, e.g. {"SQLSyntaxError": "retry"}.
+    # Reserved for phase-2 (e.g. enabling RETRY_WITH_NEW_TABLE); default empty = no override.
+    retry_strategy_overrides: dict[str, Any] = {}
+
     # Context Management Configuration
     context_config: dict[str, Any] = {}
 

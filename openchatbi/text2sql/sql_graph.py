@@ -11,6 +11,7 @@ from langgraph.types import Checkpointer, interrupt
 from openchatbi import config
 from openchatbi.catalog import CatalogStore
 from openchatbi.constants import SQL_EXECUTE_TIMEOUT, SQL_SUCCESS
+from openchatbi.text2sql.errors import RecoveryStrategy
 from openchatbi.graph_state import InputState, SQLGraphState, SQLOutputState
 from openchatbi.llm.llm import get_llm, get_text2sql_llm
 from openchatbi.text2sql.extraction import information_extraction, information_extraction_conditional_edges
@@ -37,25 +38,54 @@ def ask_human(state):
     return {"messages": tool_message, "user_input": user_feedback}
 
 
+def _get_sql_retry_config() -> tuple[int, bool]:
+    """Read retry settings from Config, defaulting to legacy values."""
+    try:
+        cfg = config.get()
+    except ValueError:
+        return 3, False
+    max_retries = getattr(cfg, "sql_max_retries", 3)
+    if not isinstance(max_retries, int) or max_retries < 0:
+        max_retries = 3
+    return max_retries, bool(getattr(cfg, "retry_on_timeout", False))
+
+
 def _should_generate_visualization_or_retry(state: SQLGraphState) -> str:
     """Conditional edge function to determine next action after execute_sql.
+
+    Routing is strategy-driven: the last classified error's recovery_strategy
+    decides whether to regenerate or end. Falls back to legacy code-based routing
+    when no recovery_strategy is present (e.g. timeouts, untouched states).
 
     Args:
         state (SQLGraphState): Current state
 
     Returns:
-        str: Next node name - "generate_visualization" if SQL succeeded, "regenerate_sql" if retry needed, "end" if done
+        str: "generate_visualization" on success, "regenerate_sql" to retry, "end" otherwise.
     """
     execution_result = state.get("sql_execution_result", "")
     retry_count = state.get("sql_retry_count", 0)
-    max_retries = 3
+    max_retries, retry_on_timeout = _get_sql_retry_config()
 
     if execution_result == SQL_SUCCESS:
         return "generate_visualization"
-    elif retry_count < max_retries and execution_result != SQL_EXECUTE_TIMEOUT:
-        return "regenerate_sql"
-    else:
+
+    previous_errors = state.get("previous_sql_errors", [])
+    strategy = previous_errors[-1].get("recovery_strategy") if previous_errors else None
+
+    if strategy is not None:
+        if strategy in (RecoveryStrategy.SURFACE_TO_USER.value, RecoveryStrategy.ABORT.value):
+            return "end"
+        if strategy in (RecoveryStrategy.RETRY.value, RecoveryStrategy.RETRY_WITH_NEW_TABLE.value):
+            return "regenerate_sql" if retry_count < max_retries else "end"
         return "end"
+
+    # Legacy fallback: no structured strategy recorded.
+    if retry_count < max_retries and (
+        execution_result != SQL_EXECUTE_TIMEOUT or retry_on_timeout
+    ):
+        return "regenerate_sql"
+    return "end"
 
 
 def build_sql_graph(

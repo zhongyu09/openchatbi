@@ -489,7 +489,12 @@ def create_sql_nodes(
         if previous_errors:
             user_prompt += "\n\nPrevious attempts failed with errors:"
             for i, error_info in enumerate(previous_errors, 1):
-                user_prompt += f"\n\nAttempt {i}:\nSQL: {error_info['sql']}\nError: {error_info['error']}"
+                error_type_hint = error_info.get("error_type", "")
+                hint_line = f"\nError type: {error_type_hint}" if error_type_hint else ""
+                user_prompt += (
+                    f"\n\nAttempt {i}:\nSQL: {error_info['sql']}"
+                    f"{hint_line}\nError: {error_info['error']}"
+                )
             user_prompt += "\n\nPlease analyze the errors above and generate a corrected SQL query."
 
         messages = [SystemMessage(system_prompt)] + list(state["messages"]) + [HumanMessage(user_prompt)]
@@ -498,6 +503,7 @@ def create_sql_nodes(
         response_content = get_text_from_content(response.content)
         sql_query = response_content.replace("```sql", "").replace("```", "").strip()
 
+        last_strategy = previous_errors[-1].get("recovery_strategy", "") if previous_errors else ""
         if not sql_query:
             log(f"Generated SQL query is empty. LLM output: {response.content}")
             error_result = f"Failed to regenerate valid SQL after {retry_count} attempts."
@@ -506,9 +512,15 @@ def create_sql_nodes(
                 "sql": "",
                 "sql_retry_count": retry_count,
                 "sql_execution_result": SQL_NA,
+                "recovery_strategy": last_strategy,
             }
 
-        return {"sql": sql_query, "sql_retry_count": retry_count, "sql_execution_result": ""}
+        return {
+            "sql": sql_query,
+            "sql_retry_count": retry_count,
+            "sql_execution_result": "",
+            "recovery_strategy": last_strategy,
+        }
 
     def generate_visualization_node(state: SQLGraphState) -> dict:
         """Fourth node: Generates visualization DSL based on successful SQL execution result.

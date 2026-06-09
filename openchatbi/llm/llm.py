@@ -6,6 +6,8 @@ from langchain_core.runnables.base import RunnableBinding
 from langchain_core.tools import StructuredTool
 
 from openchatbi import config
+from openchatbi.observability.metrics import LLMCallRecord, record_llm_call
+from openchatbi.observability.pricing import estimate_cost
 from openchatbi.tool.ask_human import AskHuman
 from openchatbi.utils import log
 
@@ -80,7 +82,8 @@ def _invalid_tool_names(valid_tools, tool_calls) -> str:
 
 
 def call_llm_chat_model_with_retry(
-    chat_model: BaseChatModel, messages, streaming_tokens=False, bound_tools=None, parallel_tool_call=False
+    chat_model: BaseChatModel, messages, streaming_tokens=False, bound_tools=None, parallel_tool_call=False,
+    metadata: dict | None = None,
 ):
     """Calls a language model chat endpoint with retry logic.
 
@@ -119,8 +122,31 @@ def call_llm_chat_model_with_retry(
         try:
             log(f"Call LLM chat model with retry {retry} times.")
             response = chat_model.invoke(new_messages, config={"metadata": {"streaming_tokens": streaming_tokens}})
-            run_time = int(time.time() - start_time)
+            elapsed = time.time() - start_time
+            run_time = int(elapsed)
             log(f"LLM response after {run_time} seconds.")
+            try:
+                usage = getattr(response, "usage_metadata", None) or {}
+                in_tok = int(usage.get("input_tokens", 0) or 0)
+                out_tok = int(usage.get("output_tokens", 0) or 0)
+                total_tok = int(usage.get("total_tokens", in_tok + out_tok) or (in_tok + out_tok))
+                model_name = (getattr(response, "response_metadata", None) or {}).get("model_name", "") or ""
+                meta = metadata or {}
+                record_llm_call(
+                    LLMCallRecord(
+                        model=model_name,
+                        input_tokens=in_tok,
+                        output_tokens=out_tok,
+                        total_tokens=total_tok,
+                        cost_usd=estimate_cost(model_name, in_tok, out_tok),
+                        latency_s=elapsed,
+                        node=meta.get("node_name"),
+                        layer=meta.get("layer"),
+                        status="success",
+                    )
+                )
+            except Exception as exc:  # pragma: no cover - never break the call path
+                log(f"LLM usage capture failed: {exc!r}")
         except Exception:
             run_time = int(time.time() - start_time)
             retry += 1

@@ -762,6 +762,42 @@ class FileSystemCatalogStore(CatalogStore):
             logger.error(traceback.format_stack())
             return False
 
+    def append_sql_example(
+        self,
+        question: str,
+        sql: str,
+        tables: list[str],
+        source: str = "golden",
+        database: str | None = None,
+    ) -> bool:
+        self._validate_sql_examples([{"question": question, "answer": sql}])
+        try:
+            target_table = tables[0] if tables else ""
+            full_table_name, db_name, table_name = split_db_table_name(target_table, database)
+
+            sql_examples = self._load_yaml_file(self.sql_example_file)
+            if db_name not in sql_examples:
+                sql_examples[db_name] = {}
+            existing = sql_examples[db_name].get(table_name, "")
+
+            # De-dup on the question text (the "Q: ..." line) — append only if new.
+            if f"Q: {question}\n" in existing:
+                logger.info(f"Golden SQL example already present for table {full_table_name}; skipping append.")
+                return True
+
+            new_block = f"Q: {question}\nA: {sql}\n"
+            sql_examples[db_name][table_name] = (existing + "\n\n" + new_block).strip() if existing else new_block
+
+            success = self._save_yaml_file(self.sql_example_file, sql_examples)
+            if success:
+                logger.info(f"Appended {source} SQL example for table {full_table_name}")
+                self._sql_example_cache = sql_examples
+            return success
+        except Exception as e:
+            logger.error(f"Unexpected error when appending SQL example: {e}")
+            logger.error(traceback.format_stack())
+            return False
+
     def save_table_selection_examples(self, examples: list[tuple[str, list[str]]]) -> bool:
         example_data = []
         for example in examples:

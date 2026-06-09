@@ -26,7 +26,7 @@ from openchatbi.graph_state import SQLGraphState
 from openchatbi.observability.audit import AuditLogger
 from openchatbi.observability.context import get_run_context
 from openchatbi.prompts.system_prompt import get_text2sql_dialect_prompt_template
-from openchatbi.text2sql.data import sql_example_dicts, sql_example_retriever
+from openchatbi.text2sql.data import get_learned_sql_store, sql_example_dicts, sql_example_retriever
 from openchatbi.text2sql.errors import (
     EmptyResultError,
     RecoveryStrategy,
@@ -603,6 +603,32 @@ def create_sql_nodes(
         log(f"SQL confidence={result.score:.2f} reasons={result.reasons}")
         return {"sql_confidence": result.score, "confidence_reasons": list(result.reasons)}
 
+    def _capture_golden_sql(state: SQLGraphState) -> None:
+        """Dual-write an approved SQL: S3 vector store + durable YAML (mandatory)."""
+        try:
+            cfg = config.get()
+        except ValueError:
+            return
+        if not bool(getattr(cfg, "enable_golden_sql", False)):
+            return
+        question = state.get("rewrite_question", "")
+        sql_query = state.get("sql", "").strip()
+        tables = [d["table"] for d in state.get("tables", []) if isinstance(d, dict) and d.get("table")]
+        if not question or not sql_query:
+            return
+        # 1) runtime vector store (S3) — under the store's own lock.
+        try:
+            store = get_learned_sql_store()
+            if store is not None:
+                store.add_golden_sql(question, sql_query, tables)
+        except Exception as e:
+            log(f"Golden SQL vector write failed: {str(e)}")
+        # 2) durable YAML append (de-dup, not overwrite) — both writes are mandatory.
+        try:
+            cfg.catalog_store.append_sql_example(question, sql_query, tables, source="golden")
+        except Exception as e:
+            log(f"Golden SQL durable write failed: {str(e)}")
+
     def confidence_gate_node(state: SQLGraphState) -> dict:
         """Interrupt for human review when confidence is below threshold.
 
@@ -617,6 +643,7 @@ def create_sql_nodes(
             enabled, threshold = False, 0.7
         score = state.get("sql_confidence", 1.0)
         if not enabled or score is None or score >= threshold:
+            _capture_golden_sql(state)
             return {"human_sql_decision": "approve"}
         reasons = state.get("confidence_reasons", [])
         feedback = interrupt(
@@ -631,6 +658,8 @@ def create_sql_nodes(
             edited = feedback.get("sql") if isinstance(feedback, dict) else None
             if edited:
                 return {"human_sql_decision": "edit", "sql": edited}
+        if decision == "approve":
+            _capture_golden_sql(state)
         return {"human_sql_decision": decision}
 
     return (

@@ -114,6 +114,10 @@ class Config(BaseModel):
     # empty results stay SQL_SUCCESS to preserve existing visualization-entry behavior.
     enable_empty_result_error: bool = False
 
+    # HITL Golden-SQL Capture Configuration (default OFF for zero-regression)
+    enable_golden_sql: bool = False
+    golden_sql_namespace: str = "global"
+
     # SQL Retry / Recovery Configuration
     sql_max_retries: int = 3
     # When True, timeout/connection failures may be retried; default OFF keeps

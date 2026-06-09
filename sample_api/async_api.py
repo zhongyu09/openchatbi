@@ -13,6 +13,7 @@ from pydantic import BaseModel
 
 from openchatbi import config
 from openchatbi.agent_graph import build_agent_graph_async
+from openchatbi.observability.context import set_run_context
 from openchatbi.streaming import (
     AgentStreamProcessor,
     StreamInterrupt,
@@ -121,6 +122,7 @@ async def chat_stream(req: UserRequest):
 
     stream_input = {"messages": [("user", req.input)]}
     config = {"configurable": {"thread_id": user_session_id, "user_id": user_id}}
+    set_run_context(user_id, user_session_id)
 
     try:
         graph = await get_or_build_graph(provider)

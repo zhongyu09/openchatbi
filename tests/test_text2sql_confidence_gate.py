@@ -34,3 +34,24 @@ class TestConfidenceGateConfig:
         assert cfg.enable_confidence_gate is True
         assert cfg.sql_confidence_threshold == 0.5
         assert cfg.confidence_gate_mode == "pre_exec"
+
+
+class TestConfidenceStateFields:
+    def test_sqlgraphstate_accepts_confidence_fields(self):
+        state = SQLGraphState(
+            messages=[HumanMessage(content="q")],
+            sql="SELECT 1",
+            sql_confidence=0.42,
+            confidence_reasons=["WHERE clause missing filter"],
+            human_sql_decision="approve",
+        )
+        assert state["sql_confidence"] == 0.42
+        assert state["confidence_reasons"] == ["WHERE clause missing filter"]
+        assert state["human_sql_decision"] == "approve"
+
+    def test_sqloutputstate_exposes_confidence_fields(self):
+        # SQLOutputState is the subgraph output schema; fields absent here are
+        # filtered out at the subgraph boundary and never reach the parent graph.
+        assert "sql_confidence" in SQLOutputState.__annotations__
+        assert "confidence_reasons" in SQLOutputState.__annotations__
+        assert "human_sql_decision" in SQLOutputState.__annotations__

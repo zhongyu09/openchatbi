@@ -246,8 +246,8 @@ def get_memory_tools(
 
     @tool("manage_memory", description=getattr(_raw_manage, "description", "Create or update long-term memory."))
     def stamped_manage_memory(content: str) -> Any:
-        """Create/update long-term memory, stamping importance/last_used/use_count provenance."""
-        return _raw_manage.invoke({"content": _stamp_memory_value({"text": content})})
+        """Create/update long-term memory, rerank-enabled wrapper (content passed through unchanged)."""
+        return _raw_manage.invoke({"content": content})
 
     return [stamped_manage_memory, reranked_search_memory]
 

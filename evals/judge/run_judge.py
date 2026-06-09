@@ -5,7 +5,6 @@ import glob
 import json
 import os
 import statistics
-import sys
 from typing import Any
 
 import yaml
@@ -34,6 +33,16 @@ def run(cases_dir: str, out_path: str) -> int:
     results: list[dict[str, Any]] = []
     for case in cases:
         gold = case["gold"]
+        # NOTE: gold-vs-gold smoke check — intentional wiring/baseline test.
+        # Both `generated_sql` and `expected_sql` are set to the gold SQL so
+        # that the judge always receives a near-perfect pair, confirming the
+        # full evaluation pipeline (YAML loading → judge → report) is wired
+        # correctly.
+        #
+        # FUTURE WORK: real semantic evaluation requires passing the AGENT'S
+        # generated SQL into `generated_sql` (e.g. replayed from a RunLedger
+        # artifact or captured from a live agent run).  That injection is a
+        # deliberate enhancement not yet implemented — see Task 17 notes.
         verdict = judge.judge(
             question=case["input"]["prompt"],
             generated_sql=gold["expected_sql"],

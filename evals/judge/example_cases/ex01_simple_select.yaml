@@ -1,0 +1,8 @@
+id: ex01_simple_select
+category: simple_select
+description: "List customers (id and name)."
+input:
+  prompt: "List ten customers with their id and name."
+gold:
+  expected_sql: "SELECT customer_id, customer_name FROM Customers LIMIT 10"
+  expected_tool_trajectory: ["text2sql"]

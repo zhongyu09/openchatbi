@@ -1,0 +1,8 @@
+id: ex02_filter
+category: filter
+description: "Filter orders by a single status value (Delivered)."
+input:
+  prompt: "Show orders whose status is Delivered, including their id, customer, status and placed date."
+gold:
+  expected_sql: "SELECT order_id, customer_id, order_status, date_order_placed FROM Orders WHERE order_status = 'Delivered' LIMIT 20"
+  expected_tool_trajectory: ["text2sql"]

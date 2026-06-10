@@ -1,0 +1,8 @@
+id: ex08_order_limit
+category: order_limit
+description: "Top-5 customers by number of orders (join + group by + order + limit)."
+input:
+  prompt: "Who are the top 5 customers by number of orders? Show their name and order count."
+gold:
+  expected_sql: "SELECT c.customer_id, c.customer_name, COUNT(o.order_id) AS order_count FROM Customers c JOIN Orders o ON c.customer_id = o.customer_id GROUP BY c.customer_id, c.customer_name ORDER BY order_count DESC LIMIT 5"
+  expected_tool_trajectory: ["text2sql"]

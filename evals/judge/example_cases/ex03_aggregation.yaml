@@ -1,0 +1,8 @@
+id: ex03_aggregation
+category: aggregation
+description: "Count orders in the Shipped status."
+input:
+  prompt: "How many orders have the status Shipped?"
+gold:
+  expected_sql: "SELECT COUNT(*) AS total_orders FROM Orders WHERE order_status = 'Shipped'"
+  expected_tool_trajectory: ["text2sql"]

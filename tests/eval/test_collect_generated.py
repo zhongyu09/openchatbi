@@ -100,42 +100,52 @@ def test_collect_interrupt_state_yields_empty_sql():
 # ---------------------------------------------------------------------------
 
 
-class _FakeSnapshot:
-    def __init__(self, values, next_=(), interrupts=()):
-        self.values = values
-        self.next = next_
-        self.interrupts = interrupts
-
-
 class _FakeGraph:
-    """Mimics the compiled agent graph: invoke() drops `sql` (output_schema
-    filtering), get_state() exposes the full AgentState."""
+    """Mimics the compiled agent graph streaming: text2sql runs as a subgraph,
+    so the committed SQL only appears in the `generate_sql`/`regenerate_sql`
+    stream updates — never in a terminal state."""
 
-    def __init__(self, snapshot):
-        self._snapshot = snapshot
-        self.invoke_calls = []
+    def __init__(self, updates):
+        self._updates = updates  # list of (namespace, update_dict)
+        self.stream_calls = []
 
-    def invoke(self, payload, config):
-        self.invoke_calls.append((payload, config))
-        return {"messages": []}  # NOTE: no "sql" — exactly like the real graph
-
-    def get_state(self, config):
-        return self._snapshot
+    def stream(self, payload, config, stream_mode=None, subgraphs=None):
+        self.stream_calls.append((payload, config, stream_mode, subgraphs))
+        return iter(self._updates)
 
 
-def test_state_from_graph_reads_sql_from_get_state_not_invoke():
-    graph = _FakeGraph(_FakeSnapshot({"sql": "SELECT 1", "messages": []}))
+def test_state_from_graph_reads_sql_from_stream_updates():
+    # generate_sql update carries the SQL; later non-sql nodes don't clobber it.
+    graph = _FakeGraph(
+        [
+            (("text2sql:1",), {"generate_sql": {"sql": "SELECT 1"}}),
+            (("text2sql:1",), {"execute_sql": {"sql_execution_result": "SQL_SUCCESS"}}),
+        ]
+    )
     state = cg._state_from_graph(graph, {"id": "c1", "input": {"prompt": "q"}})
-    # SQL came from get_state().values, even though invoke() returned no sql.
     assert cg.extract_sql_from_state(state) == "SELECT 1"
-    # invoke was driven with the right thread_id.
-    assert graph.invoke_calls[0][1]["configurable"]["thread_id"] == "eval-c1"
-    assert graph.invoke_calls[0][0]["messages"][0]["content"] == "q"
+    # streamed with the right thread_id + subgraphs=True.
+    payload, config, stream_mode, subgraphs = graph.stream_calls[0]
+    assert config["configurable"]["thread_id"] == "eval-c1"
+    assert payload["messages"][0]["content"] == "q"
+    assert subgraphs is True
+
+
+def test_state_from_graph_regenerate_wins_over_first_sql():
+    # A retry path: regenerate_sql emits later, so its SQL is the final one.
+    graph = _FakeGraph(
+        [
+            (("text2sql:1",), {"generate_sql": {"sql": "SELECT bad"}}),
+            (("text2sql:1",), {"regenerate_sql": {"sql": "SELECT good"}}),
+        ]
+    )
+    state = cg._state_from_graph(graph, {"id": "c1", "input": {"prompt": "q"}})
+    assert cg.extract_sql_from_state(state) == "SELECT good"
 
 
 def test_state_from_graph_marks_interrupt_when_paused():
-    # Paused at ask_human: snapshot.next is non-empty, no SQL committed.
-    graph = _FakeGraph(_FakeSnapshot({"messages": []}, next_=("ask_human",)))
+    # Paused at ask_human: stream yields an __interrupt__ update, no SQL committed.
+    graph = _FakeGraph([((), {"__interrupt__": [{"value": {"text": "approve?"}}]})])
     state = cg._state_from_graph(graph, {"id": "c2", "input": {"prompt": "q"}})
     assert state.get("__interrupt__") is True
     assert cg.extract_sql_from_state(state) == ""

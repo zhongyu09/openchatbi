@@ -28,8 +28,8 @@ def load_cases(cases_dir: str) -> list[dict[str, Any]]:
 def extract_sql_from_state(state: dict[str, Any], sql_key: str = "sql") -> str:
     """Pull the committed SQL out of an agent state dict.
 
-    PURE — never raises. The state dict is the checkpointer's terminal
-    ``AgentState`` (see :func:`_state_from_graph`); if the agent paused for
+    PURE — never raises. The state dict is synthesized by
+    :func:`_state_from_graph` from the stream updates; if the agent paused for
     human-in-the-loop the dict carries ``__interrupt__`` and no SQL was
     committed, so return an empty string. Otherwise return the (stripped)
     value at ``sql_key``.
@@ -65,28 +65,50 @@ def collect(
     return records
 
 
-def _state_from_graph(graph: Any, case: dict[str, Any]) -> dict[str, Any]:
-    """Drive ``graph`` for one case and return its terminal ``AgentState`` values.
+# Nodes whose stream update carries the committed SQL (see openchatbi.streaming).
+_SQL_NODE_NAMES = ("generate_sql", "regenerate_sql")
 
-    The compiled agent graph uses ``output_schema=OutputState`` (which does NOT
-    declare ``sql``), so ``graph.invoke()`` filters the committed SQL out of its
-    return dict. The SQL lives in the checkpointer's full state, so we read it
-    via ``graph.get_state(config).values`` — same as ``run_cli`` does. When the
-    run is paused (human-in-the-loop interrupt), ``snapshot.next`` is non-empty
-    and no SQL was committed, which we surface as ``__interrupt__`` so
+
+def _state_from_graph(graph: Any, case: dict[str, Any]) -> dict[str, Any]:
+    """Drive ``graph`` for one case and return a state dict with the final SQL.
+
+    text2sql runs as a tool/subgraph, so the committed SQL never lands in the
+    main graph's terminal state (``graph.invoke()`` filters on
+    ``output_schema=OutputState``, and ``get_state().values["sql"]`` stays
+    empty). The SQL is emitted in the streaming ``updates`` for the
+    ``generate_sql`` / ``regenerate_sql`` nodes — exactly what ``run_cli`` and
+    ``openchatbi.streaming`` read. We stream with ``subgraphs=True`` and keep the
+    last non-empty ``sql`` (so a regenerate-after-retry wins). A pause surfaces
+    as an ``__interrupt__`` update, which we forward so
     :func:`extract_sql_from_state` returns ``""``.
 
-    Pure w.r.t. ``graph``: tests inject a fake graph with ``invoke``/``get_state``.
+    Pure w.r.t. ``graph``: tests inject a fake graph exposing ``stream``.
     """
     case_id = case.get("id", "")
     prompt = (case.get("input") or {}).get("prompt", "")
     cfg = {"configurable": {"thread_id": f"eval-{case_id}", "user_id": "eval"}}
-    graph.invoke({"messages": [{"role": "user", "content": prompt}]}, config=cfg)
-    snapshot = graph.get_state(cfg)
-    values: dict[str, Any] = dict(snapshot.values or {})
-    if getattr(snapshot, "next", None) or getattr(snapshot, "interrupts", None):
-        values["__interrupt__"] = True
-    return values
+    last_sql = ""
+    interrupted = False
+    for _namespace, update in graph.stream(
+        {"messages": [{"role": "user", "content": prompt}]},
+        config=cfg,
+        stream_mode="updates",
+        subgraphs=True,
+    ):
+        if not isinstance(update, dict):
+            continue
+        if "__interrupt__" in update:
+            interrupted = True
+            continue
+        for node_name, node_output in update.items():
+            if node_name in _SQL_NODE_NAMES and isinstance(node_output, dict):
+                sql = node_output.get("sql")
+                if sql:
+                    last_sql = sql
+    state: dict[str, Any] = {"sql": last_sql}
+    if interrupted:
+        state["__interrupt__"] = True
+    return state
 
 
 def build_agent_runner(config_path: str, provider: str | None = None) -> Callable[[dict[str, Any]], dict[str, Any]]:

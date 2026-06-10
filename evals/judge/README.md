@@ -18,13 +18,24 @@ python -m evals.judge.collect_generated \
 # 第二步：用 LLM judge 把 generated 与 GOLD 逐条对比打分，输出报告
 python -m evals.judge.run_judge \
   --cases evals/judge/example_cases \
+  --config my_config.yaml \
   --generated generated.json \
   --out judge_out/report.json
 ```
 
+> 两步都接受 `--config`，请传**同一份** config，确保 agent 和 judge 用同一个 `default_llm`。
+> `run_judge` 不传 `--config` 时回落到 `$CONFIG_FILE` / 默认配置（容易误用占位 key），建议显式传。
+
 注意：
 
-- **两步都需要真实 LLM key**。`collect_generated` 要真正驱动 agent graph 生成 SQL，`run_judge` 用的是真实 LLM judge（`LLMAsJudgeEvaluator`，内部复用 `SimpleSQLEvaluator` 打分）。请把 `example/config.yaml` 里 `default_llm`（以及 `embedding_model`）的 `api_key: YOUR_API_KEY_HERE` 换成你的真实 key（或改用文件里注释好的 Ollama 本地 LLM）。
+- **两步都需要真实 LLM key**。`collect_generated` 要真正驱动 agent graph 生成 SQL，`run_judge` 用的是真实 LLM judge（`LLMAsJudgeEvaluator`，内部复用 `SimpleSQLEvaluator` 打分）。可在 config 的 `default_llm.params` 里写 `api_key`，**或**把 key 放进项目根的 `.env`（两个脚本启动时都会 `load_dotenv()` 自动加载）——例如用智谱 GLM 的 Anthropic 兼容端点：
+
+  ```bash
+  # .env（不要提交）
+  ANTHROPIC_API_KEY=你的key
+  # config 里 default_llm 用 langchain_anthropic.ChatAnthropic
+  #   params: { model: glm-5.1, base_url: "https://open.bigmodel.cn/api/anthropic", max_tokens: 8192 }
+  ```
 - `collect_generated --out` 默认 `generated.json`，默认 `--format json`，产出 `{"<case_id>": "SELECT ...", ...}` 的 id→SQL map；也可以 `--format jsonl` 产出每行 `{"id","prompt","generated_sql"}`。两种格式 `run_judge --generated` 都能直接消费。
 - `run_judge` 通过 `case_id` 优先、`prompt` 兜底来匹配生成的 SQL；匹配不到的用例会被标记 `skipped` 且不计入分数。
 - 生成的 SQL 是从 checkpointer 终态读取的（`graph.get_state(config).values["sql"]`，与 `run_cli` 一致）——agent graph 用 `output_schema=OutputState` 编译，`invoke()` 的返回值里不含 `sql`，必须读终态。agent 若停在 human-in-the-loop 中断（`snapshot.next` 非空），表示没有提交 SQL，该用例记为空 SQL。

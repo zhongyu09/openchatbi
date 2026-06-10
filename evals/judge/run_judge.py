@@ -10,6 +10,16 @@ from typing import Any
 
 import yaml
 
+# Load .env before importing openchatbi (the llm_judge import below pulls in
+# openchatbi, which instantiates the configured LLM at import time and needs
+# ANTHROPIC_API_KEY / OPENAI_API_KEY / CONFIG_FILE in the environment).
+try:
+    from dotenv import load_dotenv
+
+    load_dotenv()
+except ImportError:
+    pass
+
 from evals.judge.llm_judge import LLMAsJudgeEvaluator
 
 
@@ -74,7 +84,16 @@ def run(
     cases_dir: str,
     out_path: str,
     generated_path: str | None = None,
+    config_path: str | None = None,
 ) -> int:
+    # Point openchatbi at the requested config BEFORE building the judge, so the
+    # LLM judge uses the same default_llm as the agent (run_judge has no implicit
+    # config beyond $CONFIG_FILE otherwise).
+    if config_path:
+        from openchatbi import config as _config
+
+        _config.load(config_path)
+
     judge = _build_judge()
     cases = _load_cases(cases_dir)
 
@@ -217,8 +236,23 @@ def main(argv: list[str] | None = None) -> int:
             "When omitted, runs a gold-vs-gold SMOKE check instead."
         ),
     )
+    parser.add_argument(
+        "--config",
+        default=None,
+        metavar="PATH",
+        help=(
+            "Path to the openchatbi config yaml the LLM judge should use "
+            "(same one passed to collect_generated). When omitted, falls back to "
+            "$CONFIG_FILE / the default config."
+        ),
+    )
     args = parser.parse_args(argv)
-    return run(cases_dir=args.cases, out_path=args.out, generated_path=args.generated)
+    return run(
+        cases_dir=args.cases,
+        out_path=args.out,
+        generated_path=args.generated,
+        config_path=args.config,
+    )
 
 
 if __name__ == "__main__":

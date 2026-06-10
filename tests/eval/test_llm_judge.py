@@ -327,6 +327,45 @@ def test_pass_rate_over_evaluated_only(tmp_path, monkeypatch):
 # ---------------------------------------------------------------------------
 
 
+def test_config_arg_triggers_config_load(tmp_path, monkeypatch):
+    """--config makes run() reload openchatbi config so the judge uses that LLM."""
+    import openchatbi
+
+    cases_dir = tmp_path / "cases"
+    cases_dir.mkdir()
+    _write_case(cases_dir, "c01", "aggregation", "SELECT COUNT(*) FROM orders")
+
+    loaded: list = []
+    monkeypatch.setattr(openchatbi.config, "load", lambda p: loaded.append(p))
+    monkeypatch.setattr(run_judge, "_build_judge", lambda: _make_stub_judge([]))
+
+    out_path = tmp_path / "report.json"
+    run_judge.run(
+        cases_dir=str(cases_dir),
+        out_path=str(out_path),
+        generated_path=None,
+        config_path="my_config.yaml",
+    )
+    assert loaded == ["my_config.yaml"]
+
+
+def test_no_config_arg_does_not_reload(tmp_path, monkeypatch):
+    """Without --config, run() must NOT call config.load (preserves old behavior)."""
+    import openchatbi
+
+    cases_dir = tmp_path / "cases"
+    cases_dir.mkdir()
+    _write_case(cases_dir, "c01", "aggregation", "SELECT COUNT(*) FROM orders")
+
+    loaded: list = []
+    monkeypatch.setattr(openchatbi.config, "load", lambda p: loaded.append(p))
+    monkeypatch.setattr(run_judge, "_build_judge", lambda: _make_stub_judge([]))
+
+    out_path = tmp_path / "report.json"
+    run_judge.run(cases_dir=str(cases_dir), out_path=str(out_path), generated_path=None)
+    assert loaded == []
+
+
 def test_integration_real_cases_mocked_evaluator(tmp_path, monkeypatch):
     """Smoke-mode run against the real evals/runledger/cases with a mocked evaluator."""
     import pathlib

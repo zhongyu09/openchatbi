@@ -96,6 +96,15 @@ def build_agent_runner(config_path: str, provider: str | None = None) -> Callabl
     needs a real LLM key; it is kept lazy/separate so importing this module and
     the pure functions above never touches the network.
     """
+    # Load .env first so ANTHROPIC_API_KEY / OPENAI_API_KEY (and CONFIG_FILE)
+    # are available before openchatbi instantiates the LLM at import time.
+    try:
+        from dotenv import load_dotenv
+
+        load_dotenv()
+    except ImportError:
+        pass
+
     # Point config at the requested yaml BEFORE importing openchatbi (which
     # calls config.load() at import time reading $CONFIG_FILE), then re-load
     # defensively.

@@ -114,8 +114,12 @@ class LearnedSQLStore:
         ranked = list(enumerate(docs))
         if score_fn is not None:
             ranked.sort(key=lambda pair: score_fn(pair[1].metadata, pair[0]), reverse=True)
+        top_docs = [doc for _, doc in ranked[:k]]
+        # Composite scoring weights frequency/recency, so retrieval must feed
+        # them back: bump use_count/last_used on the returned patterns.
+        self._touch(top_docs)
         results: list[tuple[str, str, list[str]]] = []
-        for _, doc in ranked[:k]:
+        for doc in top_docs:
             q = doc.page_content
             sql = doc.metadata.get("sql")
             if sql is None and q in self.example_dict:
@@ -124,6 +128,26 @@ class LearnedSQLStore:
                 tables = doc.metadata.get("tables", [])
             results.append((q, sql, tables))
         return results
+
+    def _touch(self, docs: list) -> None:
+        """Bump use_count/last_used on retrieved docs (best-effort, never raises).
+
+        In-place metadata mutation covers SimpleStore (search returns the shared
+        Document objects); a Chroma-style ``_collection.update`` persists the bump
+        for stores that return copies.
+        """
+        now = datetime.now(timezone.utc).isoformat()
+        with self.lock:
+            for doc in docs:
+                try:
+                    doc.metadata["use_count"] = int(doc.metadata.get("use_count", 0) or 0) + 1
+                    doc.metadata["last_used"] = now
+                    collection = getattr(self.vector_db, "_collection", None)
+                    doc_id = getattr(doc, "id", None)
+                    if collection is not None and doc_id:
+                        collection.update(ids=[doc_id], metadatas=[doc.metadata])
+                except Exception as e:
+                    log(f"use_count touch failed (ignored): {e}")
 
 
 def _init_table_selection_example_dict(catalog, vector_db_path: str = None):

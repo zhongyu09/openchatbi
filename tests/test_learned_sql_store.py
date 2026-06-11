@@ -93,6 +93,36 @@ def test_retrieve_score_fn_reranks():
     assert results[0][0] == "alpha query about users"
 
 
+def test_retrieve_bumps_use_count_and_last_used():
+    """Retrieval must feed back into composite scoring: use_count++ and last_used refresh."""
+    store = _make_store()
+    seed_meta = store.vector_db.documents[0].metadata
+    assert "use_count" not in seed_meta  # static seed has no provenance yet
+
+    results = store.retrieve("How many users are there?", k=1)
+    assert results
+    assert seed_meta["use_count"] == 1
+    assert seed_meta["last_used"]
+
+    store.retrieve("How many users are there?", k=1)
+    assert seed_meta["use_count"] == 2
+
+
+def test_retrieve_touch_only_affects_returned_top_k():
+    """Patterns outside the returned top-k are not counted as used."""
+    store = _make_store()
+    store.add("alpha query about users", "SELECT a", ["users"], source="golden", importance=2.0)
+
+    def score_fn(meta, base_rank):
+        return meta.get("importance", 0.0)
+
+    results = store.retrieve("users", k=1, score_fn=score_fn)
+    assert len(results) == 1
+    touched = [d for d in store.vector_db.documents if int(d.metadata.get("use_count", 0) or 0) > 0]
+    assert len(touched) == 1
+    assert touched[0].page_content == results[0][0]
+
+
 def test_get_learned_sql_store_accessor_exists():
     """Convention #4: get_learned_sql_store() accessor must exist in data.py."""
     from openchatbi.text2sql.data import get_learned_sql_store

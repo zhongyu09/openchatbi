@@ -78,158 +78,205 @@ class TestArity:
         assert all(callable(n) for n in nodes)
 
 
+def _main_cfg(gate_on=False, threshold=0.7):
+    cfg = MagicMock()
+    cfg.enable_confidence_gate = gate_on
+    cfg.sql_confidence_threshold = threshold
+    cfg.enable_golden_sql = False
+    return cfg
+
+
+def _mem_cfg(pattern_on=True):
+    cfg = MagicMock()
+    cfg.enable_pattern_memory = pattern_on
+    cfg.pattern_scope = "global"
+    return cfg
+
+
 class TestAutoCaptureGate:
+    """Capture is driven from confidence_gate_node's approve paths, reusing the
+    single score_sql_node evaluation (no second LLM call inside capture)."""
+
+    def _gate(self, mock_llm, mock_catalog, store):
+        nodes = create_sql_nodes(mock_llm, mock_catalog, "presto", learned_sql_store=store)
+        return nodes[5]
+
+    def _scored_state(self, score=0.9):
+        state = _success_state()
+        state["sql_execution_result"] = SQL_SUCCESS
+        if score is not None:
+            state["sql_confidence"] = score
+        return state
+
     def test_capture_disabled_by_default(self, mock_llm, mock_catalog):
         """No write when enable_pattern_memory is False (default-off)."""
         store = MagicMock()
-        _gen, execute_sql_node, _regen, _viz, _score, _gate = create_sql_nodes(
-            mock_llm, mock_catalog, "presto", learned_sql_store=store
-        )
-        cfg = MagicMock()
-        cfg.enable_pattern_memory = False
-        with patch("openchatbi.text2sql.generate_sql.get_memory_config", return_value=cfg):
-            out = execute_sql_node(_success_state())
+        gate = self._gate(mock_llm, mock_catalog, store)
+        with patch(
+            "openchatbi.text2sql.generate_sql.get_memory_config", return_value=_mem_cfg(False)
+        ), patch("openchatbi.text2sql.generate_sql.config.get", return_value=_main_cfg()):
+            out = gate(self._scored_state(0.9))
 
-        assert out["sql_execution_result"] == SQL_SUCCESS
+        assert out["human_sql_decision"] == "approve"
         store.add.assert_not_called()
 
     def test_capture_noop_when_store_is_none(self, mock_llm, mock_catalog):
         """No store wired -> capture is a no-op even with the flag on."""
-        _gen, execute_sql_node, _regen, _viz, _score, _gate = create_sql_nodes(
-            mock_llm, mock_catalog, "presto", learned_sql_store=None
-        )
-        cfg = MagicMock()
-        cfg.enable_pattern_memory = True
-        # Should simply not raise; nothing to assert beyond success.
-        with patch("openchatbi.text2sql.generate_sql.get_memory_config", return_value=cfg):
-            out = execute_sql_node(_success_state())
-        assert out["sql_execution_result"] == SQL_SUCCESS
-
-    def test_capture_fires_when_enabled_and_gate_passes(self, mock_llm, mock_catalog):
-        """Flag on + confidence >= threshold -> write via store.add(source='auto')."""
-        store = MagicMock()
-        _gen, execute_sql_node, _regen, _viz, _score, _gate = create_sql_nodes(
-            mock_llm, mock_catalog, "presto", learned_sql_store=store
-        )
-        mem_cfg = MagicMock()
-        mem_cfg.enable_pattern_memory = True
-        mem_cfg.pattern_scope = "global"
-        main_cfg = MagicMock()
-        main_cfg.sql_confidence_threshold = 0.7
-
-        verdict = ConfidenceResult(score=0.9, reasons=[], checks={})
+        gate = self._gate(mock_llm, mock_catalog, None)
         with patch(
-            "openchatbi.text2sql.generate_sql.get_memory_config", return_value=mem_cfg
-        ), patch("openchatbi.text2sql.generate_sql.config.get", return_value=main_cfg), patch(
-            "openchatbi.text2sql.generate_sql.SimpleSQLEvaluator"
-        ) as MockEval:
-            MockEval.return_value.evaluate.return_value = verdict
-            out = execute_sql_node(_success_state())
+            "openchatbi.text2sql.generate_sql.get_memory_config", return_value=_mem_cfg()
+        ), patch("openchatbi.text2sql.generate_sql.config.get", return_value=_main_cfg()):
+            out = gate(self._scored_state(0.9))
+        assert out["human_sql_decision"] == "approve"
 
-        assert out["sql_execution_result"] == SQL_SUCCESS
+    def test_capture_fires_on_auto_approve_above_threshold(self, mock_llm, mock_catalog):
+        """Flag on + pre-computed confidence >= threshold -> store.add(source='auto')."""
+        store = MagicMock()
+        gate = self._gate(mock_llm, mock_catalog, store)
+        with patch(
+            "openchatbi.text2sql.generate_sql.get_memory_config", return_value=_mem_cfg()
+        ), patch("openchatbi.text2sql.generate_sql.config.get", return_value=_main_cfg()):
+            out = gate(self._scored_state(0.9))
+
+        assert out["human_sql_decision"] == "approve"
         store.add.assert_called_once()
         args, kwargs = store.add.call_args
         assert args[0] == "how many"  # question
         assert kwargs["source"] == "auto"
         assert kwargs["namespace"] == "global"
 
-    def test_capture_skipped_when_gate_fails(self, mock_llm, mock_catalog):
+    def test_capture_skipped_when_below_threshold(self, mock_llm, mock_catalog):
         """Confidence below threshold -> do not poison the example pool (success != correct)."""
         store = MagicMock()
-        _gen, execute_sql_node, _regen, _viz, _score, _gate = create_sql_nodes(
-            mock_llm, mock_catalog, "presto", learned_sql_store=store
-        )
-        mem_cfg = MagicMock()
-        mem_cfg.enable_pattern_memory = True
-        mem_cfg.pattern_scope = "global"
-        main_cfg = MagicMock()
-        main_cfg.sql_confidence_threshold = 0.7
-
-        verdict = ConfidenceResult(score=0.3, reasons=["WHERE missing"], checks={})
+        gate = self._gate(mock_llm, mock_catalog, store)
+        # Gate disabled -> auto-approve path, but capture still applies the S2 threshold.
         with patch(
-            "openchatbi.text2sql.generate_sql.get_memory_config", return_value=mem_cfg
-        ), patch("openchatbi.text2sql.generate_sql.config.get", return_value=main_cfg), patch(
-            "openchatbi.text2sql.generate_sql.SimpleSQLEvaluator"
-        ) as MockEval:
-            MockEval.return_value.evaluate.return_value = verdict
-            out = execute_sql_node(_success_state())
+            "openchatbi.text2sql.generate_sql.get_memory_config", return_value=_mem_cfg()
+        ), patch("openchatbi.text2sql.generate_sql.config.get", return_value=_main_cfg()):
+            out = gate(self._scored_state(0.3))
 
-        assert out["sql_execution_result"] == SQL_SUCCESS
+        assert out["human_sql_decision"] == "approve"
         store.add.assert_not_called()
 
-    def test_capture_noop_on_unapproved_edit_reentry(self, mock_llm, mock_catalog):
-        """Convention #10: edit re-entry (HITL, not yet approved) must not capture."""
+    def test_capture_skipped_when_no_score(self, mock_llm, mock_catalog):
+        """No sql_confidence in state (evaluator failed) -> skip capture, never re-evaluate."""
         store = MagicMock()
-        _gen, execute_sql_node, _regen, _viz, _score, _gate = create_sql_nodes(
-            mock_llm, mock_catalog, "presto", learned_sql_store=store
-        )
-        mem_cfg = MagicMock()
-        mem_cfg.enable_pattern_memory = True
-        mem_cfg.pattern_scope = "global"
-        main_cfg = MagicMock()
-        main_cfg.sql_confidence_threshold = 0.7
-
-        verdict = ConfidenceResult(score=0.95, reasons=[], checks={})
-        state = _success_state()
-        state["human_sql_decision"] = "edit"  # pre-approval edit re-entry
+        gate = self._gate(mock_llm, mock_catalog, store)
         with patch(
-            "openchatbi.text2sql.generate_sql.get_memory_config", return_value=mem_cfg
-        ), patch("openchatbi.text2sql.generate_sql.config.get", return_value=main_cfg), patch(
+            "openchatbi.text2sql.generate_sql.get_memory_config", return_value=_mem_cfg()
+        ), patch("openchatbi.text2sql.generate_sql.config.get", return_value=_main_cfg()), patch(
             "openchatbi.text2sql.generate_sql.SimpleSQLEvaluator"
         ) as MockEval:
-            MockEval.return_value.evaluate.return_value = verdict
-            out = execute_sql_node(state)
+            out = gate(self._scored_state(None))
 
-        assert out["sql_execution_result"] == SQL_SUCCESS
+        assert out["human_sql_decision"] == "approve"
         store.add.assert_not_called()
+        MockEval.assert_not_called()
 
-    def test_capture_fires_on_approved_reentry(self, mock_llm, mock_catalog):
-        """human_sql_decision == 'approve' on re-entry still captures (terminal success)."""
+    def test_human_approve_overrides_threshold(self, mock_llm, mock_catalog):
+        """Manual approval captures even below the score threshold (human > S2)."""
         store = MagicMock()
-        _gen, execute_sql_node, _regen, _viz, _score, _gate = create_sql_nodes(
-            mock_llm, mock_catalog, "presto", learned_sql_store=store
-        )
-        mem_cfg = MagicMock()
-        mem_cfg.enable_pattern_memory = True
-        mem_cfg.pattern_scope = "global"
-        main_cfg = MagicMock()
-        main_cfg.sql_confidence_threshold = 0.7
-
-        verdict = ConfidenceResult(score=0.95, reasons=[], checks={})
-        state = _success_state()
-        state["human_sql_decision"] = "approve"
+        gate = self._gate(mock_llm, mock_catalog, store)
         with patch(
-            "openchatbi.text2sql.generate_sql.get_memory_config", return_value=mem_cfg
-        ), patch("openchatbi.text2sql.generate_sql.config.get", return_value=main_cfg), patch(
-            "openchatbi.text2sql.generate_sql.SimpleSQLEvaluator"
-        ) as MockEval:
-            MockEval.return_value.evaluate.return_value = verdict
-            out = execute_sql_node(state)
+            "openchatbi.text2sql.generate_sql.get_memory_config", return_value=_mem_cfg()
+        ), patch(
+            "openchatbi.text2sql.generate_sql.config.get", return_value=_main_cfg(gate_on=True)
+        ), patch(
+            "openchatbi.text2sql.generate_sql.interrupt", return_value="approve"
+        ):
+            out = gate(self._scored_state(0.3))
 
-        assert out["sql_execution_result"] == SQL_SUCCESS
+        assert out["human_sql_decision"] == "approve"
         store.add.assert_called_once()
 
+    def test_reject_does_not_capture(self, mock_llm, mock_catalog):
+        store = MagicMock()
+        gate = self._gate(mock_llm, mock_catalog, store)
+        with patch(
+            "openchatbi.text2sql.generate_sql.get_memory_config", return_value=_mem_cfg()
+        ), patch(
+            "openchatbi.text2sql.generate_sql.config.get", return_value=_main_cfg(gate_on=True)
+        ), patch(
+            "openchatbi.text2sql.generate_sql.interrupt", return_value="reject"
+        ):
+            out = gate(self._scored_state(0.3))
+
+        assert out["human_sql_decision"] == "reject"
+        store.add.assert_not_called()
+
+    def test_edit_does_not_capture(self, mock_llm, mock_catalog):
+        """Convention #10: an unapproved 'edit' must not capture."""
+        store = MagicMock()
+        gate = self._gate(mock_llm, mock_catalog, store)
+        with patch(
+            "openchatbi.text2sql.generate_sql.get_memory_config", return_value=_mem_cfg()
+        ), patch(
+            "openchatbi.text2sql.generate_sql.config.get", return_value=_main_cfg(gate_on=True)
+        ), patch(
+            "openchatbi.text2sql.generate_sql.interrupt",
+            return_value={"decision": "edit", "sql": "SELECT 2"},
+        ):
+            out = gate(self._scored_state(0.3))
+
+        assert out["human_sql_decision"] == "edit"
+        store.add.assert_not_called()
+
     def test_capture_never_raises_on_store_error(self, mock_llm, mock_catalog):
-        """Fire-and-forget: a store.add exception must not break the success response."""
+        """A store.add exception must not break the approve response."""
         store = MagicMock()
         store.add.side_effect = RuntimeError("boom")
+        gate = self._gate(mock_llm, mock_catalog, store)
+        with patch(
+            "openchatbi.text2sql.generate_sql.get_memory_config", return_value=_mem_cfg()
+        ), patch("openchatbi.text2sql.generate_sql.config.get", return_value=_main_cfg()):
+            out = gate(self._scored_state(0.9))
+        assert out["human_sql_decision"] == "approve"
+
+
+class TestSingleEvaluation:
+    """The PR-review fix: one LLM evaluation per query, shared by gate and capture."""
+
+    def test_execute_sql_node_no_longer_evaluates_or_captures(self, mock_llm, mock_catalog):
+        store = MagicMock()
         _gen, execute_sql_node, _regen, _viz, _score, _gate = create_sql_nodes(
             mock_llm, mock_catalog, "presto", learned_sql_store=store
         )
-        mem_cfg = MagicMock()
-        mem_cfg.enable_pattern_memory = True
-        mem_cfg.pattern_scope = "global"
-        main_cfg = MagicMock()
-        main_cfg.sql_confidence_threshold = 0.7
+        with patch(
+            "openchatbi.text2sql.generate_sql.get_memory_config", return_value=_mem_cfg()
+        ), patch("openchatbi.text2sql.generate_sql.config.get", return_value=_main_cfg()), patch(
+            "openchatbi.text2sql.generate_sql.SimpleSQLEvaluator"
+        ) as MockEval:
+            out = execute_sql_node(_success_state())
+
+        assert out["sql_execution_result"] == SQL_SUCCESS
+        store.add.assert_not_called()
+        MockEval.assert_not_called()
+
+    def test_one_evaluator_call_when_gate_and_pattern_both_on(self, mock_llm, mock_catalog):
+        """score_sql evaluates once; the gate's capture reuses that score."""
+        store = MagicMock()
+        _gen, _exec, _regen, _viz, score_sql_node, gate = create_sql_nodes(
+            mock_llm, mock_catalog, "presto", learned_sql_store=store
+        )
+        state = _success_state()
+        state["sql_execution_result"] = SQL_SUCCESS
         verdict = ConfidenceResult(score=0.9, reasons=[], checks={})
         with patch(
-            "openchatbi.text2sql.generate_sql.get_memory_config", return_value=mem_cfg
-        ), patch("openchatbi.text2sql.generate_sql.config.get", return_value=main_cfg), patch(
+            "openchatbi.text2sql.generate_sql.get_memory_config", return_value=_mem_cfg()
+        ), patch(
+            "openchatbi.text2sql.generate_sql.config.get",
+            return_value=_main_cfg(gate_on=True),
+        ), patch(
             "openchatbi.text2sql.generate_sql.SimpleSQLEvaluator"
         ) as MockEval:
             MockEval.return_value.evaluate.return_value = verdict
-            out = execute_sql_node(_success_state())
-        assert out["sql_execution_result"] == SQL_SUCCESS
+            scored = score_sql_node(state)
+            state.update(scored)
+            out = gate(state)
+
+        assert MockEval.return_value.evaluate.call_count == 1
+        assert out["human_sql_decision"] == "approve"
+        store.add.assert_called_once()
 
 
 class TestBlendedRetrieval:

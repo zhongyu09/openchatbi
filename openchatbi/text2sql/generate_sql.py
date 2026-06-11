@@ -358,23 +358,20 @@ def create_sql_nodes(
             connection.commit()
             return schema_info, csv_data
 
-    def _maybe_capture_pattern(state: SQLGraphState) -> None:
-        """Fire-and-forget: capture (question -> SQL -> tables) into LearnedSQLStore.
+    def _maybe_capture_pattern(state: SQLGraphState, human_approved: bool = False) -> None:
+        """Capture (question -> SQL -> tables) into LearnedSQLStore on approval.
 
-        Gated by enable_pattern_memory AND the S2 confidence gate (success != correct).
-        Honors the HITL approval semantics (Convention #10): on an unapproved 'edit'
-        re-entry this is a no-op; it captures only on terminal success / approval.
-        Never raises; never blocks the response.
+        Called from confidence_gate_node's approve paths only, so approval
+        semantics (Convention #10) are guaranteed structurally. Reads the
+        pre-computed sql_confidence from state (single LLM evaluation in
+        score_sql_node - no second evaluator call here). A human approval
+        overrides the score threshold. Never raises.
         """
         if learned_sql_store is None:
             return
         try:
             mem_cfg = get_memory_config()
             if not getattr(mem_cfg, "enable_pattern_memory", False):
-                return
-            # Convention #10: do not capture an unapproved HITL 'edit' re-entry.
-            decision = state.get("human_sql_decision")
-            if decision is not None and decision != "approve":
                 return
             question = state.get("rewrite_question", "")
             sql_query = state.get("sql", "").strip()
@@ -383,17 +380,20 @@ def create_sql_nodes(
             ]
             if not question or not sql_query:
                 return
-            # S2 gate: only promote SQL the evaluator considers correct (success != correct).
-            try:
-                threshold = float(getattr(config.get(), "sql_confidence_threshold", 0.7))
-            except ValueError:
-                threshold = 0.7
-            schema_info = state.get("schema_info", {})
-            data_sample = state.get("data", "")
-            verdict = SimpleSQLEvaluator(llm).evaluate(question, sql_query, schema_info, data_sample)
-            if verdict.score < threshold:
-                log(f"Pattern capture skipped: confidence {verdict.score:.2f} < {threshold:.2f}")
-                return
+            # S2 gate (success != correct): only promote SQL scored above the
+            # threshold, unless a human explicitly approved it.
+            if not human_approved:
+                score = state.get("sql_confidence")
+                if score is None:
+                    log("Pattern capture skipped: no confidence score available")
+                    return
+                try:
+                    threshold = float(getattr(config.get(), "sql_confidence_threshold", 0.7))
+                except ValueError:
+                    threshold = 0.7
+                if score < threshold:
+                    log(f"Pattern capture skipped: confidence {score:.2f} < {threshold:.2f}")
+                    return
             retry_count = int(state.get("sql_retry_count", 0) or 0)
             importance = 1.0 / (1.0 + retry_count)  # first-try success weighted highest
             learned_sql_store.add(
@@ -515,8 +515,8 @@ def create_sql_nodes(
             else:
                 result_label = "SQL Result"
             result = f"```sql\n{sql_query}\n```\n{result_label}:\n```csv\n{csv_result}\n```"
-            # Gated auto-capture into the learned SQL pattern pool (fire-and-forget).
-            _maybe_capture_pattern({**state, "schema_info": schema_info, "data": csv_result})
+            # Pattern auto-capture happens in confidence_gate_node (approve paths),
+            # reusing the single score_sql_node evaluation - no LLM call here.
             return {
                 "sql_execution_result": SQL_SUCCESS,
                 "schema_info": schema_info,
@@ -756,6 +756,7 @@ def create_sql_nodes(
         score = state.get("sql_confidence", 1.0)
         if not enabled or score is None or score >= threshold:
             _capture_golden_sql(state)
+            _maybe_capture_pattern(state)
             return {"human_sql_decision": "approve"}
         reasons = state.get("confidence_reasons", [])
         feedback = interrupt(
@@ -777,6 +778,8 @@ def create_sql_nodes(
             decision = "reject"
         if decision == "approve":
             _capture_golden_sql(state)
+            # Human approval overrides the score threshold for pattern capture.
+            _maybe_capture_pattern(state, human_approved=True)
         return {"human_sql_decision": decision}
 
     return (

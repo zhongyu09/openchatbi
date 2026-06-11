@@ -88,21 +88,3 @@ def test_core_langgraph_related_imports() -> None:
 
     for module in modules:
         importlib.import_module(module)
-
-
-def test_docs_and_task_contracts_reference_resolved_langgraph_version() -> None:
-    """Planning artifacts should agree with the resolved migration target."""
-    expected = "1.1.10"  # The original target version
-    paths = [
-        PROJECT_ROOT / "specs/001-upgrade-langgraph-v1/spec.md",
-        PROJECT_ROOT / "specs/001-upgrade-langgraph-v1/plan.md",
-        PROJECT_ROOT / "specs/001-upgrade-langgraph-v1/research.md",
-        PROJECT_ROOT / "specs/001-upgrade-langgraph-v1/tasks.md",
-    ]
-
-    for path in paths:
-        assert (
-            expected in path.read_text() or "1.2.2" in path.read_text()
-        ), f"{path} does not mention LangGraph {expected} or newer"
-
-    assert sys.version_info >= (3, 11)

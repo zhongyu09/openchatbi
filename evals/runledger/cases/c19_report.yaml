@@ -1,0 +1,10 @@
+id: c19_report
+category: report
+description: "multi-step Q1 sales report: knowledge lookup, SQL, then save"
+input:
+  prompt: "Generate a sales report for Q1 2024"
+cassette: cassettes/c19_report.jsonl
+gold:
+  expected_sql: "SELECT date_trunc('month', order_date) AS month, SUM(order_total) AS sales FROM orders WHERE order_date >= DATE '2024-01-01' AND order_date <= DATE '2024-03-31' GROUP BY 1 ORDER BY 1"
+  expected_tool_trajectory: ["search_knowledge", "text2sql", "save_report"]
+  expected_result_contains: ["report"]

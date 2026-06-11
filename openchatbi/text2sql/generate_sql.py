@@ -1,5 +1,6 @@
 import datetime
 import re
+import time as _time
 from collections.abc import Callable
 from typing import Any
 
@@ -11,6 +12,8 @@ from sqlalchemy.exc import DatabaseError, OperationalError, ProgrammingError, Ti
 
 from openchatbi import config
 from openchatbi.catalog import CatalogStore
+from openchatbi.memory_config import get_memory_config
+from openchatbi.memory_scoring import composite_score
 from openchatbi.constants import (
     SQL_EXECUTE_TIMEOUT,
     SQL_NA,
@@ -22,14 +25,23 @@ from openchatbi.constants import (
     datetime_format,
 )
 from openchatbi.graph_state import SQLGraphState
+from openchatbi.observability.audit import AuditLogger
+from openchatbi.observability.context import get_run_context
 from openchatbi.prompts.system_prompt import get_text2sql_dialect_prompt_template
-from openchatbi.text2sql.data import sql_example_dicts, sql_example_retriever
+from openchatbi.text2sql.data import get_learned_sql_store, sql_example_dicts, sql_example_retriever
+from openchatbi.text2sql.errors import (
+    EmptyResultError,
+    RecoveryStrategy,
+    SQLSecurityError,
+    Text2SQLError,
+    classify_sql_exception,
+)
+from openchatbi.text2sql.confidence import SimpleSQLEvaluator
 from openchatbi.text2sql.visualization import VisualizationService
 from openchatbi.utils import get_text_from_content, log
+from langgraph.types import interrupt
 
-
-class SQLSecurityError(ValueError):
-    """Raised when generated SQL fails safety validation."""
+_audit_logger = AuditLogger()
 
 
 _COLUMN_PROMPT_TEMPLATE = """### Columns
@@ -83,6 +95,20 @@ def _get_sql_result_limit_config() -> tuple[bool, int]:
     return bool(enabled), limit
 
 
+def _get_empty_result_config() -> tuple[bool, None]:
+    """Read whether zero-row results should be treated as a soft failure.
+
+    Defaults to OFF so empty results stay SQL_SUCCESS (preserves the existing
+    generate_visualization entry path). Returns a tuple for symmetry with the
+    result-limit config reader.
+    """
+    try:
+        cfg = config.get()
+    except ValueError:
+        return False, None
+    return bool(getattr(cfg, "enable_empty_result_error", False)), None
+
+
 def _extract_exception_message(exc: BaseException) -> str:
     """Collect exception text from SQLAlchemy wrappers and native DB errors."""
     message_parts = [str(exc)]
@@ -134,18 +160,25 @@ def _classify_operational_error(exc: OperationalError) -> str:
 
 
 def create_sql_nodes(
-    llm: BaseChatModel, catalog: CatalogStore, dialect: str, visualization_mode: str | None = "rule"
-) -> tuple[Callable, Callable, Callable, Callable]:
-    """Creates the four SQL processing nodes for LangGraph.
+    llm: BaseChatModel,
+    catalog: CatalogStore,
+    dialect: str,
+    visualization_mode: str | None = "rule",
+    learned_sql_store: Any | None = None,
+) -> tuple[Callable, Callable, Callable, Callable, Callable, Callable]:
+    """Creates the SQL processing nodes for LangGraph.
 
     Args:
         llm (BaseChatModel): The language model to use for SQL generation.
         catalog (CatalogStore): The catalog store containing schema information.
         dialect (str): The SQL dialect to use (e.g., 'presto', 'mysql').
         visualization_mode (str | None): Visualization analysis mode ("rule", "llm", or None to skip).
+        learned_sql_store: Optional LearnedSQLStore handle for blended retrieval and
+            gated auto-capture. When None, falls back to the legacy static retriever
+            and capture is a no-op (default-off, zero regression).
 
     Returns:
-        tuple: Four node functions (generate_sql_node, execute_sql_node, regenerate_sql_node, generate_visualization_node)
+        tuple: Six node functions (generate, execute, regenerate, visualization, score_sql, confidence_gate)
     """
 
     # Initialize visualization service based on configuration
@@ -187,6 +220,10 @@ def create_sql_nodes(
     def _get_relevant_sql_examples_prompt(question, tables_columns: list[dict[str, Any]]) -> str:
         """Retrieves relevant SQL examples based on the question and selected tables.
 
+        Blends static + golden + auto-captured patterns via LearnedSQLStore when a
+        store is wired and pattern memory is enabled; otherwise preserves the legacy
+        static-retriever behavior (strict subset filter) for zero regression.
+
         Args:
             question (str): The natural language question.
             tables_columns (List[str]): List of selected tables with selected columns.
@@ -195,6 +232,43 @@ def create_sql_nodes(
             str: Formatted string of relevant SQL examples.
         """
         tables = [d["table"] for d in tables_columns]
+        mem_cfg = get_memory_config()
+
+        if learned_sql_store is not None and getattr(mem_cfg, "enable_pattern_memory", False):
+            cap = int(getattr(mem_cfg, "max_patterns_per_query", 5))
+
+            # Convention #5: score_fn is a (metadata, base_rank) adapter wrapping composite_score.
+            def score_fn(meta: dict, base_rank: int) -> float:
+                return composite_score(
+                    1.0 / (1.0 + base_rank),
+                    float(meta.get("importance", 1.0) or 1.0),
+                    meta.get("last_used", ""),
+                    int(meta.get("use_count", 0) or 0),
+                    mem_cfg,
+                )
+            try:
+                retrieved = learned_sql_store.retrieve(
+                    question, k=max(cap * 2, 10), score_fn=score_fn
+                )
+            except Exception as e:  # fall back to static path on store failure
+                log(f"Blended retrieval failed, falling back to static examples: {e}")
+                retrieved = None
+            if retrieved is not None:
+                examples = []
+                for ex_question, example_sql, used_tables in retrieved:
+                    # Soft filter: keep when the pattern touches any selected table
+                    # (relaxed from strict subset so learned patterns aren't silently dropped).
+                    if not used_tables or any(t in tables for t in used_tables):
+                        examples.append(f"<example>\nQ: {ex_question}\nA: {example_sql}\n</example>\n")
+                    if len(examples) >= cap:
+                        break
+                if examples:
+                    log(f"Blended examples (store): {examples}")
+                    return "\n".join(examples)
+                # Everything was filtered out (or the store is empty): fall through
+                # to the legacy static path instead of returning no examples at all.
+
+        # Legacy path: static retriever + strict subset filter (unchanged behavior).
         relevant_questions = sql_example_retriever.invoke(question)
         # log(f"Retrieved examples for question: {question} \n Relevant questions: {relevant_questions}")
         # filter examples that only use the selected tables
@@ -284,6 +358,55 @@ def create_sql_nodes(
             connection.commit()
             return schema_info, csv_data
 
+    def _maybe_capture_pattern(state: SQLGraphState, human_approved: bool = False) -> None:
+        """Capture (question -> SQL -> tables) into LearnedSQLStore on approval.
+
+        Called from confidence_gate_node's approve paths only, so approval
+        semantics (Convention #10) are guaranteed structurally. Reads the
+        pre-computed sql_confidence from state (single LLM evaluation in
+        score_sql_node - no second evaluator call here). A human approval
+        overrides the score threshold. Never raises.
+        """
+        if learned_sql_store is None:
+            return
+        try:
+            mem_cfg = get_memory_config()
+            if not getattr(mem_cfg, "enable_pattern_memory", False):
+                return
+            question = state.get("rewrite_question", "")
+            sql_query = state.get("sql", "").strip()
+            tables = [
+                d["table"] for d in state.get("tables", []) if isinstance(d, dict) and d.get("table")
+            ]
+            if not question or not sql_query:
+                return
+            # S2 gate (success != correct): only promote SQL scored above the
+            # threshold, unless a human explicitly approved it.
+            if not human_approved:
+                score = state.get("sql_confidence")
+                if score is None:
+                    log("Pattern capture skipped: no confidence score available")
+                    return
+                try:
+                    threshold = float(getattr(config.get(), "sql_confidence_threshold", 0.7))
+                except ValueError:
+                    threshold = 0.7
+                if score < threshold:
+                    log(f"Pattern capture skipped: confidence {score:.2f} < {threshold:.2f}")
+                    return
+            retry_count = int(state.get("sql_retry_count", 0) or 0)
+            importance = 1.0 / (1.0 + retry_count)  # first-try success weighted highest
+            learned_sql_store.add(
+                question,
+                sql_query,
+                tables,
+                source="auto",
+                importance=importance,
+                namespace=getattr(mem_cfg, "pattern_scope", "global"),
+            )
+        except Exception as e:  # never let capture break the response
+            log(f"Pattern capture error (ignored): {e}")
+
     def generate_sql_node(state: SQLGraphState) -> dict:
         """First node: Generates initial SQL query based on the state.
 
@@ -341,79 +464,108 @@ def create_sql_nodes(
         if not sql_query:
             return {"sql_execution_result": SQL_NA, "messages": [AIMessage("No SQL query to execute")]}
 
+        user_id, _ = get_run_context()
+        _start = _time.time()
+
         try:
             schema_info, csv_result = _execute_sql(sql_query)
+            duration_ms = (_time.time() - _start) * 1000.0
+            row_count = schema_info.get("row_count") if isinstance(schema_info, dict) else None
+
+            # Empty-result gate (default OFF — zero rows stay SQL_SUCCESS).
+            empty_result_enabled, _ = _get_empty_result_config()
+            if empty_result_enabled and row_count == 0:
+                _audit_logger.log_sql_exec(
+                    sql=sql_query,
+                    dialect=dialect,
+                    row_count=0,
+                    duration_ms=duration_ms,
+                    status=SQL_NA,
+                    user_id=user_id,
+                )
+                previous_errors = list(state.get("previous_sql_errors", []))
+                attempt = len(previous_errors) + 1
+                err = EmptyResultError("Query returned no rows")
+                previous_errors.append(
+                    {
+                        "sql": sql_query,
+                        "error": f"{err.error_type}: no rows returned",
+                        "error_type": err.error_type,
+                        "error_code": err.code,
+                        "error_class": type(err).__name__,
+                        "recovery_strategy": err.recovery_strategy.value,
+                        "attempt": attempt,
+                    }
+                )
+                return {
+                    "sql_execution_result": SQL_NA,
+                    "previous_sql_errors": previous_errors,
+                }
+
+            _audit_logger.log_sql_exec(
+                sql=sql_query,
+                dialect=dialect,
+                row_count=row_count,
+                duration_ms=duration_ms,
+                status=SQL_SUCCESS,
+                user_id=user_id,
+            )
             if "result_limit" in schema_info:
                 result_label = f"SQL Result (limited to first {schema_info['result_limit']} rows)"
             else:
                 result_label = "SQL Result"
             result = f"```sql\n{sql_query}\n```\n{result_label}:\n```csv\n{csv_result}\n```"
+            # Pattern auto-capture happens in confidence_gate_node (approve paths),
+            # reusing the single score_sql_node evaluation - no LLM call here.
             return {
                 "sql_execution_result": SQL_SUCCESS,
                 "schema_info": schema_info,
                 "data": csv_result,
                 "messages": [AIMessage(result)],
             }
-        except TimeoutError as e:
-            log(f"Database connection/timeout error: {str(e)}")
-            error_result = (
-                f"```sql\n{sql_query}\n```\nDatabase Connection Timeout: {str(e)}\nPlease check database connectivity."
-            )
-            return {"sql_execution_result": SQL_EXECUTE_TIMEOUT, "messages": [AIMessage(error_result)]}
-        except OperationalError as e:
-            error_category = _classify_operational_error(e)
-            if error_category == "timeout_or_connection":
-                log(f"Database connection/timeout error: {str(e)}")
-                error_result = f"```sql\n{sql_query}\n```\nDatabase Connection Timeout: {str(e)}\nPlease check database connectivity."
-                return {"sql_execution_result": SQL_EXECUTE_TIMEOUT, "messages": [AIMessage(error_result)]}
-
-            previous_errors = list(state.get("previous_sql_errors", []))
-            if error_category == "syntax":
-                error_type = "SQL syntax error"
-                previous_errors.append({"sql": sql_query, "error": f"{error_type}: {str(e)}", "error_type": error_type})
-                log(f"{error_type}: {str(e)}")
-                return {
-                    "sql_execution_result": SQL_SYNTAX_ERROR,
-                    "previous_sql_errors": previous_errors,
-                }
-
-            error_type = "Database operational error"
-            previous_errors.append({"sql": sql_query, "error": f"{error_type}: {str(e)}", "error_type": error_type})
-            log(f"{error_type}: {str(e)}")
-            return {
-                "sql_execution_result": SQL_UNKNOWN_ERROR,
-                "previous_sql_errors": previous_errors,
-            }
-        except SQLSecurityError as e:
-            error_type = "SQL security error"
-            log(f"{error_type}: {str(e)}")
-            previous_errors = list(state.get("previous_sql_errors", []))
-            previous_errors.append({"sql": sql_query, "error": f"{error_type}: {str(e)}", "error_type": error_type})
-            error_result = f"```sql\n{sql_query}\n```\n{error_type}: {str(e)}"
-            return {
-                "sql_execution_result": SQL_SECURITY_ERROR,
-                "previous_sql_errors": previous_errors,
-                "messages": [AIMessage(error_result)],
-            }
         except Exception as e:
-            error_type = "Unexpected error"
-            execution_result = SQL_UNKNOWN_ERROR
-            if isinstance(e, ProgrammingError):
-                error_type = "SQL syntax error"
-                execution_result = SQL_SYNTAX_ERROR
-            elif isinstance(e, DatabaseError):
-                error_type = "Database error"
+            err = classify_sql_exception(e)
+            log(f"{err.error_type}: {str(e)}")
 
-            log(f"{error_type}: {str(e)}")
+            _audit_logger.log_sql_exec(
+                sql=sql_query,
+                dialect=dialect,
+                row_count=None,
+                duration_ms=(_time.time() - _start) * 1000.0,
+                status=err.code,
+                user_id=user_id,
+                error=str(e),
+            )
 
-            # Add error to previous errors list
             previous_errors = list(state.get("previous_sql_errors", []))
-            previous_errors.append({"sql": sql_query, "error": f"{error_type}: {str(e)}", "error_type": error_type})
+            attempt = len(previous_errors) + 1
+            previous_errors.append(
+                {
+                    "sql": sql_query,
+                    "error": f"{err.error_type}: {str(e)}",
+                    "error_type": err.error_type,
+                    "error_code": err.code,
+                    "error_class": type(err).__name__,
+                    "recovery_strategy": err.recovery_strategy.value,
+                    "attempt": attempt,
+                }
+            )
 
-            return {
-                "sql_execution_result": execution_result,
+            update: dict = {
+                "sql_execution_result": err.code,
                 "previous_sql_errors": previous_errors,
             }
+            # Branches that historically surfaced a message to the user keep doing so.
+            if err.code == SQL_EXECUTE_TIMEOUT:
+                error_result = (
+                    f"```sql\n{sql_query}\n```\nDatabase Connection Timeout: {str(e)}\n"
+                    "Please check database connectivity."
+                )
+                update["messages"] = [AIMessage(error_result)]
+            elif err.code == SQL_SECURITY_ERROR:
+                error_result = f"```sql\n{sql_query}\n```\n{err.error_type}: {str(e)}"
+                update["messages"] = [AIMessage(error_result)]
+            return update
 
     def regenerate_sql_node(state: SQLGraphState) -> dict:
         """Third node: Regenerates SQL based on previous errors.
@@ -440,7 +592,12 @@ def create_sql_nodes(
         if previous_errors:
             user_prompt += "\n\nPrevious attempts failed with errors:"
             for i, error_info in enumerate(previous_errors, 1):
-                user_prompt += f"\n\nAttempt {i}:\nSQL: {error_info['sql']}\nError: {error_info['error']}"
+                error_type_hint = error_info.get("error_type", "")
+                hint_line = f"\nError type: {error_type_hint}" if error_type_hint else ""
+                user_prompt += (
+                    f"\n\nAttempt {i}:\nSQL: {error_info['sql']}"
+                    f"{hint_line}\nError: {error_info['error']}"
+                )
             user_prompt += "\n\nPlease analyze the errors above and generate a corrected SQL query."
 
         messages = [SystemMessage(system_prompt)] + list(state["messages"]) + [HumanMessage(user_prompt)]
@@ -449,6 +606,7 @@ def create_sql_nodes(
         response_content = get_text_from_content(response.content)
         sql_query = response_content.replace("```sql", "").replace("```", "").strip()
 
+        last_strategy = previous_errors[-1].get("recovery_strategy", "") if previous_errors else ""
         if not sql_query:
             log(f"Generated SQL query is empty. LLM output: {response.content}")
             error_result = f"Failed to regenerate valid SQL after {retry_count} attempts."
@@ -457,9 +615,15 @@ def create_sql_nodes(
                 "sql": "",
                 "sql_retry_count": retry_count,
                 "sql_execution_result": SQL_NA,
+                "recovery_strategy": last_strategy,
             }
 
-        return {"sql": sql_query, "sql_retry_count": retry_count, "sql_execution_result": ""}
+        return {
+            "sql": sql_query,
+            "sql_retry_count": retry_count,
+            "sql_execution_result": "",
+            "recovery_strategy": last_strategy,
+        }
 
     def generate_visualization_node(state: SQLGraphState) -> dict:
         """Fourth node: Generates visualization DSL based on successful SQL execution result.
@@ -502,7 +666,130 @@ def create_sql_nodes(
             log(f"Visualization generation error: {str(e)}")
             return {"visualization_dsl": {"error": f"Failed to generate visualization: {str(e)}"}}
 
-    return generate_sql_node, execute_sql_node, regenerate_sql_node, generate_visualization_node
+    def score_sql_node(state: SQLGraphState) -> dict:
+        """Score the executed SQL with the S2 confidence evaluator.
+
+        Only runs after a successful execution (post_exec mode); other
+        execution results are passed through unscored.
+
+        Cost-inert by default: skips the LLM evaluator entirely when neither
+        the confidence gate nor pattern memory is enabled.
+        """
+        if state.get("sql_execution_result", "") != SQL_SUCCESS:
+            return {}
+        sql_query = state.get("sql", "").strip()
+        if not sql_query:
+            return {}
+
+        # Short-circuit: no LLM call when neither consumer is enabled.
+        try:
+            cfg = config.get()
+            gate_on = getattr(cfg, "enable_confidence_gate", False)
+        except ValueError:
+            gate_on = False
+        # enable_pattern_memory lives on memory_config (Task 13), NOT as a top-level
+        # Config attr; read it via get_memory_config so the auto-capture confidence
+        # gate actually gets a score when pattern memory is on.
+        try:
+            pattern_on = bool(getattr(get_memory_config(), "enable_pattern_memory", False))
+        except Exception:
+            pattern_on = False
+        if not gate_on and not pattern_on:
+            return {}  # cost-inert: no scoring needed when neither consumer is enabled
+
+        question = state.get("rewrite_question", "")
+        schema_info = state.get("schema_info", {})
+        data_sample = state.get("data", "")
+        try:
+            # Source-table schema, not the result-set schema: the structural
+            # rubric checks (columns/where/joins/subquery) need the tables the
+            # SQL was written against.
+            table_schema = _get_table_schema_prompt(state.get("tables", []) or [])
+            evaluator = SimpleSQLEvaluator(llm)
+            result = evaluator.evaluate(
+                question, sql_query, schema_info, data_sample, table_schema=table_schema
+            )
+        except Exception as e:  # never block the answer on evaluator failure
+            log(f"Confidence evaluation failed: {str(e)}")
+            return {}
+        log(f"SQL confidence={result.score:.2f} reasons={result.reasons}")
+        return {"sql_confidence": result.score, "confidence_reasons": list(result.reasons)}
+
+    def _capture_golden_sql(state: SQLGraphState) -> None:
+        """Dual-write an approved SQL: S3 vector store + durable YAML (mandatory)."""
+        try:
+            cfg = config.get()
+        except ValueError:
+            return
+        if not bool(getattr(cfg, "enable_golden_sql", False)):
+            return
+        question = state.get("rewrite_question", "")
+        sql_query = state.get("sql", "").strip()
+        tables = [d["table"] for d in state.get("tables", []) if isinstance(d, dict) and d.get("table")]
+        if not question or not sql_query:
+            return
+        # 1) runtime vector store (S3) — under the store's own lock.
+        try:
+            store = get_learned_sql_store()
+            if store is not None:
+                store.add_golden_sql(question, sql_query, tables)
+        except Exception as e:
+            log(f"Golden SQL vector write failed: {str(e)}")
+        # 2) durable YAML append (de-dup, not overwrite) — both writes are mandatory.
+        try:
+            cfg.catalog_store.append_sql_example(question, sql_query, tables, source="golden")
+        except Exception as e:
+            log(f"Golden SQL durable write failed: {str(e)}")
+
+    def confidence_gate_node(state: SQLGraphState) -> dict:
+        """Interrupt for human review when confidence is below threshold.
+
+        Reuses the ask_human interrupt channel (buttons approve/reject/edit).
+        Returns the human decision (and edited SQL on 'edit').
+        """
+        try:
+            cfg = config.get()
+            enabled = bool(getattr(cfg, "enable_confidence_gate", False))
+            threshold = float(getattr(cfg, "sql_confidence_threshold", 0.7))
+        except ValueError:
+            enabled, threshold = False, 0.7
+        score = state.get("sql_confidence", 1.0)
+        if not enabled or score is None or score >= threshold:
+            _capture_golden_sql(state)
+            _maybe_capture_pattern(state)
+            return {"human_sql_decision": "approve"}
+        reasons = state.get("confidence_reasons", [])
+        feedback = interrupt(
+            {
+                "text": f"Low-confidence SQL ({score:.2f}). Reasons: {'; '.join(reasons) or 'n/a'}. Approve?",
+                "buttons": ["approve", "reject", "edit"],
+                "sql": state.get("sql", ""),
+            }
+        )
+        decision = feedback if isinstance(feedback, str) else (feedback or {}).get("decision", "approve")
+        if decision == "edit":
+            edited = feedback.get("sql") if isinstance(feedback, dict) else None
+            if edited:
+                return {"human_sql_decision": "edit", "sql": edited}
+            # 'edit' without a replacement SQL would re-execute the same SQL,
+            # score low again and interrupt forever; degrade to reject so the
+            # graph regenerates instead of looping.
+            log("Confidence gate: 'edit' without SQL payload, degrading to reject")
+            decision = "reject"
+        if decision == "approve":
+            _capture_golden_sql(state)
+            # Human approval overrides the score threshold for pattern capture.
+            _maybe_capture_pattern(state, human_approved=True)
+        return {"human_sql_decision": decision}
+
+    return (
+        generate_sql_node,
+        execute_sql_node,
+        regenerate_sql_node,
+        generate_visualization_node,
+        score_sql_node,
+        confidence_gate_node,
+    )
 
 
 def should_execute_sql(state: SQLGraphState) -> str:

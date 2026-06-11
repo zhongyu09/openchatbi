@@ -68,7 +68,9 @@ async def process_user_message_stream(
     else:
         stream_input = {"messages": [{"role": "user", "content": message}]}
 
-    config = {"configurable": {"thread_id": user_session_id, "user_id": user_id}}
+    from openchatbi.observability.tracing import build_run_config
+
+    config = build_run_config(user_id=user_id, session_id=session_id)
 
     # Use empty container for real-time updates
     thinking_placeholder = thinking_container.empty()

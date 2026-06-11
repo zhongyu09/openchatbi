@@ -23,6 +23,31 @@ class LLMProviderConfig(BaseModel):
     analysis_llm: MagicMock | BaseChatModel | None = None
 
 
+class TracingConfig(BaseModel):
+    enabled: bool = False
+    provider: str | None = None  # 'langfuse' | 'langsmith' | None
+    langfuse_host: str | None = None
+    sample_rate: float = 1.0
+
+
+class MetricsConfig(BaseModel):
+    enabled: bool = False
+    prometheus_port: int | None = None
+
+
+class AuditConfig(BaseModel):
+    enabled: bool = False
+    sink: str = "log"  # 'log' | 'file'
+    path: str | None = None
+    mask_sql_literals: bool = True
+
+
+class ObservabilityConfig(BaseModel):
+    tracing: TracingConfig = TracingConfig()
+    metrics: MetricsConfig = MetricsConfig()
+    audit: AuditConfig = AuditConfig()
+
+
 class Config(BaseModel):
     """Configuration model for the OpenChatBI application.
 
@@ -79,8 +104,37 @@ class Config(BaseModel):
     enable_sql_result_limit: bool = True
     sql_result_limit: int = SQL_RESULT_LIMIT
 
+    # HITL Confidence Gate Configuration (default OFF for zero-regression)
+    enable_confidence_gate: bool = False
+    sql_confidence_threshold: float = 0.7
+    confidence_gate_mode: str = "post_exec"  # Options: "post_exec" (default), "pre_exec" (phase-2)
+    confidence_evaluator_mode: str = "simple"
+
+    # Treat zero-row results as a soft failure (EmptyResultError). Default OFF:
+    # empty results stay SQL_SUCCESS to preserve existing visualization-entry behavior.
+    enable_empty_result_error: bool = False
+
+    # HITL Golden-SQL Capture Configuration (default OFF for zero-regression)
+    enable_golden_sql: bool = False
+    golden_sql_namespace: str = "global"
+
+    # SQL Retry / Recovery Configuration
+    sql_max_retries: int = 3
+    # When True, timeout/connection failures may be retried; default OFF keeps
+    # the existing "timeout ends immediately" behavior.
+    retry_on_timeout: bool = False
+    # Optional per-error-class strategy overrides, e.g. {"SQLSyntaxError": "retry"}.
+    # Reserved for phase-2 (e.g. enabling RETRY_WITH_NEW_TABLE); default empty = no override.
+    retry_strategy_overrides: dict[str, Any] = {}
+
     # Context Management Configuration
     context_config: dict[str, Any] = {}
+
+    # Memory & Pattern Learning Configuration (mirrors context_config; see memory_config.py)
+    memory_config: dict[str, Any] = {}
+
+    # Observability Configuration (S1 — all sub-flags default OFF)
+    observability: ObservabilityConfig = ObservabilityConfig()
 
     # Time Series Service Configuration
     timeseries_forecasting_service_url: str = "http://localhost:8765"

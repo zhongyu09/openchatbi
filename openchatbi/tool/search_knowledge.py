@@ -5,6 +5,7 @@ from pydantic import BaseModel, Field
 
 from openchatbi import config
 from openchatbi.catalog.schema_retrival import col_dict, column_tables_mapping, get_relevant_columns
+from openchatbi.text2sql.data import get_learned_sql_store
 from openchatbi.utils import log
 
 
@@ -16,7 +17,8 @@ class SearchInput(BaseModel):
     knowledge_bases: list[str] = Field(
         description="""Knowledge bases to search, options are:
             - `"columns"`: The description, alias of columns, including dimensions and metrics.
-            - `"business"`: The business knowledge."""
+            - `"business"`: The business knowledge.
+            - `"sql_examples"`: Validated example Question->SQL pairs (golden / learned)."""
     )
     with_table_list: bool = Field(
         description="Include table list for columns (only set to True when user asks about table-column relationships)"
@@ -36,6 +38,13 @@ def search_knowledge(
     if "columns" in knowledge_bases:
         column_results = _search_column_from_catalog(query_list, with_table_list)
         final_results["columns"] = f"# Relevant Columns and Description:\n{column_results}"
+    if "business" in knowledge_bases:
+        # Business knowledge has no dedicated index yet; surface columns context
+        # so the branch is no longer silently dropped (was docstring-only before).
+        business_results = _search_column_from_catalog(query_list, with_table_list)
+        final_results["business"] = f"# Relevant Business Knowledge:\n{business_results}"
+    if "sql_examples" in knowledge_bases:
+        final_results["sql_examples"] = _search_sql_examples(query_list)
     return final_results
 
 
@@ -107,3 +116,20 @@ def _render_column_result(column_list: list[str], with_table_list: bool = False)
             column_desc += f"\n- Related Tables: {table_list}"
         column_results.append(column_desc)
     return column_results
+
+
+def _search_sql_examples(query_list: list[str]) -> str:
+    """Retrieve top-k validated Question->SQL examples from the learned SQL store (S3)."""
+    store = get_learned_sql_store()
+    if store is None:
+        return "# Relevant SQL Examples:\n(no learned SQL store available)"
+    seen: set[str] = set()
+    blocks: list[str] = []
+    for query in query_list:
+        for question, sql, _tables in store.retrieve(query, k=5):
+            if question in seen:
+                continue
+            seen.add(question)
+            blocks.append(f"<example>\nQ: {question}\nA: {sql}\n</example>")
+    body = "\n".join(blocks) if blocks else "(no matching examples)"
+    return f"# Relevant SQL Examples:\n{body}"

@@ -18,6 +18,7 @@ from openchatbi.streaming import (
     StreamInterrupt,
     StreamStep,
     StreamToken,
+    StreamUsage,
     extract_final_answer,
 )
 from openchatbi.utils import get_report_download_response
@@ -45,6 +46,12 @@ async def get_or_build_graph(provider: str | None):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Manage application lifespan events."""
+    try:
+        from dotenv import load_dotenv
+
+        load_dotenv()
+    except ImportError:
+        pass
     # Startup: Initialize the async graph
     graphs["__default__"] = await build_agent_graph_async(config.get().catalog_store)
     yield
@@ -88,6 +95,13 @@ def _event_to_dict(event) -> dict[str, Any]:
         }
     if isinstance(event, StreamInterrupt):
         return {"type": "interrupt", "text": event.text, "buttons": _json_safe(event.buttons)}
+    if isinstance(event, StreamUsage):
+        return {
+            "type": "usage",
+            "turn_tokens": event.turn_tokens,
+            "turn_cost_usd": event.turn_cost_usd,
+            "by_model": event.by_model,
+        }
     return {"type": "unknown"}
 
 
@@ -120,7 +134,9 @@ async def chat_stream(req: UserRequest):
     user_session_id = f"{user_id}-{session_id}"
 
     stream_input = {"messages": [("user", req.input)]}
-    config = {"configurable": {"thread_id": user_session_id, "user_id": user_id}}
+    from openchatbi.observability.tracing import build_run_config
+
+    config = build_run_config(user_id=user_id, session_id=session_id)
 
     try:
         graph = await get_or_build_graph(provider)
@@ -145,6 +161,11 @@ async def chat_stream(req: UserRequest):
         ):
             for event in processor.process(namespace, event_type, event_value):
                 yield json.dumps(_event_to_dict(event), ensure_ascii=False) + "\n"
+
+        # Emit per-turn token/cost rollup.
+        usage = processor.emit_turn_usage()
+        if usage is not None:
+            yield json.dumps(_event_to_dict(usage), ensure_ascii=False) + "\n"
 
         # Emit interrupt or final answer from the terminal state.
         state = await graph.aget_state(config)

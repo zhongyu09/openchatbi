@@ -1,0 +1,8 @@
+id: ex10_having
+category: having
+description: "Customers with more than 10 orders, using GROUP BY + HAVING."
+input:
+  prompt: "Which customers have placed more than 10 orders? Show the customer id and their order count."
+gold:
+  expected_sql: "SELECT customer_id, COUNT(*) AS order_count FROM Orders GROUP BY customer_id HAVING COUNT(*) > 10 ORDER BY order_count DESC LIMIT 20"
+  expected_tool_trajectory: ["text2sql"]

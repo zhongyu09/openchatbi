@@ -1,0 +1,1 @@
+{"tool":"text2sql","args":{"reasoning":"Generate SQL","context":"Break down conversion rate by channel"},"ok":true,"result":{"sql":"SELECT channel, SUM(conversions) * 1.0 / SUM(visits) AS conversion_rate FROM funnel GROUP BY channel","data":"channel,conversion_rate\nemail,0.0450\npaid_search,0.0320\norganic,0.0180"}}

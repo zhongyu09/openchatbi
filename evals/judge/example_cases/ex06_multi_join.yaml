@@ -1,0 +1,8 @@
+id: ex06_multi_join
+category: multi_join
+description: "Three-table join Shipments -> Orders -> Customers."
+input:
+  prompt: "List shipments with their tracking number, the related order id and the customer name."
+gold:
+  expected_sql: "SELECT s.shipment_id, s.shipment_tracking_number, o.order_id, c.customer_name FROM Shipments s JOIN Orders o ON s.order_id = o.order_id JOIN Customers c ON o.customer_id = c.customer_id LIMIT 20"
+  expected_tool_trajectory: ["text2sql"]

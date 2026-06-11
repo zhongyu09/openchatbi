@@ -44,6 +44,10 @@ class SQLGraphState(MessagesState):
     data: str  # CSV data for display
     previous_sql_errors: list[dict[str, Any]]
     visualization_dsl: dict[str, Any]
+    sql_confidence: float
+    confidence_reasons: list[str]
+    human_sql_decision: str
+    recovery_strategy: str  # Last error's recovery strategy (empty if none); see RecoveryStrategy
 
 
 class InputState(MessagesState):
@@ -67,3 +71,7 @@ class SQLOutputState(MessagesState):
     schema_info: dict[str, Any]  # Data schema analysis results
     data: str  # CSV data for display
     visualization_dsl: dict[str, Any]
+    sql_confidence: float
+    confidence_reasons: list[str]
+    human_sql_decision: str
+    recovery_strategy: str  # Last error's recovery strategy (empty if none); see RecoveryStrategy

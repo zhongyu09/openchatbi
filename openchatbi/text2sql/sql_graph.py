@@ -11,8 +11,10 @@ from langgraph.types import Checkpointer, interrupt
 from openchatbi import config
 from openchatbi.catalog import CatalogStore
 from openchatbi.constants import SQL_EXECUTE_TIMEOUT, SQL_SUCCESS
+from openchatbi.text2sql.errors import RecoveryStrategy
 from openchatbi.graph_state import InputState, SQLGraphState, SQLOutputState
 from openchatbi.llm.llm import get_llm, get_text2sql_llm
+from openchatbi.text2sql.data import get_learned_sql_store
 from openchatbi.text2sql.extraction import information_extraction, information_extraction_conditional_edges
 from openchatbi.text2sql.generate_sql import create_sql_nodes, should_execute_sql
 from openchatbi.text2sql.schema_linking import schema_linking
@@ -37,25 +39,77 @@ def ask_human(state):
     return {"messages": tool_message, "user_input": user_feedback}
 
 
+def _get_sql_retry_config() -> tuple[int, bool]:
+    """Read retry settings from Config, defaulting to legacy values."""
+    try:
+        cfg = config.get()
+    except ValueError:
+        return 3, False
+    max_retries = getattr(cfg, "sql_max_retries", 3)
+    if not isinstance(max_retries, int) or max_retries < 0:
+        max_retries = 3
+    return max_retries, bool(getattr(cfg, "retry_on_timeout", False))
+
+
 def _should_generate_visualization_or_retry(state: SQLGraphState) -> str:
     """Conditional edge function to determine next action after execute_sql.
+
+    Routing is strategy-driven: the last classified error's recovery_strategy
+    decides whether to regenerate or end. Falls back to legacy code-based routing
+    when no recovery_strategy is present (e.g. timeouts, untouched states).
 
     Args:
         state (SQLGraphState): Current state
 
     Returns:
-        str: Next node name - "generate_visualization" if SQL succeeded, "regenerate_sql" if retry needed, "end" if done
+        str: "generate_visualization" on success, "regenerate_sql" to retry, "end" otherwise.
     """
     execution_result = state.get("sql_execution_result", "")
     retry_count = state.get("sql_retry_count", 0)
-    max_retries = 3
+    max_retries, retry_on_timeout = _get_sql_retry_config()
 
     if execution_result == SQL_SUCCESS:
         return "generate_visualization"
-    elif retry_count < max_retries and execution_result != SQL_EXECUTE_TIMEOUT:
-        return "regenerate_sql"
-    else:
+
+    # Timeouts are classified with non-retry strategies (ABORT / SURFACE_TO_USER),
+    # which would make retry_on_timeout dead config if left to strategy routing;
+    # honor the explicit opt-in before the strategy-driven branch.
+    if execution_result == SQL_EXECUTE_TIMEOUT:
+        if retry_on_timeout and retry_count < max_retries:
+            return "regenerate_sql"
         return "end"
+
+    previous_errors = state.get("previous_sql_errors", [])
+    strategy = previous_errors[-1].get("recovery_strategy") if previous_errors else None
+
+    if strategy is not None:
+        if strategy in (RecoveryStrategy.SURFACE_TO_USER.value, RecoveryStrategy.ABORT.value):
+            return "end"
+        if strategy in (RecoveryStrategy.RETRY.value, RecoveryStrategy.RETRY_WITH_NEW_TABLE.value):
+            return "regenerate_sql" if retry_count < max_retries else "end"
+        return "end"
+
+    # Legacy fallback: no structured strategy recorded.
+    if retry_count < max_retries and (
+        execution_result != SQL_EXECUTE_TIMEOUT or retry_on_timeout
+    ):
+        return "regenerate_sql"
+    return "end"
+
+
+def route_after_confidence(state: SQLGraphState) -> str:
+    """Route after the confidence gate based on the human decision.
+
+    approve -> visualization; reject -> regenerate; edit -> re-execute the
+    user-edited SQL. Defaults to visualization when no decision is present
+    (gate disabled or score above threshold).
+    """
+    decision = state.get("human_sql_decision", "approve")
+    if decision == "reject":
+        return "regenerate_sql"
+    if decision == "edit":
+        return "execute_sql"
+    return "generate_visualization"
 
 
 def build_sql_graph(
@@ -79,11 +133,19 @@ def build_sql_graph(
     else:
         llm_with_tools = default_llm.bind_tools(tools)
     # Create SQL processing nodes with visualization configuration
-    generate_sql_node, execute_sql_node, regenerate_sql_node, generate_visualization_node = create_sql_nodes(
+    (
+        generate_sql_node,
+        execute_sql_node,
+        regenerate_sql_node,
+        generate_visualization_node,
+        score_sql_node,
+        confidence_gate_node,
+    ) = create_sql_nodes(
         get_text2sql_llm(llm_provider),
         catalog,
         dialect=config.get().dialect,
         visualization_mode=config.get().visualization_mode,
+        learned_sql_store=get_learned_sql_store(),
     )
 
     # Define the SQL generation graph
@@ -98,6 +160,8 @@ def build_sql_graph(
     graph.add_node("execute_sql", execute_sql_node)
     graph.add_node("regenerate_sql", regenerate_sql_node)
     graph.add_node("generate_visualization", generate_visualization_node)
+    graph.add_node("score_sql", score_sql_node)
+    graph.add_node("confidence_gate", confidence_gate_node)
 
     # Add basic edges
     graph.add_edge(START, "information_extraction")
@@ -138,14 +202,31 @@ def build_sql_graph(
         },
     )
 
-    # Add conditional edges for execute_sql - either retry, generate visualization, or end
+    # Add conditional edges for execute_sql - either retry, score the SQL
+    # (post_exec confidence gate), or end. On success we route to score_sql,
+    # which feeds the confidence gate before visualization.
     graph.add_conditional_edges(
         "execute_sql",
         _should_generate_visualization_or_retry,
         {
-            "generate_visualization": "generate_visualization",
+            "generate_visualization": "score_sql",
             "regenerate_sql": "regenerate_sql",
             "end": END,
+        },
+    )
+
+    # score_sql -> confidence_gate -> {visualization | regenerate | re-execute}.
+    # When the gate is disabled (default), confidence_gate returns "approve"
+    # immediately and route_after_confidence sends control to visualization,
+    # preserving the prior SUCCESS -> visualization behavior.
+    graph.add_edge("score_sql", "confidence_gate")
+    graph.add_conditional_edges(
+        "confidence_gate",
+        route_after_confidence,
+        {
+            "generate_visualization": "generate_visualization",
+            "regenerate_sql": "regenerate_sql",
+            "execute_sql": "execute_sql",
         },
     )
 

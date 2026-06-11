@@ -14,7 +14,9 @@ import openchatbi.agent_graph as agent_graph
 from openchatbi import config
 
 _CALL_COUNTER = count(1)
-_ORIG_PRINT = builtins.print
+
+
+_REAL_PRINT = builtins.print  # captured at import time, before any patching
 
 
 def _safe_print(*args: Any, **kwargs: Any) -> None:
@@ -22,10 +24,11 @@ def _safe_print(*args: Any, **kwargs: Any) -> None:
     target = kwargs.get("file")
     if target is None or target is sys.stdout:
         return
-    _ORIG_PRINT(*args, **kwargs)
+    _REAL_PRINT(*args, **kwargs)
 
 
-builtins.print = _safe_print
+# NOTE: builtins.print is patched inside main() only, not at import time.
+# Patching at module level breaks test isolation (capsys sees empty stdout).
 
 
 class JsonlChannel:
@@ -182,21 +185,75 @@ def _build_tool_proxies(channel: JsonlChannel) -> dict[str, StructuredTool]:
     }
 
 
-def _stub_llm_call(chat_model: Any, messages: list[Any], **_kwargs: Any) -> AIMessage:
-    tool_seen = any(isinstance(msg, ToolMessage) or getattr(msg, "type", None) == "tool" for msg in messages)
-    if tool_seen:
-        return AIMessage(content="Here is a deterministic summary based on the tool result.", tool_calls=[])
+# Each trajectory: list of turns. A turn is either a tool name (emit one tool_call)
+# or None (emit a final text answer with no tool_calls). The driver advances by the
+# count of ToolMessages already present, because the case-id is NOT in the JSONL
+# protocol — the only stable key is the user prompt text.
+_TRAJECTORIES: dict[str, list[str | None]] = {
+    "OpenChatBI": ["search_knowledge", None],
+    "How many orders were placed in 2024?": ["text2sql", None],
+    "What is the total revenue by region?": ["text2sql", None],
+    "What is the average order value per customer?": ["text2sql", None],
+    "Show daily active users for the last 30 days": ["text2sql", None],
+    "Join orders with customers and list top 10 spenders": ["text2sql", None],
+    "Which products have orders but no shipments?": ["text2sql", None],
+    "What were sales between 2024-01-01 and 2024-03-31?": ["text2sql", None],
+    "Compare this month's revenue to last month": ["text2sql", None],
+    "Detect anomalies in daily signup counts": ["text2sql", "run_python_code", None],
+    "Plot the revenue trend for 2024": ["text2sql", "run_python_code", None],
+    "What columns describe customer churn?": ["search_knowledge", None],
+    "Explain the orders fact table": ["show_schema", None],
+    "What does the metric DAU mean?": ["search_knowledge", None],
+    "List the schema of the customers table": ["show_schema", None],
+    "How many active users signed up last week?": ["text2sql", None],
+    "Forecast next quarter revenue from history": ["text2sql", "run_python_code", None],
+    "Break down conversion rate by channel": ["text2sql", None],
+    "Generate a sales report for Q1 2024": ["search_knowledge", "text2sql", "save_report", None],
+    "Summarize order volume and save it as a report": ["text2sql", "save_report", None],
+}
 
-    user_text = _last_user_text(messages)
-    tool_args = {
+# Default trajectory for any prompt not in the table (e.g. novel record-mode runs).
+_DEFAULT_TRAJECTORY: list[str | None] = ["search_knowledge", None]
+
+_TOOL_ARGS_BUILDERS = {
+    "search_knowledge": lambda q: {
         "reasoning": "Look up relevant knowledge",
-        "query_list": [user_text],
+        "query_list": [q],
         "knowledge_bases": ["columns"],
         "with_table_list": False,
-    }
+    },
+    "show_schema": lambda q: {"reasoning": "Inspect schema", "tables": [q]},
+    "text2sql": lambda q: {"reasoning": "Generate SQL", "context": q},
+    "run_python_code": lambda q: {
+        "reasoning": "Post-process result",
+        "code": "result = df.describe()",
+    },
+    "save_report": lambda q: {
+        "content": f"Report for: {q}",
+        "title": q[:40].rstrip() or "report",
+        "file_format": "md",
+    },
+}
+
+
+def _tool_message_count(messages: list[Any]) -> int:
+    return sum(
+        1 for m in messages if isinstance(m, ToolMessage) or getattr(m, "type", None) == "tool"
+    )
+
+
+def _scripted_llm_call(chat_model: Any, messages: list[Any], **_kwargs: Any) -> AIMessage:
+    user_text = _last_user_text(messages)
+    trajectory = _TRAJECTORIES.get(user_text, _DEFAULT_TRAJECTORY)
+    step = _tool_message_count(messages)
+    if step >= len(trajectory) or trajectory[step] is None:
+        return AIMessage(content="Here is a deterministic summary based on the tool result.", tool_calls=[])
+    tool_name = trajectory[step]
+    args = _TOOL_ARGS_BUILDERS[tool_name](user_text)
+    call_id = f"call_{step + 1}"
     return AIMessage(
-        content="Searching knowledge base.",
-        tool_calls=[{"name": "search_knowledge", "args": tool_args, "id": "call_1"}],
+        content=f"Calling {tool_name}.",
+        tool_calls=[{"name": tool_name, "args": args, "id": call_id}],
     )
 
 
@@ -216,7 +273,7 @@ def _configure_agent_graph(channel: JsonlChannel) -> None:
     import openchatbi.analysis.agent as analysis_agent
 
     analysis_agent.check_forecast_service_health = lambda: False
-    agent_graph.call_llm_chat_model_with_retry = _stub_llm_call
+    agent_graph.call_llm_chat_model_with_retry = _scripted_llm_call
 
 
 def _bootstrap_config() -> None:
@@ -230,6 +287,11 @@ def _bootstrap_config() -> None:
 
 
 def main() -> int:
+    # Suppress stdout prints inside main() so JSONL output stays clean.
+    # This is intentionally scoped to main() and NOT done at import time so that
+    # importing this module in tests does not pollute capsys/stdout capture.
+    builtins.print = _safe_print
+
     channel = JsonlChannel(sys.stdin)
     message = channel.read()
     if not message or message.get("type") != "task_start":

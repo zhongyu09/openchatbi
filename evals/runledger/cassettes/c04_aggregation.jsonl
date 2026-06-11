@@ -1,0 +1,1 @@
+{"tool":"text2sql","args":{"reasoning":"Generate SQL","context":"What is the average order value per customer?"},"ok":true,"result":{"sql":"SELECT customer_id, AVG(order_total) AS avg_order_value FROM orders GROUP BY customer_id","data":"customer_id,avg_order_value\n1,125.50\n2,98.00"}}

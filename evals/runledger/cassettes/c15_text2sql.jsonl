@@ -1,0 +1,1 @@
+{"tool":"show_schema","args":{"reasoning":"Inspect schema","tables":["List the schema of the customers table"]},"ok":true,"result":{"schema":"# customers\n- customer_id: bigint PRIMARY KEY\n- name: varchar(100)\n- email: varchar(200)\n- region: varchar(50)\n- signup_date: date\n- churn_flag: boolean"}}

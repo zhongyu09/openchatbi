@@ -158,6 +158,33 @@ class CatalogStore(ABC):
         pass
 
     @abstractmethod
+    def append_sql_example(
+        self,
+        question: str,
+        sql: str,
+        tables: list[str],
+        source: str = "golden",
+        database: str | None = None,
+    ) -> bool:
+        """Append a single Q->SQL example, de-duplicating on the question.
+
+        Unlike ``save_table_sql_examples`` (which overwrites the per-table
+        example block), this preserves existing examples and only adds the
+        new one when its question is not already present.
+
+        Args:
+            question (str): The natural-language question.
+            sql (str): The validated SQL answer.
+            tables (list[str]): Full table names referenced by the SQL.
+            source (str): Provenance marker ('golden' for human-approved).
+            database (Optional[str]): Database name override.
+
+        Returns:
+            bool: Whether the append succeeded.
+        """
+        pass
+
+    @abstractmethod
     def save_table_selection_examples(self, examples: list[tuple[str, list[str]]]) -> bool:
         """
         Save table selection examples

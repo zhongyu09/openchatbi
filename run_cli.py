@@ -38,11 +38,19 @@ import dataclasses
 import json
 import sys
 
+try:
+    from dotenv import load_dotenv
+
+    load_dotenv()
+except ImportError:
+    pass
+
 from openchatbi.streaming import (
     AgentStreamProcessor,
     StreamInterrupt,
     StreamStep,
     StreamToken,
+    StreamUsage,
     extract_final_answer,
 )
 
@@ -126,6 +134,13 @@ class CliRenderer:
                 "is_final": event.is_final,
                 "text": event.text,
             }
+        elif isinstance(event, StreamUsage):
+            payload = {
+                "type": "usage",
+                "turn_tokens": event.turn_tokens,
+                "turn_cost_usd": event.turn_cost_usd,
+                "by_model": event.by_model,
+            }
         else:  # StreamInterrupt
             payload = {"type": "interrupt", "text": event.text, "buttons": event.buttons}
         print(json.dumps(payload, ensure_ascii=False, default=_json_default), flush=True)
@@ -161,6 +176,12 @@ class CliRenderer:
                 indent = "  " * event.level
                 tag = self._c(f"↳ [{event.label}] ", _Color.DIM)
                 print(f"\n{indent}{tag}{event.text}")
+
+        elif isinstance(event, StreamUsage):
+            self._end_token_line()
+            self._token_layer = None
+            line = self._c(f"Turn: {event.turn_tokens} tokens (~${event.turn_cost_usd:.4f})", _Color.DIM)
+            print(f"\n{line}")
 
         elif isinstance(event, StreamInterrupt):
             self._end_token_line()
@@ -236,6 +257,11 @@ def _handle_state(state, processor: AgentStreamProcessor, renderer: CliRenderer)
         renderer.render(StreamInterrupt(text=value.get("text", ""), buttons=value.get("buttons", []) or []))
         return True
 
+    # Emit per-turn token/cost rollup before the final answer.
+    usage = processor.emit_turn_usage()
+    if usage is not None:
+        renderer.render(usage)
+
     final = extract_final_answer(processor.final_response)
     if not final:
         # Fall back to the last message content when no streamed answer captured
@@ -274,7 +300,9 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     renderer = CliRenderer(as_json=args.as_json, color=args.color)
-    config = {"configurable": {"thread_id": f"{args.user_id}-{args.session_id}", "user_id": args.user_id}}
+    from openchatbi.observability.tracing import build_run_config
+
+    config = build_run_config(user_id=args.user_id, session_id=args.session_id)
 
     if args.use_async:
         return asyncio.run(_run_async(args, config, renderer))

@@ -83,7 +83,9 @@ async def _async_respond_helper(message, chat_history, user_id, session_id):
     else:
         stream_input = {"messages": [{"role": "user", "content": message}]}
 
-    config = {"configurable": {"thread_id": user_session_id, "user_id": user_id}}
+    from openchatbi.observability.tracing import build_run_config
+
+    config = build_run_config(user_id=user_id, session_id=session_id)
 
     # Ensure graph is available
     if not graph_manager._initialized:

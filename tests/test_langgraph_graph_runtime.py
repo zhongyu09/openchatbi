@@ -22,11 +22,11 @@ class FakeSQLGraph:
     def __init__(self, expected_messages: str = "show revenue") -> None:
         self.expected_messages = expected_messages
 
-    def invoke(self, payload: dict) -> dict:
+    def invoke(self, payload: dict, config=None) -> dict:
         assert payload == {"messages": self.expected_messages}
         return {"sql": "SELECT 1", "data": "value\n1", "visualization_dsl": {"chart_type": "bar"}}
 
-    async def ainvoke(self, payload: dict) -> dict:
+    async def ainvoke(self, payload: dict, config=None) -> dict:
         assert payload == {"messages": self.expected_messages}
         return {"sql": "SELECT 1", "data": "value\n1", "visualization_dsl": {"chart_type": "bar"}}
 

@@ -281,6 +281,67 @@ OpenChatBI supports sophisticated customization through prompt engineering and c
 
 For detailed configuration options and examples, see the [Advanced Features](#advanced-features) section.
 
+## Agent Harness Features
+
+The agent harness adds observability, human-in-the-loop quality gating, learned SQL memory and an evaluation
+toolchain. All of these are **off by default** and enabled individually in `config.yaml`.
+
+### Observability
+
+- **Audit log**: every SQL execution is logged with statement, dialect, duration, row count and status
+  (`observability.audit.enabled: true`; sink `log` or `file`, SQL literals masked by default).
+- **LLM tracing**: optional [Langfuse](https://langfuse.com/) tracing
+  (`observability.tracing.enabled: true`, `provider: langfuse`; credentials come from the
+  `LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY` / `LANGFUSE_HOST` environment variables).
+- **Metrics**: per-run token/cost accounting via callback handlers (`observability.metrics.enabled: true`).
+
+### HITL Confidence Gate
+
+After a successful execution, an LLM evaluator scores the SQL against the source-table schema using a
+6-check rubric (select columns, filters, calculations, subqueries, joins, result plausibility).
+Low-confidence SQL pauses the graph and asks the user to approve / reject / edit before the answer is returned.
+
+```yaml
+enable_confidence_gate: true     # default false
+sql_confidence_threshold: 0.7    # interrupt below this score
+```
+
+### SQL Error Recovery
+
+Execution errors are classified (syntax, timeout, security, missing table, ...) into recovery strategies
+that drive the retry routing:
+
+```yaml
+sql_max_retries: 3        # regeneration retry budget
+retry_on_timeout: false   # opt-in: also retry timed-out queries
+```
+
+### Learned SQL Memory
+
+- **Pattern memory**: approved, high-confidence (question → SQL) pairs are auto-captured into the runtime
+  example store and blended into few-shot retrieval, re-ranked by importance / recency / frequency.
+- **Golden SQL**: human-approved SQL is dual-written to the runtime store and the catalog YAML.
+
+```yaml
+enable_golden_sql: true       # default false
+memory_config:
+  enable_pattern_memory: true       # default false
+  max_patterns_per_query: 5
+  enable_memory_decay_rerank: true  # decay/frequency re-rank for memory search
+```
+
+### Evaluation
+
+- **Deterministic replay**: `evals/runledger/` replays recorded LLM cassettes in CI
+  (`.github/workflows/runledger.yml`; runs on PRs labeled `runledger` or manual dispatch).
+- **LLM-as-Judge**: collect generated SQL over gold cases, then judge it with the shared rubric evaluator —
+  see [`evals/judge/README.md`](evals/judge/README.md) for the two-step flow:
+
+```bash
+python -m evals.judge.collect_generated --cases evals/judge/example_cases --config my_config.yaml --out generated.json
+python -m evals.judge.run_judge --cases evals/judge/example_cases --generated generated.json --config my_config.yaml --out judge_out/report.json
+```
+
 ## Architecture Overview
 
 OpenChatBI is built using a modular architecture with clear separation of concerns:

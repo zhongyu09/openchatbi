@@ -27,3 +27,29 @@ jobs:
         with:
           name: runledger-artifacts
           path: runledger_out/**
+
+  judge:
+    # Non-gating LLM-as-Judge run (manual only). Never blocks PR merges:
+    # only runs on explicit dispatch, and uploads a report artifact.
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install ".[eval]"
+      - name: Run LLM-as-Judge over gold corpus
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          python -m evals.judge.run_judge --cases evals/runledger/cases --out judge_out/report.json
+      - name: Upload judge report
+        uses: actions/upload-artifact@v4
+        with:
+          name: judge-report
+          path: judge_out/**

@@ -4,6 +4,10 @@ mode: replay
 cases_path: cases
 tool_registry:
   - search_knowledge
+  - show_schema
+  - text2sql
+  - run_python_code
+  - save_report
 tool_module: evals.runledger.tools
 
 assertions:
@@ -12,7 +16,7 @@ assertions:
 
 budgets:
   max_wall_ms: 20000
-  max_tool_calls: 5
+  max_tool_calls: 8
   max_tool_errors: 0
 
 baseline_path: ../../baselines/runledger-openchatbi.json

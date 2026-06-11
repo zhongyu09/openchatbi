@@ -197,6 +197,57 @@ class TestRouteAfterConfidence:
         assert route_after_confidence({}) == "generate_visualization"
 
 
+class TestConfidenceGateEditFallback:
+    @pytest.fixture
+    def gate_node(self):
+        from openchatbi.text2sql.generate_sql import create_sql_nodes
+
+        return create_sql_nodes(Mock(), Mock(), "presto")[5]
+
+    def _low_conf_state(self):
+        return SQLGraphState(
+            messages=[],
+            rewrite_question="q",
+            sql="SELECT 1",
+            sql_confidence=0.3,
+            confidence_reasons=["WHERE missing"],
+        )
+
+    def _gated_cfg(self):
+        return Config(
+            default_llm=MagicMock(),
+            data_warehouse_config={"uri": "sqlite:///:memory:"},
+            enable_confidence_gate=True,
+            sql_confidence_threshold=0.7,
+        )
+
+    def test_edit_with_sql_payload_replaces_sql(self, gate_node):
+        with patch("openchatbi.text2sql.generate_sql.config.get", return_value=self._gated_cfg()), patch(
+            "openchatbi.text2sql.generate_sql.interrupt",
+            return_value={"decision": "edit", "sql": "SELECT 2"},
+        ):
+            out = gate_node(self._low_conf_state())
+        assert out == {"human_sql_decision": "edit", "sql": "SELECT 2"}
+
+    def test_edit_without_sql_degrades_to_reject(self, gate_node):
+        """A bare 'edit' (no replacement SQL) would re-execute the same SQL and
+        interrupt again forever; it must degrade to reject -> regenerate."""
+        with patch("openchatbi.text2sql.generate_sql.config.get", return_value=self._gated_cfg()), patch(
+            "openchatbi.text2sql.generate_sql.interrupt", return_value="edit"
+        ):
+            out = gate_node(self._low_conf_state())
+        assert out["human_sql_decision"] == "reject"
+        assert "sql" not in out
+
+    def test_edit_dict_without_sql_degrades_to_reject(self, gate_node):
+        with patch("openchatbi.text2sql.generate_sql.config.get", return_value=self._gated_cfg()), patch(
+            "openchatbi.text2sql.generate_sql.interrupt", return_value={"decision": "edit"}
+        ):
+            out = gate_node(self._low_conf_state())
+        assert out["human_sql_decision"] == "reject"
+        assert "sql" not in out
+
+
 class TestInterruptThroughToolBoundary:
     """Verify the confidence_gate interrupt survives the get_sql_tools
     StructuredTool boundary and that Command(resume=...) routes back to the

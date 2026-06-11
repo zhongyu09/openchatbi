@@ -764,6 +764,11 @@ def create_sql_nodes(
             edited = feedback.get("sql") if isinstance(feedback, dict) else None
             if edited:
                 return {"human_sql_decision": "edit", "sql": edited}
+            # 'edit' without a replacement SQL would re-execute the same SQL,
+            # score low again and interrupt forever; degrade to reject so the
+            # graph regenerates instead of looping.
+            log("Confidence gate: 'edit' without SQL payload, degrading to reject")
+            decision = "reject"
         if decision == "approve":
             _capture_golden_sql(state)
         return {"human_sql_decision": decision}

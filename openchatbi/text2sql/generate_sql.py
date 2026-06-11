@@ -262,8 +262,11 @@ def create_sql_nodes(
                         examples.append(f"<example>\nQ: {ex_question}\nA: {example_sql}\n</example>\n")
                     if len(examples) >= cap:
                         break
-                log(f"Blended examples (store): {examples}")
-                return "\n".join(examples)
+                if examples:
+                    log(f"Blended examples (store): {examples}")
+                    return "\n".join(examples)
+                # Everything was filtered out (or the store is empty): fall through
+                # to the legacy static path instead of returning no examples at all.
 
         # Legacy path: static retriever + strict subset filter (unchanged behavior).
         relevant_questions = sql_example_retriever.invoke(question)

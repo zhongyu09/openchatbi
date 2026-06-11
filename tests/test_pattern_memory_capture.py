@@ -280,7 +280,12 @@ class TestBlendedRetrieval:
             rewrite_question="q",
             tables=[{"table": "test_table", "columns": []}],
         )
-        with patch("openchatbi.text2sql.generate_sql.get_memory_config", return_value=mem_cfg):
+        # Empty store results now fall through to the legacy static path,
+        # so the static retriever must be patched too.
+        with patch("openchatbi.text2sql.generate_sql.get_memory_config", return_value=mem_cfg), patch(
+            "openchatbi.text2sql.generate_sql.sql_example_retriever"
+        ) as mock_retriever:
+            mock_retriever.invoke.return_value = []
             gen(state)
 
         score_fn = captured["score_fn"]
@@ -320,6 +325,44 @@ class TestBlendedRetrieval:
         prompt = captured["prompt"]
         assert "matches selected" in prompt
         assert "other tables" not in prompt
+
+    def test_blended_retrieval_falls_back_to_legacy_when_all_filtered(self, mock_llm, mock_catalog):
+        """All learned patterns dropped by the table filter -> legacy static path, not empty."""
+        captured = {}
+
+        def _capture(messages):
+            captured["prompt"] = messages[0].content
+            return AIMessage(content="SELECT 1")
+
+        mock_llm.invoke.side_effect = _capture
+        store = MagicMock()
+        store.retrieve.return_value = [
+            ("other tables", "SELECT 1 FROM unrelated", ["unrelated"]),
+        ]
+        gen, _exec, _regen, _viz, _score, _gate = create_sql_nodes(
+            mock_llm, mock_catalog, "presto", learned_sql_store=store
+        )
+        mem_cfg = MagicMock()
+        mem_cfg.enable_pattern_memory = True
+        mem_cfg.max_patterns_per_query = 5
+        state = SQLGraphState(
+            messages=[],
+            rewrite_question="q",
+            tables=[{"table": "test_table", "columns": []}],
+        )
+        legacy_doc = Mock()
+        legacy_doc.page_content = "legacy static question"
+        with patch("openchatbi.text2sql.generate_sql.get_memory_config", return_value=mem_cfg), patch(
+            "openchatbi.text2sql.generate_sql.sql_example_retriever"
+        ) as mock_retriever, patch.dict(
+            "openchatbi.text2sql.generate_sql.sql_example_dicts",
+            {"legacy static question": ("SELECT 99 FROM test_table", ["test_table"])},
+        ):
+            mock_retriever.invoke.return_value = [legacy_doc]
+            gen(state)
+
+        mock_retriever.invoke.assert_called_once()
+        assert "legacy static question" in captured["prompt"]
 
     def test_legacy_static_path_when_store_disabled(self, mock_llm, mock_catalog):
         """Flag off -> legacy static retriever path (store.retrieve never called)."""

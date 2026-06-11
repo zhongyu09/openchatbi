@@ -1,4 +1,4 @@
-"""Tests for langmem decay reranking + importance/last_used/use_count stamping."""
+"""Tests for langmem decay reranking."""
 
 from datetime import datetime, timedelta, timezone
 from unittest.mock import Mock, patch
@@ -8,7 +8,6 @@ from langchain_core.language_models import FakeListChatModel
 
 from openchatbi.tool.memory import (
     _rerank_search_results,
-    _stamp_memory_value,
     get_memory_tools,
 )
 
@@ -37,13 +36,6 @@ def test_rerank_tolerates_plain_dicts():
     b = {"value": {"text": "b", "last_used": (datetime.now(timezone.utc) - timedelta(days=300)).isoformat()}, "score": 0.9}
     out = _rerank_search_results([b, a])
     assert out[0]["value"]["text"] == "a"
-
-
-def test_stamp_memory_value_adds_provenance_fields():
-    stamped = _stamp_memory_value({"text": "remember X"})
-    assert stamped["importance"] == 1.0
-    assert stamped["use_count"] == 0
-    assert "last_used" in stamped
 
 
 @patch("openchatbi.tool.memory.get_memory_config")

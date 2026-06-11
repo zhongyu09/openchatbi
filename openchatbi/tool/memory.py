@@ -174,17 +174,6 @@ def _rerank_search_results(items: list) -> list:
     return sorted(items, key=_key, reverse=True)
 
 
-def _stamp_memory_value(value: dict) -> dict:
-    """Stamp importance/last_used/use_count provenance on a memory write payload."""
-    from datetime import datetime, timezone
-
-    out = dict(value)
-    out.setdefault("importance", 1.0)
-    out.setdefault("use_count", 0)
-    out.setdefault("last_used", datetime.now(timezone.utc).isoformat())
-    return out
-
-
 class StructuredToolWithRequired(StructuredTool):
     def __init__(self, orig_tool: StructuredTool):
         name = getattr(orig_tool, "name", None)

@@ -406,9 +406,15 @@ graph TD
     GS -->|execute_sql| ES[execute_sql]
     GS -->|end| END
     
-    ES -->|generate_visualization| GV[generate_visualization]
+    ES -->|success| SS[score_sql]
     ES -->|regenerate_sql| RS[regenerate_sql]
     ES -->|end| END
+
+    SS --> CG[confidence_gate]
+    
+    CG -->|generate_visualization| GV[generate_visualization]
+    CG -->|regenerate_sql| RS
+    CG -->|execute_sql| ES
     
     RS -->|execute_sql| ES
     RS -->|end| END
@@ -434,6 +440,9 @@ openchatbi/
 │   ├── graph_state.py          # State definition for workflows
 │   ├── context_config.py       # Context management configuration
 │   ├── context_manager.py      # Context window and token management
+│   ├── memory_config.py        # Memory configuration
+│   ├── memory_scoring.py       # Learned SQL memory scoring
+│   ├── streaming.py            # Shared streaming event utilities
 │   ├── text_segmenter.py       # Text segmentation with jieba support
 │   ├── utils.py                # Utility functions and SimpleStore (BM25-based retrieval)
 │   ├── analysis/               # Data analysis agent + algorithms (see analysis/README.md)
@@ -462,18 +471,25 @@ openchatbi/
 │   ├── llm/                    # LLM integration layer
 │   │   ├── __init__.py         # Package initialization
 │   │   └── llm.py              # LLM management and retry logic
+│   ├── observability/          # Audit, tracing, logging, metrics, and pricing support
 │   ├── prompts/                # Prompt templates and engineering
 │   │   ├── __init__.py         # Package initialization
 │   │   ├── agent_prompt.md     # Main agent prompts
+│   │   ├── data_analysis_prompt.md # Data analysis prompts
 │   │   ├── extraction_prompt.md # Information extraction prompts
+│   │   ├── schema_linking_prompt.md # Schema linking prompts
+│   │   ├── sql_confidence_prompt.md # SQL confidence evaluation prompts
 │   │   ├── system_prompt.py    # System prompt management
 │   │   ├── summary_prompt.md   # Summary conversation prompts
 │   │   ├── table_selection_prompt.md # Table selection prompts
 │   │   ├── text2sql_prompt.md  # Text-to-SQL prompts
+│   │   ├── visualization_prompt.md # Visualization prompts
 │   │   └── sql_dialect/        # SQL dialect-specific prompts
 │   ├── text2sql/               # Text-to-SQL conversion pipeline
 │   │   ├── __init__.py         # Package initialization
+│   │   ├── confidence.py       # SQL confidence evaluation
 │   │   ├── data.py             # Data and retriever for Text-to-SQL
+│   │   ├── errors.py           # Text2SQL error types
 │   │   ├── extraction.py       # Information extraction
 │   │   ├── generate_sql.py     # SQL generation and execution logic
 │   │   ├── schema_linking.py   # Schema linking process
@@ -493,6 +509,8 @@ openchatbi/
 ├── sample_api/                 # API implementations
 │   └── async_api.py            # Asynchronous FastAPI example
 ├── sample_ui/                  # Web interface implementations
+│   ├── async_graph_manager.py  # Async LangGraph lifecycle and graph cache
+│   ├── history_loader.py       # Chat history loading and normalization
 │   ├── memory_ui.py            # Memory-enhanced UI interface
 │   ├── plotly_utils.py         # Plotly utilities and helpers
 │   ├── simple_ui.py            # Simple non-streaming Gradio UI
@@ -514,6 +532,10 @@ openchatbi/
 ├── tests/                      # Test suite
 │   ├── __init__.py             # Package initialization
 │   ├── conftest.py             # Test configuration
+│   ├── analysis/               # Data analysis tests
+│   ├── context_management/     # Context management tests
+│   ├── eval/                   # Evaluation workflow tests
+│   ├── observability/          # Observability tests
 │   ├── test_*.py               # Test modules for various components
 │   └── README.md               # Testing documentation
 ├── docs/                       # Documentation

@@ -7,6 +7,7 @@ computes a score when explicitly invoked.
 
 from __future__ import annotations
 
+import importlib.resources
 import json
 from dataclasses import dataclass, field
 
@@ -26,30 +27,16 @@ RUBRIC_CHECKS: tuple[str, ...] = (
     "exec_result",     # the (sampled) execution result is plausible
 )
 
-_RUBRIC_PROMPT = """You are a strict SQL reviewer. Score whether the SQL correctly answers the question.
-Apply these six checks, each strictly true or false:
-1. select_columns: the SELECT columns map to the fields the question asks for.
-2. where: the WHERE conditions correctly express every filter implied by the question.
-3. calc: aggregations and arithmetic are correct.
-4. subquery: any subqueries are correctly decomposed and necessary.
-5. joins: JOIN keys match the correct columns across tables.
-6. exec_result: the sampled execution result (if any) is plausible for the question.
+_rubric_prompt_template_cache: str | None = None
 
-Schema info:
-{schema_info}
 
-Data sample (may be empty):
-{data_sample}
-
-Question:
-{question}
-
-SQL:
-{sql}
-
-Respond with ONLY a JSON object, no prose, of the exact form:
-{{"score": <float 0..1>, "reasons": [<string>, ...], "checks": {{"select_columns": <bool>, "where": <bool>, "calc": <bool>, "subquery": <bool>, "joins": <bool>, "exec_result": <bool>}}}}
-"""
+def _get_rubric_prompt_template() -> str:
+    """Get the rubric prompt template from prompts/sql_confidence_prompt.md with caching."""
+    global _rubric_prompt_template_cache
+    if _rubric_prompt_template_cache is None:
+        with importlib.resources.files("openchatbi.prompts").joinpath("sql_confidence_prompt.md").open("r") as f:
+            _rubric_prompt_template_cache = f.read()
+    return _rubric_prompt_template_cache
 
 
 @dataclass
@@ -78,12 +65,27 @@ class SimpleSQLEvaluator:
         sql: str,
         schema_info: dict,
         data_sample: str | None,
+        table_schema: str = "",
     ) -> ConfidenceResult:
-        prompt = _RUBRIC_PROMPT.format(
-            schema_info=json.dumps(schema_info, default=str),
-            data_sample=data_sample or "",
-            question=question,
-            sql=sql,
+        """Score the SQL against the 6-step rubric.
+
+        Args:
+            question: Natural-language question the SQL should answer.
+            sql: SQL statement under review.
+            schema_info: Result-set schema (columns/dtypes of the executed
+                output); only reliable for the exec_result check.
+            data_sample: Sampled rows of the execution result (may be None).
+            table_schema: Source-table schema the SQL was written against —
+                the reference for the structural checks 1-5 (select_columns,
+                where, calc, subquery, joins).
+        """
+        prompt = (
+            _get_rubric_prompt_template()
+            .replace("[table_schema]", table_schema or "(not provided)")
+            .replace("[result_schema]", json.dumps(schema_info, default=str))
+            .replace("[data_sample]", data_sample or "")
+            .replace("[sql]", sql)
+            .replace("[question]", question)
         )
         messages = [
             SystemMessage(content="You are a precise SQL correctness evaluator."),

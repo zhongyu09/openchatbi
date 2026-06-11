@@ -29,6 +29,7 @@ class LLMAsJudgeEvaluator:
         generated_sql: str,
         expected_sql: str | None = None,
         schema: dict | None = None,
+        table_schema: str = "",
     ) -> JudgeVerdict:
         # Fold the gold SQL into the data_sample context so the rubric can compare.
         data_sample = None
@@ -39,6 +40,7 @@ class LLMAsJudgeEvaluator:
             sql=generated_sql,
             schema_info=schema or {},
             data_sample=data_sample,
+            table_schema=table_schema,
         )
         return JudgeVerdict(
             score=result.score,

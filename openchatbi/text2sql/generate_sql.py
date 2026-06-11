@@ -701,8 +701,14 @@ def create_sql_nodes(
         schema_info = state.get("schema_info", {})
         data_sample = state.get("data", "")
         try:
+            # Source-table schema, not the result-set schema: the structural
+            # rubric checks (columns/where/joins/subquery) need the tables the
+            # SQL was written against.
+            table_schema = _get_table_schema_prompt(state.get("tables", []) or [])
             evaluator = SimpleSQLEvaluator(llm)
-            result = evaluator.evaluate(question, sql_query, schema_info, data_sample)
+            result = evaluator.evaluate(
+                question, sql_query, schema_info, data_sample, table_schema=table_schema
+            )
         except Exception as e:  # never block the answer on evaluator failure
             log(f"Confidence evaluation failed: {str(e)}")
             return {}

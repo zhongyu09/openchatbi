@@ -24,6 +24,7 @@ from openchatbi.llm.llm import list_llm_providers  # noqa: E402
 from openchatbi.streaming import AgentStreamProcessor, StreamStep, StreamToken  # noqa: E402
 from openchatbi.utils import log  # noqa: E402
 from sample_ui.async_graph_manager import AsyncGraphManager  # noqa: E402
+from sample_ui.history_loader import load_session_history  # noqa: E402
 from sample_ui.plotly_utils import visualization_dsl_to_gradio_plot  # noqa: E402
 
 # Configuration
@@ -38,6 +39,8 @@ if "session_interrupts" not in st.session_state:
     st.session_state.session_interrupts = {}
 if "event_loop" not in st.session_state:
     st.session_state.event_loop = None
+if "loaded_thread" not in st.session_state:
+    st.session_state.loaded_thread = None
 
 
 async def process_user_message_stream(
@@ -231,6 +234,38 @@ async def process_user_message_stream(
             final_answer_text = "\n".join(final_answer_lines).strip()
 
     return final_response, plot_figure, thinking_steps, chronological_content, final_answer_text
+
+
+async def _load_history_async(user_id: str, session_id: str, llm_provider: str | None) -> list[dict]:
+    """Initialize the graph if needed and load persisted history for a thread."""
+    if not st.session_state.graph_manager._initialized:
+        await st.session_state.graph_manager.initialize()
+    graph = await st.session_state.graph_manager.get_graph(llm_provider)
+    return await load_session_history(graph, user_id, session_id)
+
+
+def restore_history_if_needed(user_id: str, session_id: str, llm_provider: str | None) -> None:
+    """Load checkpoint history into the UI when the active thread changes.
+
+    Runs once per thread: switching ``user_id``/``session_id`` reloads history,
+    while reruns within the same thread are no-ops so live messages are never
+    duplicated.
+    """
+    thread = f"{user_id}-{session_id}"
+    if st.session_state.loaded_thread == thread:
+        return
+
+    try:
+        if st.session_state.event_loop is None or st.session_state.event_loop.is_closed():
+            st.session_state.event_loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(st.session_state.event_loop)
+        loop = st.session_state.event_loop
+        st.session_state.messages = loop.run_until_complete(_load_history_async(user_id, session_id, llm_provider))
+    except Exception as e:
+        log(f"Error restoring history for {thread}: {e}")
+        st.session_state.messages = []
+    finally:
+        st.session_state.loaded_thread = thread
 
 
 def get_available_reports() -> list[str]:
@@ -456,6 +491,10 @@ with st.sidebar:
                 st.success(f"✅ {selected_report} is ready for download!")
     else:
         st.info("No reports available for download.")
+
+# Restore persisted history from the checkpointer when the active thread changes
+# (e.g. page refresh or switching User/Session ID). No-op within the same thread.
+restore_history_if_needed(user_id, session_id, llm_provider)
 
 # Display chat history
 for msg in st.session_state.messages:

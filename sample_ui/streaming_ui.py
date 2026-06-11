@@ -23,6 +23,7 @@ from langgraph.types import Command
 from openchatbi.streaming import AgentStreamProcessor, StreamStep, StreamToken
 from openchatbi.utils import get_report_download_response, log
 from sample_ui.async_graph_manager import AsyncGraphManager
+from sample_ui.history_loader import load_session_history_tuples
 from sample_ui.plotly_utils import create_inline_chart_markdown, visualization_dsl_to_gradio_plot
 from sample_ui.style import custom_css
 
@@ -206,6 +207,29 @@ def respond(message, chat_history, user_id, session_id="default"):
             pass
 
 
+async def _async_load_history_helper(user_id, session_id):
+    """Initialize the graph if needed and load persisted history as chat tuples."""
+    if not graph_manager._initialized:
+        await graph_manager.initialize()
+    graph = await graph_manager.get_graph()
+    return await load_session_history_tuples(graph, user_id, session_id)
+
+
+def load_history_to_chatbot(user_id, session_id="default"):
+    """Load checkpoint history for the active thread into the chatbot.
+
+    Bound to ``demo.load`` (page open) and the User/Session ID ``change`` events,
+    so the visible history follows the active ``{user_id}-{session_id}`` thread.
+    Returns the full chatbot value, which replaces (never appends to) it.
+    """
+    loop = get_or_create_event_loop()
+    try:
+        return loop.run_until_complete(_async_load_history_helper(user_id, session_id))
+    except Exception as e:
+        log(f"Error loading history for {user_id}-{session_id}: {e}")
+        return []
+
+
 # ---------- Memory Management Functions ----------
 def list_user_memories(user_id: str) -> str:
     """List all memories for a specific user."""
@@ -342,6 +366,11 @@ with gr.Blocks(css=custom_css, theme=gr.themes.Soft()) as demo:
             show_chart_btn.click(show_chart_panel, outputs=[chart_panel], show_api=False)
             hide_chart_btn.click(hide_chart_panel, outputs=[chart_panel], show_api=False)
 
+            # Restore persisted chat history from the checkpointer: on page load
+            # and whenever the User/Session ID changes (switching threads).
+            user_box.change(load_history_to_chatbot, [user_box, session_box], [chatbot], show_api=False)
+            session_box.change(load_history_to_chatbot, [user_box, session_box], [chatbot], show_api=False)
+
         with gr.TabItem("🧠 Memory Store"):
             gr.Markdown("### Long-term Memory Viewer")
             gr.Markdown("View memories stored for each user in the system.")
@@ -364,6 +393,9 @@ with gr.Blocks(css=custom_css, theme=gr.themes.Soft()) as demo:
                 outputs=[memory_display],
                 show_api=False,
             )
+
+    # Restore persisted history into the chatbot when the page first loads.
+    demo.load(load_history_to_chatbot, [user_box, session_box], [chatbot], show_api=False)
 
 
 # ---------- API Endpoints ----------

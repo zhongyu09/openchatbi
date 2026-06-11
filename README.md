@@ -8,6 +8,7 @@ Join the Slack channel to discuss: [Invitation Link To Join](https://join.slack.
 
 <img src="https://github.com/zhongyu09/openchatbi/raw/main/example/demo.gif" alt="Demo" width="800">
 
+
 ## Core Features
 
 1. **Natural Language Interaction**: Get data analysis results by asking questions in natural language

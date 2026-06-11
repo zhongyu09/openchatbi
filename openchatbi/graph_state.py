@@ -47,6 +47,7 @@ class SQLGraphState(MessagesState):
     sql_confidence: float
     confidence_reasons: list[str]
     human_sql_decision: str
+    recovery_strategy: str  # Last error's recovery strategy (empty if none); see RecoveryStrategy
 
 
 class InputState(MessagesState):

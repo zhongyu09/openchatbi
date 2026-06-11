@@ -71,6 +71,14 @@ def _should_generate_visualization_or_retry(state: SQLGraphState) -> str:
     if execution_result == SQL_SUCCESS:
         return "generate_visualization"
 
+    # Timeouts are classified with non-retry strategies (ABORT / SURFACE_TO_USER),
+    # which would make retry_on_timeout dead config if left to strategy routing;
+    # honor the explicit opt-in before the strategy-driven branch.
+    if execution_result == SQL_EXECUTE_TIMEOUT:
+        if retry_on_timeout and retry_count < max_retries:
+            return "regenerate_sql"
+        return "end"
+
     previous_errors = state.get("previous_sql_errors", [])
     strategy = previous_errors[-1].get("recovery_strategy") if previous_errors else None
 

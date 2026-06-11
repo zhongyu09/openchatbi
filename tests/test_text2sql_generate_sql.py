@@ -542,6 +542,32 @@ class TestText2SQLGenerateSQL:
         )
         assert _should_generate_visualization_or_retry(state) == "end"
 
+    def test_routing_timeout_retry_on_timeout_enabled_regenerates(self):
+        """retry_on_timeout=True overrides the timeout abort strategy while under the cap."""
+        from openchatbi.constants import SQL_EXECUTE_TIMEOUT
+
+        state = SQLGraphState(
+            sql_execution_result=SQL_EXECUTE_TIMEOUT,
+            sql_retry_count=1,
+            previous_sql_errors=[{"recovery_strategy": "abort"}],
+        )
+        with patch("openchatbi.text2sql.sql_graph.config") as mock_cfg:
+            mock_cfg.get.return_value = SimpleNamespace(sql_max_retries=3, retry_on_timeout=True)
+            assert _should_generate_visualization_or_retry(state) == "regenerate_sql"
+
+    def test_routing_timeout_retry_on_timeout_respects_max_retries(self):
+        """retry_on_timeout=True still ends once the retry cap is reached."""
+        from openchatbi.constants import SQL_EXECUTE_TIMEOUT
+
+        state = SQLGraphState(
+            sql_execution_result=SQL_EXECUTE_TIMEOUT,
+            sql_retry_count=3,
+            previous_sql_errors=[{"recovery_strategy": "abort"}],
+        )
+        with patch("openchatbi.text2sql.sql_graph.config") as mock_cfg:
+            mock_cfg.get.return_value = SimpleNamespace(sql_max_retries=3, retry_on_timeout=True)
+            assert _should_generate_visualization_or_retry(state) == "end"
+
     def test_should_execute_sql_with_sql(self):
         """Test execute decision with SQL present."""
         state = SQLGraphState(sql="SELECT * FROM users")

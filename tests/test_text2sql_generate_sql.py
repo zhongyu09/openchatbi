@@ -9,7 +9,7 @@ from langchain_core.messages import AIMessage
 from openchatbi.constants import SQL_EXECUTE_TIMEOUT, SQL_RESULT_LIMIT, SQL_SUCCESS
 from openchatbi.graph_state import SQLGraphState
 from openchatbi.text2sql.generate_sql import create_sql_nodes, should_execute_sql
-from openchatbi.text2sql.sql_graph import _should_generate_visualization_or_retry
+from openchatbi.text2sql.sql_graph import _route_after_execute
 
 
 class TestText2SQLGenerateSQL:
@@ -443,28 +443,28 @@ class TestText2SQLGenerateSQL:
         """Test routing to visualization with successful execution."""
         state = SQLGraphState(sql_execution_result=SQL_SUCCESS, sql_retry_count=1)
 
-        result = _should_generate_visualization_or_retry(state)
-        assert result == "generate_visualization"
+        result = _route_after_execute(state)
+        assert result == "success"
 
     def test_should_generate_visualization_or_retry_timeout(self):
         """Test routing ends on database timeout."""
         state = SQLGraphState(sql_execution_result=SQL_EXECUTE_TIMEOUT, sql_retry_count=1)
 
-        result = _should_generate_visualization_or_retry(state)
+        result = _route_after_execute(state)
         assert result == "end"
 
     def test_should_generate_visualization_or_retry_retry_needed(self):
         """Test routing to SQL regeneration when retry is needed."""
         state = SQLGraphState(sql_execution_result="SYNTAX_ERROR", sql_retry_count=1)
 
-        result = _should_generate_visualization_or_retry(state)
+        result = _route_after_execute(state)
         assert result == "regenerate_sql"
 
     def test_should_generate_visualization_or_retry_max_retries_reached(self):
         """Test routing ends when max retries are reached."""
         state = SQLGraphState(sql_execution_result="SYNTAX_ERROR", sql_retry_count=3)
 
-        result = _should_generate_visualization_or_retry(state)
+        result = _route_after_execute(state)
         assert result == "end"
 
     # --- Strategy-driven routing tests (Task 10) ---
@@ -478,7 +478,7 @@ class TestText2SQLGenerateSQL:
             sql_retry_count=0,
             previous_sql_errors=[{"recovery_strategy": "surface_to_user"}],
         )
-        assert _should_generate_visualization_or_retry(state) == "end"
+        assert _route_after_execute(state) == "end"
 
     def test_routing_abort_ends(self):
         """recovery_strategy=abort ends (timeout case, convention #7: use SYMBOL)."""
@@ -489,7 +489,7 @@ class TestText2SQLGenerateSQL:
             sql_retry_count=0,
             previous_sql_errors=[{"recovery_strategy": "abort"}],
         )
-        assert _should_generate_visualization_or_retry(state) == "end"
+        assert _route_after_execute(state) == "end"
 
     def test_routing_retry_regenerates(self):
         """recovery_strategy=retry routes to regenerate when under the retry cap."""
@@ -500,7 +500,7 @@ class TestText2SQLGenerateSQL:
             sql_retry_count=1,
             previous_sql_errors=[{"recovery_strategy": "retry"}],
         )
-        assert _should_generate_visualization_or_retry(state) == "regenerate_sql"
+        assert _route_after_execute(state) == "regenerate_sql"
 
     def test_routing_retry_with_new_table_treated_as_retry(self):
         """RETRY_WITH_NEW_TABLE is treated as RETRY (phase-2 edge not wired yet)."""
@@ -511,7 +511,7 @@ class TestText2SQLGenerateSQL:
             sql_retry_count=1,
             previous_sql_errors=[{"recovery_strategy": "retry_with_new_table"}],
         )
-        assert _should_generate_visualization_or_retry(state) == "regenerate_sql"
+        assert _route_after_execute(state) == "regenerate_sql"
 
     def test_routing_retry_respects_config_max(self):
         """sql_max_retries comes from Config, not a hardcoded 3."""
@@ -524,12 +524,12 @@ class TestText2SQLGenerateSQL:
         )
         with patch("openchatbi.text2sql.sql_graph.config") as mock_cfg:
             mock_cfg.get.return_value = SimpleNamespace(sql_max_retries=1, retry_on_timeout=False)
-            assert _should_generate_visualization_or_retry(state) == "end"
+            assert _route_after_execute(state) == "end"
 
     def test_routing_no_strategy_falls_back_to_legacy(self):
         """Without recovery_strategy, legacy code-based routing still applies."""
         state = SQLGraphState(sql_execution_result="SYNTAX_ERROR", sql_retry_count=1)
-        assert _should_generate_visualization_or_retry(state) == "regenerate_sql"
+        assert _route_after_execute(state) == "regenerate_sql"
 
     def test_routing_timeout_symbol_routes_to_end_via_abort(self):
         """Convention #7: SQL_EXECUTE_TIMEOUT symbol (value='SQL_CHECK_TIMEOUT') with abort → end."""
@@ -540,7 +540,7 @@ class TestText2SQLGenerateSQL:
             sql_retry_count=0,
             previous_sql_errors=[{"recovery_strategy": "abort"}],
         )
-        assert _should_generate_visualization_or_retry(state) == "end"
+        assert _route_after_execute(state) == "end"
 
     def test_routing_timeout_retry_on_timeout_enabled_regenerates(self):
         """retry_on_timeout=True overrides the timeout abort strategy while under the cap."""
@@ -553,7 +553,7 @@ class TestText2SQLGenerateSQL:
         )
         with patch("openchatbi.text2sql.sql_graph.config") as mock_cfg:
             mock_cfg.get.return_value = SimpleNamespace(sql_max_retries=3, retry_on_timeout=True)
-            assert _should_generate_visualization_or_retry(state) == "regenerate_sql"
+            assert _route_after_execute(state) == "regenerate_sql"
 
     def test_routing_timeout_retry_on_timeout_respects_max_retries(self):
         """retry_on_timeout=True still ends once the retry cap is reached."""
@@ -566,7 +566,7 @@ class TestText2SQLGenerateSQL:
         )
         with patch("openchatbi.text2sql.sql_graph.config") as mock_cfg:
             mock_cfg.get.return_value = SimpleNamespace(sql_max_retries=3, retry_on_timeout=True)
-            assert _should_generate_visualization_or_retry(state) == "end"
+            assert _route_after_execute(state) == "end"
 
     def test_should_execute_sql_with_sql(self):
         """Test execute decision with SQL present."""

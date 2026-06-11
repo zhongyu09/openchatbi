@@ -51,25 +51,28 @@ def _get_sql_retry_config() -> tuple[int, bool]:
     return max_retries, bool(getattr(cfg, "retry_on_timeout", False))
 
 
-def _should_generate_visualization_or_retry(state: SQLGraphState) -> str:
+def _route_after_execute(state: SQLGraphState) -> str:
     """Conditional edge function to determine next action after execute_sql.
 
     Routing is strategy-driven: the last classified error's recovery_strategy
     decides whether to regenerate or end. Falls back to legacy code-based routing
     when no recovery_strategy is present (e.g. timeouts, untouched states).
 
+    The returned value is a decision label (not a node name); the edge mapping
+    in build_sql_graph binds each label to its destination node.
+
     Args:
         state (SQLGraphState): Current state
 
     Returns:
-        str: "generate_visualization" on success, "regenerate_sql" to retry, "end" otherwise.
+        str: "success" when execution succeeded, "regenerate_sql" to retry, "end" otherwise.
     """
     execution_result = state.get("sql_execution_result", "")
     retry_count = state.get("sql_retry_count", 0)
     max_retries, retry_on_timeout = _get_sql_retry_config()
 
     if execution_result == SQL_SUCCESS:
-        return "generate_visualization"
+        return "success"
 
     # Timeouts are classified with non-retry strategies (ABORT / SURFACE_TO_USER),
     # which would make retry_on_timeout dead config if left to strategy routing;
@@ -207,9 +210,9 @@ def build_sql_graph(
     # which feeds the confidence gate before visualization.
     graph.add_conditional_edges(
         "execute_sql",
-        _should_generate_visualization_or_retry,
+        _route_after_execute,
         {
-            "generate_visualization": "score_sql",
+            "success": "score_sql",
             "regenerate_sql": "regenerate_sql",
             "end": END,
         },

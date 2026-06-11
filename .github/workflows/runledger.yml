@@ -1,8 +1,6 @@
 name: runledger
 on:
   workflow_dispatch:
-  schedule:
-    - cron: "0 7 * * *"  # nightly 07:00 UTC, non-gating judge run
   pull_request:
     paths:
       - "openchatbi/**"
@@ -31,9 +29,9 @@ jobs:
           path: runledger_out/**
 
   judge:
-    # Non-gating LLM-as-Judge run (nightly + manual). Never blocks PR merges:
-    # only runs on schedule or explicit dispatch, and uploads a report artifact.
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    # Non-gating LLM-as-Judge run (manual only). Never blocks PR merges:
+    # only runs on explicit dispatch, and uploads a report artifact.
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     continue-on-error: true
     steps:

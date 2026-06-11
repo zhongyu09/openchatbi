@@ -17,7 +17,7 @@ def test_turn_usage_accumulates_from_final_chunk() -> None:
         usage_metadata={"input_tokens": 100, "output_tokens": 20, "total_tokens": 120},
         response_metadata={"model_name": "gpt-4o"},
     )
-    events = processor.process(*_msg_event(chunk, "llm_node"))
+    processor.process(*_msg_event(chunk, "llm_node"))
     # The token still streams; usage is folded into the accumulator.
     assert processor.turn_usage.turn_tokens == 120
     assert processor.turn_usage.by_model.get("gpt-4o") == 120

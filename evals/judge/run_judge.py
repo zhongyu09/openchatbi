@@ -186,7 +186,7 @@ def run(
             bucket["passed"] += 1 if r["passed"] else 0
             bucket["evaluated"] += 1
 
-    for cat, bucket in by_category.items():
+    for _cat, bucket in by_category.items():
         scores = bucket.pop("scores")
         evaluated = bucket["evaluated"]
         bucket["mean_score"] = statistics.mean(scores) if scores else 0.0
@@ -205,11 +205,7 @@ def run(
             "skipped": overall_skipped,
             "passed": overall_passed,
             "pass_rate": (overall_passed / overall_evaluated) if overall_evaluated else 0.0,
-            "mean_score": (
-                statistics.mean([r["score"] for r in evaluated_results])
-                if evaluated_results
-                else 0.0
-            ),
+            "mean_score": (statistics.mean([r["score"] for r in evaluated_results]) if evaluated_results else 0.0),
         },
         "by_category": by_category,
         "cases": results,

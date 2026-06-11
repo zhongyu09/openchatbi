@@ -1,7 +1,7 @@
 """Scoring helpers shared by S3 SQL-pattern retrieval and langmem long-term rerank."""
 
 import math
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 
@@ -12,7 +12,7 @@ def _parse_iso(ts: str) -> datetime | None:
     except (ValueError, TypeError):
         return None
     if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
+        dt = dt.replace(tzinfo=UTC)
     return dt
 
 
@@ -26,9 +26,9 @@ def decay_factor(last_used_iso: str, half_life_days: float, now: datetime | None
     last_used = _parse_iso(last_used_iso)
     if last_used is None:
         return 1.0
-    now = now or datetime.now(timezone.utc)
+    now = now or datetime.now(UTC)
     if now.tzinfo is None:
-        now = now.replace(tzinfo=timezone.utc)
+        now = now.replace(tzinfo=UTC)
     age_days = max(0.0, (now - last_used).total_seconds() / 86400.0)
     return math.exp(-math.log(2) * age_days / half_life_days)
 
@@ -62,7 +62,7 @@ def bump_on_access(meta: dict) -> dict:
     """Return a copy of `meta` with use_count+=1 and last_used=now (UTC ISO)."""
     out = dict(meta)
     out["use_count"] = int(out.get("use_count", 0) or 0) + 1
-    out["last_used"] = datetime.now(timezone.utc).isoformat()
+    out["last_used"] = datetime.now(UTC).isoformat()
     return out
 
 

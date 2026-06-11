@@ -20,11 +20,11 @@ from openchatbi.utils import log
 # Ordered rubric check keys (Dataherald 6-step rubric).
 RUBRIC_CHECKS: tuple[str, ...] = (
     "select_columns",  # SELECT columns map to the question's requested fields
-    "where",           # WHERE conditions correctly express the filters
-    "calc",            # calculations / aggregations are correct
-    "subquery",        # subqueries are correctly decomposed
-    "joins",           # JOIN columns match across tables
-    "exec_result",     # the (sampled) execution result is plausible
+    "where",  # WHERE conditions correctly express the filters
+    "calc",  # calculations / aggregations are correct
+    "subquery",  # subqueries are correctly decomposed
+    "joins",  # JOIN columns match across tables
+    "exec_result",  # the (sampled) execution result is plausible
 )
 
 _rubric_prompt_template_cache: str | None = None

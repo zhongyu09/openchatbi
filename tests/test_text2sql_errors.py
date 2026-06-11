@@ -1,6 +1,5 @@
 """Tests for the structured Text2SQL error taxonomy and classifier."""
 
-import pytest
 from sqlalchemy.exc import DatabaseError, OperationalError, ProgrammingError, TimeoutError
 
 from openchatbi.constants import (
@@ -72,7 +71,7 @@ class TestText2SQLErrorSubclasses:
 
     def test_empty_result_defaults(self):
         err = EmptyResultError("no rows")
-        assert err.code == SQL_NA   # 见约定#6:EmptyResultError.code = SQL_NA
+        assert err.code == SQL_NA  # 见约定#6:EmptyResultError.code = SQL_NA
         assert err.recovery_strategy is RecoveryStrategy.RETRY_WITH_NEW_TABLE
 
     def test_unknown_error_defaults(self):

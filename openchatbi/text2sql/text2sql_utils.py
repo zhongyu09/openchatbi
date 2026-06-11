@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import threading
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from openchatbi.llm.llm import get_embedding_model
 from openchatbi.utils import create_vector_db, log
@@ -72,7 +72,7 @@ class LearnedSQLStore:
             importance: Base importance weight used by composite scoring.
             namespace: Tenant/scope tag; 'global' must hold only schema-level patterns.
         """
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
         metadata = {
             "sql": sql,
             "tables": tables,
@@ -136,7 +136,7 @@ class LearnedSQLStore:
         Document objects); a Chroma-style ``_collection.update`` persists the bump
         for stores that return copies.
         """
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
         with self.lock:
             for doc in docs:
                 try:

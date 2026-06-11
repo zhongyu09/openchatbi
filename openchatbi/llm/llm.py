@@ -82,7 +82,11 @@ def _invalid_tool_names(valid_tools, tool_calls) -> str:
 
 
 def call_llm_chat_model_with_retry(
-    chat_model: BaseChatModel, messages, streaming_tokens=False, bound_tools=None, parallel_tool_call=False,
+    chat_model: BaseChatModel,
+    messages,
+    streaming_tokens=False,
+    bound_tools=None,
+    parallel_tool_call=False,
     metadata: dict | None = None,
 ):
     """Calls a language model chat endpoint with retry logic.

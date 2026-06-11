@@ -3,7 +3,6 @@
 import json
 from unittest.mock import Mock
 
-import pytest
 from langchain_core.language_models import FakeListChatModel
 from langchain_core.messages import AIMessage
 

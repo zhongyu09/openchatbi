@@ -1,10 +1,6 @@
 """Tests for Golden-SQL capture flow and sql_examples KB branch."""
 
-import threading
-from types import SimpleNamespace
 from unittest.mock import MagicMock, Mock, patch
-
-import pytest
 
 from openchatbi.config_loader import Config
 
@@ -44,12 +40,8 @@ class TestAppendSqlExample:
         assert "how many names" in questions
 
     def test_append_dedups_identical_question(self, mock_catalog_store):
-        mock_catalog_store.append_sql_example(
-            "dup q", "SELECT 1 FROM test_table", ["test.test_table"], source="golden"
-        )
-        mock_catalog_store.append_sql_example(
-            "dup q", "SELECT 1 FROM test_table", ["test.test_table"], source="golden"
-        )
+        mock_catalog_store.append_sql_example("dup q", "SELECT 1 FROM test_table", ["test.test_table"], source="golden")
+        mock_catalog_store.append_sql_example("dup q", "SELECT 1 FROM test_table", ["test.test_table"], source="golden")
         examples = mock_catalog_store.get_sql_examples()
         dup = [q for q, _sql, _t in examples if q == "dup q"]
         assert len(dup) == 1
@@ -87,8 +79,9 @@ class TestGoldenCaptureOnApprove:
             sql_confidence=0.95,  # >= threshold -> auto-approve, no interrupt
             sql_execution_result=SQL_SUCCESS,
         )
-        with patch("openchatbi.text2sql.generate_sql.config.get", return_value=cfg), patch(
-            "openchatbi.text2sql.generate_sql.get_learned_sql_store", return_value=learned_store
+        with (
+            patch("openchatbi.text2sql.generate_sql.config.get", return_value=cfg),
+            patch("openchatbi.text2sql.generate_sql.get_learned_sql_store", return_value=learned_store),
         ):
             out = gate(state)
         assert out["human_sql_decision"] == "approve"
@@ -121,8 +114,9 @@ class TestGoldenCaptureOnApprove:
             sql_confidence=0.95,
             sql_execution_result=SQL_SUCCESS,
         )
-        with patch("openchatbi.text2sql.generate_sql.config.get", return_value=cfg), patch(
-            "openchatbi.text2sql.generate_sql.get_learned_sql_store", return_value=learned_store
+        with (
+            patch("openchatbi.text2sql.generate_sql.config.get", return_value=cfg),
+            patch("openchatbi.text2sql.generate_sql.get_learned_sql_store", return_value=learned_store),
         ):
             gate(state)
         learned_store.add_golden_sql.assert_not_called()
@@ -154,8 +148,9 @@ class TestSearchKnowledgeSqlExamples:
         # at least return a (possibly empty) keyed entry, not silently drop.
         from openchatbi.tool import search_knowledge as sk
 
-        with patch.object(sk, "get_learned_sql_store", return_value=None), patch.object(
-            sk, "_search_column_from_catalog", return_value="revenue: Revenue amount"
+        with (
+            patch.object(sk, "get_learned_sql_store", return_value=None),
+            patch.object(sk, "_search_column_from_catalog", return_value="revenue: Revenue amount"),
         ):
             result = sk.search_knowledge.invoke(
                 {

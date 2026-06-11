@@ -131,7 +131,6 @@ async def chat_stream(req: UserRequest):
     provider = req.provider
 
     # Create user-session ID just like in UI
-    user_session_id = f"{user_id}-{session_id}"
 
     stream_input = {"messages": [("user", req.input)]}
     from openchatbi.observability.tracing import build_run_config

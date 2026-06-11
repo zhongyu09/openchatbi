@@ -7,39 +7,35 @@ from typing import Any
 import pandas as pd
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+from langgraph.types import interrupt
 from sqlalchemy import text
-from sqlalchemy.exc import DatabaseError, OperationalError, ProgrammingError, TimeoutError
+from sqlalchemy.exc import OperationalError
 
 from openchatbi import config
 from openchatbi.catalog import CatalogStore
-from openchatbi.memory_config import get_memory_config
-from openchatbi.memory_scoring import composite_score
 from openchatbi.constants import (
     SQL_EXECUTE_TIMEOUT,
     SQL_NA,
     SQL_RESULT_LIMIT,
     SQL_SECURITY_ERROR,
     SQL_SUCCESS,
-    SQL_SYNTAX_ERROR,
-    SQL_UNKNOWN_ERROR,
     datetime_format,
 )
 from openchatbi.graph_state import SQLGraphState
+from openchatbi.memory_config import get_memory_config
+from openchatbi.memory_scoring import composite_score
 from openchatbi.observability.audit import AuditLogger
 from openchatbi.observability.context import get_run_context
 from openchatbi.prompts.system_prompt import get_text2sql_dialect_prompt_template
+from openchatbi.text2sql.confidence import SimpleSQLEvaluator
 from openchatbi.text2sql.data import get_learned_sql_store, sql_example_dicts, sql_example_retriever
 from openchatbi.text2sql.errors import (
     EmptyResultError,
-    RecoveryStrategy,
     SQLSecurityError,
-    Text2SQLError,
     classify_sql_exception,
 )
-from openchatbi.text2sql.confidence import SimpleSQLEvaluator
 from openchatbi.text2sql.visualization import VisualizationService
 from openchatbi.utils import get_text_from_content, log
-from langgraph.types import interrupt
 
 _audit_logger = AuditLogger()
 
@@ -246,10 +242,9 @@ def create_sql_nodes(
                     int(meta.get("use_count", 0) or 0),
                     mem_cfg,
                 )
+
             try:
-                retrieved = learned_sql_store.retrieve(
-                    question, k=max(cap * 2, 10), score_fn=score_fn
-                )
+                retrieved = learned_sql_store.retrieve(question, k=max(cap * 2, 10), score_fn=score_fn)
             except Exception as e:  # fall back to static path on store failure
                 log(f"Blended retrieval failed, falling back to static examples: {e}")
                 retrieved = None
@@ -375,9 +370,7 @@ def create_sql_nodes(
                 return
             question = state.get("rewrite_question", "")
             sql_query = state.get("sql", "").strip()
-            tables = [
-                d["table"] for d in state.get("tables", []) if isinstance(d, dict) and d.get("table")
-            ]
+            tables = [d["table"] for d in state.get("tables", []) if isinstance(d, dict) and d.get("table")]
             if not question or not sql_query:
                 return
             # S2 gate (success != correct): only promote SQL scored above the
@@ -595,8 +588,7 @@ def create_sql_nodes(
                 error_type_hint = error_info.get("error_type", "")
                 hint_line = f"\nError type: {error_type_hint}" if error_type_hint else ""
                 user_prompt += (
-                    f"\n\nAttempt {i}:\nSQL: {error_info['sql']}"
-                    f"{hint_line}\nError: {error_info['error']}"
+                    f"\n\nAttempt {i}:\nSQL: {error_info['sql']}" f"{hint_line}\nError: {error_info['error']}"
                 )
             user_prompt += "\n\nPlease analyze the errors above and generate a corrected SQL query."
 
@@ -706,9 +698,7 @@ def create_sql_nodes(
             # SQL was written against.
             table_schema = _get_table_schema_prompt(state.get("tables", []) or [])
             evaluator = SimpleSQLEvaluator(llm)
-            result = evaluator.evaluate(
-                question, sql_query, schema_info, data_sample, table_schema=table_schema
-            )
+            result = evaluator.evaluate(question, sql_query, schema_info, data_sample, table_schema=table_schema)
         except Exception as e:  # never block the answer on evaluator failure
             log(f"Confidence evaluation failed: {str(e)}")
             return {}

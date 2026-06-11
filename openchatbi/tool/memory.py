@@ -25,7 +25,7 @@ from langmem import (
 
 from openchatbi import config
 from openchatbi.memory_config import get_memory_config
-from openchatbi.memory_scoring import bump_on_access, composite_score
+from openchatbi.memory_scoring import composite_score
 
 try:
     from pydantic import BaseModel, ConfigDict

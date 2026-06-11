@@ -98,7 +98,7 @@ class DBTimeoutError(Text2SQLError):
 class EmptyResultError(Text2SQLError):
     """Raised (opt-in only) when a query returns zero rows."""
 
-    code = SQL_NA   # 见约定#6:软失败码,非 SQL_SUCCESS;默认 gate 关闭时根本不构造此异常
+    code = SQL_NA  # 见约定#6:软失败码,非 SQL_SUCCESS;默认 gate 关闭时根本不构造此异常
     recovery_strategy = RecoveryStrategy.RETRY_WITH_NEW_TABLE
     error_type = "Empty result"
 

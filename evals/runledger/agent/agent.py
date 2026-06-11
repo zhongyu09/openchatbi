@@ -237,9 +237,7 @@ _TOOL_ARGS_BUILDERS = {
 
 
 def _tool_message_count(messages: list[Any]) -> int:
-    return sum(
-        1 for m in messages if isinstance(m, ToolMessage) or getattr(m, "type", None) == "tool"
-    )
+    return sum(1 for m in messages if isinstance(m, ToolMessage) or getattr(m, "type", None) == "tool")
 
 
 def _scripted_llm_call(chat_model: Any, messages: list[Any], **_kwargs: Any) -> AIMessage:

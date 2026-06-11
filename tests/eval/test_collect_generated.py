@@ -9,7 +9,6 @@ import json
 from evals.judge import collect_generated as cg
 from evals.judge import run_judge
 
-
 # ---------------------------------------------------------------------------
 # extract_sql_from_state
 # ---------------------------------------------------------------------------
@@ -176,7 +175,7 @@ def test_write_output_jsonl_has_full_records(tmp_path):
     cg.write_output(records, str(out), fmt="jsonl")
     lines = [json.loads(line) for line in out.read_text().splitlines() if line.strip()]
     assert len(lines) == 2
-    for rec, line in zip(records, lines):
+    for rec, line in zip(records, lines, strict=False):
         assert line["id"] == rec["id"]
         assert line["prompt"] == rec["prompt"]
         assert line["generated_sql"] == rec["generated_sql"]
@@ -189,9 +188,9 @@ def test_write_output_jsonl_has_full_records(tmp_path):
 
 def _write_case(tmp_dir, name, prompt, with_gold=True):
     p = tmp_dir / f"{name}.yaml"
-    text = "id: %s\n" "category: test\n" "input:\n" "  prompt: '%s'\n" % (name, prompt)
+    text = f"id: {name}\n" "category: test\n" "input:\n" f"  prompt: '{prompt}'\n"
     if with_gold:
-        text += "gold:\n  expected_sql: \"SELECT 1\"\n"
+        text += 'gold:\n  expected_sql: "SELECT 1"\n'
     p.write_text(text)
     return p
 

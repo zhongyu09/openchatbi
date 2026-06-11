@@ -2,9 +2,9 @@
 
 import json
 import os
-import sys
 from unittest.mock import MagicMock
 
+from evals.judge import run_judge
 from evals.judge.llm_judge import JudgeVerdict, LLMAsJudgeEvaluator
 
 
@@ -59,20 +59,18 @@ def test_judge_passes_through_schema_and_expected_sql():
 # run_judge aggregation tests
 # ---------------------------------------------------------------------------
 
-from evals.judge import run_judge
-
 
 def _write_case(tmp_path, name, category, sql):
     p = tmp_path / f"{name}.yaml"
     p.write_text(
-        "id: %s\n"
-        "category: %s\n"
+        f"id: {name}\n"
+        f"category: {category}\n"
         "input:\n"
-        "  prompt: 'q for %s'\n"
+        f"  prompt: 'q for {name}'\n"
         "gold:\n"
-        "  expected_sql: \"%s\"\n"
+        f'  expected_sql: "{sql}"\n'
         "  expected_tool_trajectory: ['text2sql']\n"
-        "  expected_result_contains: ['x']\n" % (name, category, name, sql)
+        "  expected_result_contains: ['x']\n"
     )
     return p
 
@@ -179,9 +177,7 @@ def test_generated_map_jsonl_passes_agent_sql(tmp_path, monkeypatch):
     _write_case(cases_dir, "j1", "join", gold_sql)
 
     gen_jsonl = tmp_path / "generated.jsonl"
-    gen_jsonl.write_text(
-        json.dumps({"id": "j1", "prompt": "q for j1", "generated_sql": agent_sql}) + "\n"
-    )
+    gen_jsonl.write_text(json.dumps({"id": "j1", "prompt": "q for j1", "generated_sql": agent_sql}) + "\n")
 
     calls: list = []
     monkeypatch.setattr(run_judge, "_build_judge", lambda: _make_stub_judge(calls))

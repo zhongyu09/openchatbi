@@ -1,6 +1,5 @@
 """Tests for HITL confidence scoring node and confidence gate."""
 
-from types import SimpleNamespace
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
@@ -87,9 +86,7 @@ class TestScoreSqlNode:
         nodes = self._nodes(mock_llm, mock_catalog)
         # create_sql_nodes now returns 6 callables (was 4): + score_sql, confidence_gate
         score_sql_node = nodes[4]
-        fake_result = ConfidenceResult(
-            score=0.35, reasons=["WHERE missing"], checks={"where": False}
-        )
+        fake_result = ConfidenceResult(score=0.35, reasons=["WHERE missing"], checks={"where": False})
         from openchatbi.config_loader import Config
 
         cfg = Config(
@@ -97,9 +94,10 @@ class TestScoreSqlNode:
             data_warehouse_config={"uri": "sqlite:///:memory:"},
             enable_confidence_gate=True,
         )
-        with patch("openchatbi.text2sql.generate_sql.config.get", return_value=cfg), patch(
-            "openchatbi.text2sql.generate_sql.SimpleSQLEvaluator"
-        ) as MockEval:
+        with (
+            patch("openchatbi.text2sql.generate_sql.config.get", return_value=cfg),
+            patch("openchatbi.text2sql.generate_sql.SimpleSQLEvaluator") as MockEval,
+        ):
             MockEval.return_value.evaluate.return_value = fake_result
             state = SQLGraphState(
                 messages=[],
@@ -136,9 +134,12 @@ class TestScoreSqlNode:
             data="id\n1\n",
             sql_execution_result=SQL_SUCCESS,
         )
-        with patch("openchatbi.text2sql.generate_sql.SimpleSQLEvaluator") as MockEval, patch(
-            "openchatbi.text2sql.generate_sql.config.get",
-            side_effect=ValueError,  # simulates no config context
+        with (
+            patch("openchatbi.text2sql.generate_sql.SimpleSQLEvaluator") as MockEval,
+            patch(
+                "openchatbi.text2sql.generate_sql.config.get",
+                side_effect=ValueError,  # simulates no config context
+            ),
         ):
             out = score_sql_node(state)
         MockEval.assert_not_called()
@@ -165,9 +166,10 @@ class TestScoreSqlNode:
             data="",
             sql_execution_result=SQL_SUCCESS,
         )
-        with patch("openchatbi.text2sql.generate_sql.config.get", return_value=cfg), patch(
-            "openchatbi.text2sql.generate_sql.SimpleSQLEvaluator"
-        ) as MockEval:
+        with (
+            patch("openchatbi.text2sql.generate_sql.config.get", return_value=cfg),
+            patch("openchatbi.text2sql.generate_sql.SimpleSQLEvaluator") as MockEval,
+        ):
             MockEval.return_value.evaluate.return_value = fake_result
             out = score_sql_node(state)
         MockEval.assert_called_once()
@@ -222,9 +224,12 @@ class TestConfidenceGateEditFallback:
         )
 
     def test_edit_with_sql_payload_replaces_sql(self, gate_node):
-        with patch("openchatbi.text2sql.generate_sql.config.get", return_value=self._gated_cfg()), patch(
-            "openchatbi.text2sql.generate_sql.interrupt",
-            return_value={"decision": "edit", "sql": "SELECT 2"},
+        with (
+            patch("openchatbi.text2sql.generate_sql.config.get", return_value=self._gated_cfg()),
+            patch(
+                "openchatbi.text2sql.generate_sql.interrupt",
+                return_value={"decision": "edit", "sql": "SELECT 2"},
+            ),
         ):
             out = gate_node(self._low_conf_state())
         assert out == {"human_sql_decision": "edit", "sql": "SELECT 2"}
@@ -232,16 +237,18 @@ class TestConfidenceGateEditFallback:
     def test_edit_without_sql_degrades_to_reject(self, gate_node):
         """A bare 'edit' (no replacement SQL) would re-execute the same SQL and
         interrupt again forever; it must degrade to reject -> regenerate."""
-        with patch("openchatbi.text2sql.generate_sql.config.get", return_value=self._gated_cfg()), patch(
-            "openchatbi.text2sql.generate_sql.interrupt", return_value="edit"
+        with (
+            patch("openchatbi.text2sql.generate_sql.config.get", return_value=self._gated_cfg()),
+            patch("openchatbi.text2sql.generate_sql.interrupt", return_value="edit"),
         ):
             out = gate_node(self._low_conf_state())
         assert out["human_sql_decision"] == "reject"
         assert "sql" not in out
 
     def test_edit_dict_without_sql_degrades_to_reject(self, gate_node):
-        with patch("openchatbi.text2sql.generate_sql.config.get", return_value=self._gated_cfg()), patch(
-            "openchatbi.text2sql.generate_sql.interrupt", return_value={"decision": "edit"}
+        with (
+            patch("openchatbi.text2sql.generate_sql.config.get", return_value=self._gated_cfg()),
+            patch("openchatbi.text2sql.generate_sql.interrupt", return_value={"decision": "edit"}),
         ):
             out = gate_node(self._low_conf_state())
         assert out["human_sql_decision"] == "reject"
@@ -265,10 +272,11 @@ class TestInterruptThroughToolBoundary:
     """
 
     def _build_gated_subgraph(self):
-        from langgraph.graph import START, END, StateGraph
+        from langgraph.graph import END, START, StateGraph
+
         from openchatbi.graph_state import InputState, SQLGraphState, SQLOutputState
-        from openchatbi.text2sql.sql_graph import route_after_confidence
         from openchatbi.text2sql.generate_sql import create_sql_nodes
+        from openchatbi.text2sql.sql_graph import route_after_confidence
 
         llm = Mock()
         llm.invoke.return_value = AIMessage(content="SELECT * FROM users")
@@ -310,9 +318,8 @@ class TestInterruptThroughToolBoundary:
         return g.compile()
 
     def _build_parent_graph(self, tool):
-        from langgraph.graph import START, END, StateGraph
         from langgraph.errors import GraphInterrupt
-        from langgraph.checkpoint.memory import MemorySaver
+        from langgraph.graph import END, START, StateGraph
 
         self._tool_raised_interrupt = False
 

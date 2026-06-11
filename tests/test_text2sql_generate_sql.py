@@ -780,9 +780,7 @@ class TestText2SQLGenerateSQL:
         state = SQLGraphState(
             messages=[],
             sql="SELECT * FRON users",
-            previous_sql_errors=[
-                {"sql": "x", "error": "SQL syntax error: x", "error_type": "SQL syntax error"}
-            ],
+            previous_sql_errors=[{"sql": "x", "error": "SQL syntax error: x", "error_type": "SQL syntax error"}],
         )
 
         result = execute_node(state)

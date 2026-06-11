@@ -77,9 +77,7 @@ def test_execute_sql_node_audits_operational_timeout(caplog) -> None:
     mock_connection = mock_catalog.get_sql_engine.return_value.connect.return_value.__enter__.return_value
     from sqlalchemy.exc import OperationalError
 
-    mock_connection.execute.side_effect = OperationalError(
-        "", {}, Exception("connection timed out")
-    )
+    mock_connection.execute.side_effect = OperationalError("", {}, Exception("connection timed out"))
 
     _, execute_sql_node, _, _, _, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
     state = SQLGraphState(messages=[], sql="SELECT * FROM users")

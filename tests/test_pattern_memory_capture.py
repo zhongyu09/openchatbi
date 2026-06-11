@@ -112,9 +112,10 @@ class TestAutoCaptureGate:
         """No write when enable_pattern_memory is False (default-off)."""
         store = MagicMock()
         gate = self._gate(mock_llm, mock_catalog, store)
-        with patch(
-            "openchatbi.text2sql.generate_sql.get_memory_config", return_value=_mem_cfg(False)
-        ), patch("openchatbi.text2sql.generate_sql.config.get", return_value=_main_cfg()):
+        with (
+            patch("openchatbi.text2sql.generate_sql.get_memory_config", return_value=_mem_cfg(False)),
+            patch("openchatbi.text2sql.generate_sql.config.get", return_value=_main_cfg()),
+        ):
             out = gate(self._scored_state(0.9))
 
         assert out["human_sql_decision"] == "approve"
@@ -123,9 +124,10 @@ class TestAutoCaptureGate:
     def test_capture_noop_when_store_is_none(self, mock_llm, mock_catalog):
         """No store wired -> capture is a no-op even with the flag on."""
         gate = self._gate(mock_llm, mock_catalog, None)
-        with patch(
-            "openchatbi.text2sql.generate_sql.get_memory_config", return_value=_mem_cfg()
-        ), patch("openchatbi.text2sql.generate_sql.config.get", return_value=_main_cfg()):
+        with (
+            patch("openchatbi.text2sql.generate_sql.get_memory_config", return_value=_mem_cfg()),
+            patch("openchatbi.text2sql.generate_sql.config.get", return_value=_main_cfg()),
+        ):
             out = gate(self._scored_state(0.9))
         assert out["human_sql_decision"] == "approve"
 
@@ -133,9 +135,10 @@ class TestAutoCaptureGate:
         """Flag on + pre-computed confidence >= threshold -> store.add(source='auto')."""
         store = MagicMock()
         gate = self._gate(mock_llm, mock_catalog, store)
-        with patch(
-            "openchatbi.text2sql.generate_sql.get_memory_config", return_value=_mem_cfg()
-        ), patch("openchatbi.text2sql.generate_sql.config.get", return_value=_main_cfg()):
+        with (
+            patch("openchatbi.text2sql.generate_sql.get_memory_config", return_value=_mem_cfg()),
+            patch("openchatbi.text2sql.generate_sql.config.get", return_value=_main_cfg()),
+        ):
             out = gate(self._scored_state(0.9))
 
         assert out["human_sql_decision"] == "approve"
@@ -150,9 +153,10 @@ class TestAutoCaptureGate:
         store = MagicMock()
         gate = self._gate(mock_llm, mock_catalog, store)
         # Gate disabled -> auto-approve path, but capture still applies the S2 threshold.
-        with patch(
-            "openchatbi.text2sql.generate_sql.get_memory_config", return_value=_mem_cfg()
-        ), patch("openchatbi.text2sql.generate_sql.config.get", return_value=_main_cfg()):
+        with (
+            patch("openchatbi.text2sql.generate_sql.get_memory_config", return_value=_mem_cfg()),
+            patch("openchatbi.text2sql.generate_sql.config.get", return_value=_main_cfg()),
+        ):
             out = gate(self._scored_state(0.3))
 
         assert out["human_sql_decision"] == "approve"
@@ -162,11 +166,11 @@ class TestAutoCaptureGate:
         """No sql_confidence in state (evaluator failed) -> skip capture, never re-evaluate."""
         store = MagicMock()
         gate = self._gate(mock_llm, mock_catalog, store)
-        with patch(
-            "openchatbi.text2sql.generate_sql.get_memory_config", return_value=_mem_cfg()
-        ), patch("openchatbi.text2sql.generate_sql.config.get", return_value=_main_cfg()), patch(
-            "openchatbi.text2sql.generate_sql.SimpleSQLEvaluator"
-        ) as MockEval:
+        with (
+            patch("openchatbi.text2sql.generate_sql.get_memory_config", return_value=_mem_cfg()),
+            patch("openchatbi.text2sql.generate_sql.config.get", return_value=_main_cfg()),
+            patch("openchatbi.text2sql.generate_sql.SimpleSQLEvaluator") as MockEval,
+        ):
             out = gate(self._scored_state(None))
 
         assert out["human_sql_decision"] == "approve"
@@ -177,12 +181,10 @@ class TestAutoCaptureGate:
         """Manual approval captures even below the score threshold (human > S2)."""
         store = MagicMock()
         gate = self._gate(mock_llm, mock_catalog, store)
-        with patch(
-            "openchatbi.text2sql.generate_sql.get_memory_config", return_value=_mem_cfg()
-        ), patch(
-            "openchatbi.text2sql.generate_sql.config.get", return_value=_main_cfg(gate_on=True)
-        ), patch(
-            "openchatbi.text2sql.generate_sql.interrupt", return_value="approve"
+        with (
+            patch("openchatbi.text2sql.generate_sql.get_memory_config", return_value=_mem_cfg()),
+            patch("openchatbi.text2sql.generate_sql.config.get", return_value=_main_cfg(gate_on=True)),
+            patch("openchatbi.text2sql.generate_sql.interrupt", return_value="approve"),
         ):
             out = gate(self._scored_state(0.3))
 
@@ -192,12 +194,10 @@ class TestAutoCaptureGate:
     def test_reject_does_not_capture(self, mock_llm, mock_catalog):
         store = MagicMock()
         gate = self._gate(mock_llm, mock_catalog, store)
-        with patch(
-            "openchatbi.text2sql.generate_sql.get_memory_config", return_value=_mem_cfg()
-        ), patch(
-            "openchatbi.text2sql.generate_sql.config.get", return_value=_main_cfg(gate_on=True)
-        ), patch(
-            "openchatbi.text2sql.generate_sql.interrupt", return_value="reject"
+        with (
+            patch("openchatbi.text2sql.generate_sql.get_memory_config", return_value=_mem_cfg()),
+            patch("openchatbi.text2sql.generate_sql.config.get", return_value=_main_cfg(gate_on=True)),
+            patch("openchatbi.text2sql.generate_sql.interrupt", return_value="reject"),
         ):
             out = gate(self._scored_state(0.3))
 
@@ -208,13 +208,13 @@ class TestAutoCaptureGate:
         """Convention #10: an unapproved 'edit' must not capture."""
         store = MagicMock()
         gate = self._gate(mock_llm, mock_catalog, store)
-        with patch(
-            "openchatbi.text2sql.generate_sql.get_memory_config", return_value=_mem_cfg()
-        ), patch(
-            "openchatbi.text2sql.generate_sql.config.get", return_value=_main_cfg(gate_on=True)
-        ), patch(
-            "openchatbi.text2sql.generate_sql.interrupt",
-            return_value={"decision": "edit", "sql": "SELECT 2"},
+        with (
+            patch("openchatbi.text2sql.generate_sql.get_memory_config", return_value=_mem_cfg()),
+            patch("openchatbi.text2sql.generate_sql.config.get", return_value=_main_cfg(gate_on=True)),
+            patch(
+                "openchatbi.text2sql.generate_sql.interrupt",
+                return_value={"decision": "edit", "sql": "SELECT 2"},
+            ),
         ):
             out = gate(self._scored_state(0.3))
 
@@ -226,9 +226,10 @@ class TestAutoCaptureGate:
         store = MagicMock()
         store.add.side_effect = RuntimeError("boom")
         gate = self._gate(mock_llm, mock_catalog, store)
-        with patch(
-            "openchatbi.text2sql.generate_sql.get_memory_config", return_value=_mem_cfg()
-        ), patch("openchatbi.text2sql.generate_sql.config.get", return_value=_main_cfg()):
+        with (
+            patch("openchatbi.text2sql.generate_sql.get_memory_config", return_value=_mem_cfg()),
+            patch("openchatbi.text2sql.generate_sql.config.get", return_value=_main_cfg()),
+        ):
             out = gate(self._scored_state(0.9))
         assert out["human_sql_decision"] == "approve"
 
@@ -241,11 +242,11 @@ class TestSingleEvaluation:
         _gen, execute_sql_node, _regen, _viz, _score, _gate = create_sql_nodes(
             mock_llm, mock_catalog, "presto", learned_sql_store=store
         )
-        with patch(
-            "openchatbi.text2sql.generate_sql.get_memory_config", return_value=_mem_cfg()
-        ), patch("openchatbi.text2sql.generate_sql.config.get", return_value=_main_cfg()), patch(
-            "openchatbi.text2sql.generate_sql.SimpleSQLEvaluator"
-        ) as MockEval:
+        with (
+            patch("openchatbi.text2sql.generate_sql.get_memory_config", return_value=_mem_cfg()),
+            patch("openchatbi.text2sql.generate_sql.config.get", return_value=_main_cfg()),
+            patch("openchatbi.text2sql.generate_sql.SimpleSQLEvaluator") as MockEval,
+        ):
             out = execute_sql_node(_success_state())
 
         assert out["sql_execution_result"] == SQL_SUCCESS
@@ -261,14 +262,14 @@ class TestSingleEvaluation:
         state = _success_state()
         state["sql_execution_result"] = SQL_SUCCESS
         verdict = ConfidenceResult(score=0.9, reasons=[], checks={})
-        with patch(
-            "openchatbi.text2sql.generate_sql.get_memory_config", return_value=_mem_cfg()
-        ), patch(
-            "openchatbi.text2sql.generate_sql.config.get",
-            return_value=_main_cfg(gate_on=True),
-        ), patch(
-            "openchatbi.text2sql.generate_sql.SimpleSQLEvaluator"
-        ) as MockEval:
+        with (
+            patch("openchatbi.text2sql.generate_sql.get_memory_config", return_value=_mem_cfg()),
+            patch(
+                "openchatbi.text2sql.generate_sql.config.get",
+                return_value=_main_cfg(gate_on=True),
+            ),
+            patch("openchatbi.text2sql.generate_sql.SimpleSQLEvaluator") as MockEval,
+        ):
             MockEval.return_value.evaluate.return_value = verdict
             scored = score_sql_node(state)
             state.update(scored)
@@ -283,9 +284,7 @@ class TestBlendedRetrieval:
     def test_blended_retrieval_uses_store_when_enabled(self, mock_llm, mock_catalog):
         """generate_sql_node blends via store.retrieve with the composite_score adapter."""
         store = MagicMock()
-        store.retrieve.return_value = [
-            ("how many users", "SELECT COUNT(*) FROM test_table", ["test_table"])
-        ]
+        store.retrieve.return_value = [("how many users", "SELECT COUNT(*) FROM test_table", ["test_table"])]
         gen, _exec, _regen, _viz, _score, _gate = create_sql_nodes(
             mock_llm, mock_catalog, "presto", learned_sql_store=store
         )
@@ -329,9 +328,10 @@ class TestBlendedRetrieval:
         )
         # Empty store results now fall through to the legacy static path,
         # so the static retriever must be patched too.
-        with patch("openchatbi.text2sql.generate_sql.get_memory_config", return_value=mem_cfg), patch(
-            "openchatbi.text2sql.generate_sql.sql_example_retriever"
-        ) as mock_retriever:
+        with (
+            patch("openchatbi.text2sql.generate_sql.get_memory_config", return_value=mem_cfg),
+            patch("openchatbi.text2sql.generate_sql.sql_example_retriever") as mock_retriever,
+        ):
             mock_retriever.invoke.return_value = []
             gen(state)
 
@@ -399,11 +399,13 @@ class TestBlendedRetrieval:
         )
         legacy_doc = Mock()
         legacy_doc.page_content = "legacy static question"
-        with patch("openchatbi.text2sql.generate_sql.get_memory_config", return_value=mem_cfg), patch(
-            "openchatbi.text2sql.generate_sql.sql_example_retriever"
-        ) as mock_retriever, patch.dict(
-            "openchatbi.text2sql.generate_sql.sql_example_dicts",
-            {"legacy static question": ("SELECT 99 FROM test_table", ["test_table"])},
+        with (
+            patch("openchatbi.text2sql.generate_sql.get_memory_config", return_value=mem_cfg),
+            patch("openchatbi.text2sql.generate_sql.sql_example_retriever") as mock_retriever,
+            patch.dict(
+                "openchatbi.text2sql.generate_sql.sql_example_dicts",
+                {"legacy static question": ("SELECT 99 FROM test_table", ["test_table"])},
+            ),
         ):
             mock_retriever.invoke.return_value = [legacy_doc]
             gen(state)
@@ -431,9 +433,10 @@ class TestBlendedRetrieval:
             rewrite_question="q",
             tables=[{"table": "test_table", "columns": []}],
         )
-        with patch("openchatbi.text2sql.generate_sql.get_memory_config", return_value=mem_cfg), patch(
-            "openchatbi.text2sql.generate_sql.sql_example_retriever"
-        ) as mock_retriever:
+        with (
+            patch("openchatbi.text2sql.generate_sql.get_memory_config", return_value=mem_cfg),
+            patch("openchatbi.text2sql.generate_sql.sql_example_retriever") as mock_retriever,
+        ):
             mock_retriever.invoke.return_value = []
             gen(state)
 

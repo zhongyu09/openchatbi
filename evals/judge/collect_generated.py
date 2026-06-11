@@ -5,7 +5,8 @@ import glob
 import json
 import os
 import sys
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 import yaml
 

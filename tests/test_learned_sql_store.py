@@ -2,17 +2,13 @@
 
 import threading
 
-import pytest
-
 from openchatbi.text2sql.text2sql_utils import LearnedSQLStore, _init_sql_example_retriever
 from openchatbi.utils import SimpleStore
 
 
 def test_init_sql_example_retriever_returns_three_tuple(mock_catalog_store, monkeypatch):
     # Force the no-embedding (SimpleStore/BM25) path.
-    monkeypatch.setattr(
-        "openchatbi.text2sql.text2sql_utils.get_embedding_model", lambda: None
-    )
+    monkeypatch.setattr("openchatbi.text2sql.text2sql_utils.get_embedding_model", lambda: None)
     result = _init_sql_example_retriever(mock_catalog_store, vector_db_path=None)
     assert isinstance(result, tuple)
     assert len(result) == 3
@@ -46,7 +42,7 @@ def test_add_then_retrieve_round_trip_simplestore():
     results = store.retrieve("average age users", k=5)
     questions = [q for q, _, _ in results]
     assert "What is the average age of users?" in questions
-    sql = dict((q, s) for q, s, _ in results)["What is the average age of users?"]
+    sql = {q: s for q, s, _ in results}["What is the average age of users?"]
     assert sql == "SELECT AVG(age) FROM users;"
 
 

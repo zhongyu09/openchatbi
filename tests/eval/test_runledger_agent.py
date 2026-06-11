@@ -65,8 +65,7 @@ def test_trajectories_prompt_keys_are_unique():
     agent = _load_agent()
     keys = list(agent._TRAJECTORIES.keys())
     assert len(keys) == len(set(keys)), (
-        f"_TRAJECTORIES has duplicate prompt keys: "
-        f"{[k for k in keys if keys.count(k) > 1]}"
+        f"_TRAJECTORIES has duplicate prompt keys: " f"{[k for k in keys if keys.count(k) > 1]}"
     )
     # Also assert the dict length equals the number of distinct prompts
     assert len(agent._TRAJECTORIES) == len(set(keys))

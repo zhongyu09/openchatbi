@@ -4,6 +4,8 @@ import json
 
 import requests
 
+REQUEST_TIMEOUT_SECONDS = 10
+
 
 class TokenService:
     """Service for managing authentication tokens.
@@ -25,7 +27,9 @@ class TokenService:
     def apply_token(self):
         """Apply for authentication token using credentials."""
         response = requests.post(
-            self.base_url + "/apply_token", data=json.dumps({"user_name": self.user_name, "password": self.password})
+            self.base_url + "/apply_token",
+            data=json.dumps({"user_name": self.user_name, "password": self.password}),
+            timeout=REQUEST_TIMEOUT_SECONDS,
         )
         resp_json = response.json()
         self.token = resp_json.get("token")

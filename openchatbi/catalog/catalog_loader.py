@@ -151,9 +151,9 @@ class DataCatalogLoader:
                     try:
                         table_info = self.inspector.get_table_comment(table_name)
                         table_comment = table_info.get("text", "") if table_info else ""
-                    except Exception:
+                    except Exception as e:
                         # Some databases don't support table comments
-                        pass
+                        logger.info("Skipping table comment for %s: %s", table_name, e)
 
                     table_info = {"description": table_comment, "selection_rule": "", "sql_rule": ""}
                     if catalog_store.save_table_information(table_name, table_info, columns, database_name):

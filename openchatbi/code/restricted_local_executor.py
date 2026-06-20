@@ -36,7 +36,8 @@ class RestrictedLocalExecutor(ExecutorBase):
             # Use the standard print function for RestrictedPython
             restricted_globals["_print_"] = lambda *args, **kwargs: print(*args, **kwargs)
 
-            exec(byte_code, restricted_globals, restricted_locals)
+            # Intentional execution boundary after RestrictedPython compilation.
+            exec(byte_code, restricted_globals, restricted_locals)  # nosec B102
             output = output_buffer.getvalue()
 
             return True, output

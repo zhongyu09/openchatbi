@@ -1,6 +1,8 @@
+import logging
 import os
 import shutil
-import subprocess
+# Used only for fixed Docker CLI health checks.
+import subprocess  # nosec B404
 import tempfile
 from pathlib import Path
 
@@ -8,6 +10,13 @@ import docker
 from docker.errors import ContainerError
 
 from openchatbi.code.executor_base import ExecutorBase
+
+logger = logging.getLogger(__name__)
+
+
+def _get_docker_cli_path() -> str | None:
+    """Resolve Docker CLI once so subprocess does not rely on a partial executable path."""
+    return shutil.which("docker")
 
 
 def check_docker_status() -> tuple[bool, str]:
@@ -19,11 +28,15 @@ def check_docker_status() -> tuple[bool, str]:
     """
     try:
         # Check if Docker CLI is installed
-        if not shutil.which("docker"):
+        docker_cli_path = _get_docker_cli_path()
+        if not docker_cli_path:
             return False, "Docker is not installed. Please install Docker."
 
         # Check if Docker daemon is running
-        result = subprocess.run(["docker", "info"], capture_output=True, text=True, timeout=10)
+        # Fixed command and arguments; no user input reaches subprocess.
+        result = subprocess.run(  # nosec B603
+            [docker_cli_path, "info"], capture_output=True, text=True, timeout=10
+        )
 
         if result.returncode == 0:
             return True, "Docker is installed and running"
@@ -63,12 +76,16 @@ class DockerExecutor(ExecutorBase):
     def _check_docker_availability():
         """Check if Docker is installed and available."""
         # Check if Docker CLI is installed
-        if not shutil.which("docker"):
+        docker_cli_path = _get_docker_cli_path()
+        if not docker_cli_path:
             raise RuntimeError("Docker is not installed. Please install Docker and ensure it's in your system PATH.")
 
         # Check if Docker daemon is running
         try:
-            result = subprocess.run(["docker", "info"], capture_output=True, text=True, timeout=10)
+            # Fixed command and arguments; no user input reaches subprocess.
+            result = subprocess.run(  # nosec B603
+                [docker_cli_path, "info"], capture_output=True, text=True, timeout=10
+            )
             if result.returncode != 0:
                 if "Cannot connect to the Docker daemon" in result.stderr:
                     raise RuntimeError(
@@ -176,6 +193,6 @@ class DockerExecutor(ExecutorBase):
         try:
             if hasattr(self, "client") and self.client is not None:
                 self.client.close()
-        except Exception:
+        except Exception as e:
             # Ignore cleanup errors during object destruction
-            pass
+            logger.debug("Failed to close Docker client during cleanup: %s", e)

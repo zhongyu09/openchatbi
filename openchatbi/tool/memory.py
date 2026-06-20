@@ -1,4 +1,5 @@
 import functools
+import logging
 import sys
 from typing import Any
 
@@ -37,6 +38,7 @@ async_memory_store = None
 async_store_context_manager = None
 sync_memory_store = None
 memory_manager = None
+logger = logging.getLogger(__name__)
 
 
 # Define profile structure
@@ -68,8 +70,8 @@ def get_sync_memory_store() -> SqliteStore | None:
         )
         try:
             sync_memory_store.setup()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("Memory store setup failed; sync memory tools may be unavailable: %s", e)
     return sync_memory_store
 
 
@@ -193,8 +195,8 @@ class StructuredToolWithRequired(StructuredTool):
                 tcs.model_config["json_schema_extra"] = fix_schema_for_openai
             elif ConfigDict is not None:
                 tcs.model_config = ConfigDict(json_schema_extra=fix_schema_for_openai)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("Unable to attach OpenAI schema compatibility hook: %s", e)
         return tcs
 
 

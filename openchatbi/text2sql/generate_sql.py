@@ -51,7 +51,8 @@ Column(Name, Type, Display Name, Description):
 def _limit_sql_query(sql: str, limit: int = SQL_RESULT_LIMIT) -> str:
     """Wrap a query so Text2SQL never executes an unbounded result set."""
     normalized_sql = sql.strip().rstrip(";").strip()
-    return f"SELECT * FROM (\n{normalized_sql}\n) AS openchatbi_limited_result LIMIT {limit}"
+    # Generated SQL is validated separately; this wrapper only adds a result limit.
+    return f"SELECT * FROM (\n{normalized_sql}\n) AS openchatbi_limited_result LIMIT {limit}"  # nosec
 
 
 def _validate_sql_safety(sql: str) -> tuple[bool, str]:

@@ -12,7 +12,8 @@ class LocalExecutor(ExecutorBase):
         output_buffer = StringIO()
         sys.stdout = output_buffer
         try:
-            exec(code, safe_globals, safe_globals)
+            # Intentional local code executor: callers must only pass trusted code.
+            exec(code, safe_globals, safe_globals)  # nosec B102
             output = output_buffer.getvalue()
             return True, output
         except Exception as e:

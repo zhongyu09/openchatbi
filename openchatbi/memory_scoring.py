@@ -1,8 +1,11 @@
 """Scoring helpers shared by S3 SQL-pattern retrieval and langmem long-term rerank."""
 
+import logging
 import math
 from datetime import UTC, datetime
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 
 def _parse_iso(ts: str) -> datetime | None:
@@ -86,7 +89,8 @@ def prune_stale(store: Any, namespace: str, cfg: Any) -> int:
     half_life = getattr(cfg, "importance_decay_half_life_days", 30.0)
     try:
         items = store.search((namespace,))
-    except Exception:
+    except Exception as e:
+        logger.warning("Unable to search memory store for stale pruning in namespace=%s: %s", namespace, e)
         return 0
     for item in items:
         value = getattr(item, "value", None) or {}
@@ -97,6 +101,11 @@ def prune_stale(store: Any, namespace: str, cfg: Any) -> int:
             try:
                 store.delete(getattr(item, "namespace", (namespace,)), getattr(item, "key", ""))
                 pruned += 1
-            except Exception:
-                continue
+            except Exception as e:
+                logger.info(
+                    "Skipping memory prune delete for namespace=%s key=%s: %s",
+                    getattr(item, "namespace", (namespace,)),
+                    getattr(item, "key", ""),
+                    e,
+                )
     return pruned

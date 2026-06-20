@@ -35,7 +35,7 @@ from openchatbi.tool.mcp_tools import create_mcp_tools_sync, get_mcp_tools_async
 from openchatbi.tool.memory import get_memory_tools
 from openchatbi.tool.run_python_code import run_python_code
 from openchatbi.tool.save_report import save_report
-from openchatbi.tool.search_knowledge import search_knowledge, show_schema
+from openchatbi.tool.search_knowledge import search_knowledge, search_schema, show_schema
 from openchatbi.utils import log, recover_incomplete_tool_calls
 
 logger = logging.getLogger(__name__)
@@ -92,6 +92,8 @@ Returns:
     str: A formatted response containing SQL, data, and visualization status.
 
 Important notes:
+- Do not use this tool to explore database schema, list tables, or discover which tables/columns contain data.
+  Use search_schema for schema discovery and show_schema for known table details before calling Text2SQL.
 - If user want to change the visualization chart type or style, add the requirement in the question
 - Make sure to provide question in English
 - In staged workflows, pass subtask-scoped context only for this call and keep other stages under Deferred Tasks
@@ -340,6 +342,7 @@ def _build_graph_core(
     log(str(mcp_tools))
     normal_tools = [
         search_knowledge,
+        search_schema,
         show_schema,
         call_sql_graph_tool,
         data_analysis_tool,

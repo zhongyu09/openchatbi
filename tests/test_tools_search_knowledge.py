@@ -1,440 +1,299 @@
-"""Tests for search_knowledge tool functionality."""
+"""Tests for knowledge and schema discovery tools."""
 
-from unittest.mock import patch
+from types import SimpleNamespace
+from unittest.mock import Mock, patch
 
 import pytest
 
-from openchatbi.tool.search_knowledge import search_knowledge, show_schema
+from openchatbi.tool import search_knowledge as sk
+from openchatbi.tool.search_knowledge import search_knowledge, search_schema, show_schema
 
 
 class TestSearchKnowledge:
-    """Test search_knowledge tool functionality."""
+    """Knowledge search is field/business/example oriented, not table discovery."""
 
-    def test_search_knowledge_basic(self):
-        """Test basic knowledge search functionality."""
-        reasoning = "Looking for user information"
-        query_list = ["user", "information"]
-        knowledge_bases = ["columns"]
-
-        with patch("openchatbi.tool.search_knowledge._search_column_from_catalog") as mock_search:
-            mock_search.return_value = "user_id: User identifier\nuser_name: User name"
-
-            result = search_knowledge.run(
+    def test_search_knowledge_columns_returns_field_metadata(self):
+        with patch.object(sk, "get_relevant_columns", return_value=["user_id", "revenue"]):
+            with patch.dict(
+                sk.col_dict,
                 {
-                    "reasoning": reasoning,
-                    "query_list": query_list,
-                    "knowledge_bases": knowledge_bases,
-                    "with_table_list": False,
-                }
-            )
-
-            assert isinstance(result, dict)
-            assert "columns" in result
-            assert "User identifier" in result["columns"]
-            mock_search.assert_called_once_with(query_list, False)
-
-    def test_search_knowledge_table_matching(self):
-        """Test knowledge search with table matching."""
-        reasoning = "Finding table relationships"
-        query_list = ["user", "metrics"]
-        knowledge_bases = ["columns"]
-
-        with patch("openchatbi.tool.search_knowledge._search_column_from_catalog") as mock_search:
-            mock_search.return_value = "user_id: Unique identifier\nmetrics_value: Metric value"
-
-            result = search_knowledge.run(
-                {
-                    "reasoning": reasoning,
-                    "query_list": query_list,
-                    "knowledge_bases": knowledge_bases,
-                    "with_table_list": True,
-                }
-            )
-
-            assert isinstance(result, dict)
-            assert "columns" in result
-            mock_search.assert_called_once_with(query_list, True)
-
-    def test_search_knowledge_empty_query(self):
-        """Test knowledge search with empty query."""
-        reasoning = "Testing empty search"
-        query_list = []
-        knowledge_bases = ["columns"]
-
-        with patch("openchatbi.tool.search_knowledge._search_column_from_catalog") as mock_search:
-            mock_search.return_value = ""
-
-            result = search_knowledge.run(
-                {
-                    "reasoning": reasoning,
-                    "query_list": query_list,
-                    "knowledge_bases": knowledge_bases,
-                    "with_table_list": False,
-                }
-            )
-
-            assert isinstance(result, dict)
-            assert "columns" in result
-            mock_search.assert_called_once_with(query_list, False)
-
-    def test_search_knowledge_no_matches(self):
-        """Test knowledge search with no matches."""
-        reasoning = "Testing no matches"
-        query_list = ["nonexistent"]
-        knowledge_bases = ["columns"]
-
-        with patch("openchatbi.tool.search_knowledge._search_column_from_catalog") as mock_search:
-            mock_search.return_value = ""
-
-            result = search_knowledge.run(
-                {
-                    "reasoning": reasoning,
-                    "query_list": query_list,
-                    "knowledge_bases": knowledge_bases,
-                    "with_table_list": False,
-                }
-            )
-
-            assert isinstance(result, dict)
-            assert "columns" in result
-            assert result["columns"] == "# Relevant Columns and Description:\n"
-
-    def test_search_knowledge_multiple_matches(self):
-        """Test knowledge search with multiple matches."""
-        reasoning = "Finding multiple matches"
-        query_list = ["user", "data", "profile"]
-        knowledge_bases = ["columns"]
-
-        with patch("openchatbi.tool.search_knowledge._search_column_from_catalog") as mock_search:
-            mock_search.return_value = "user_id: User ID\nuser_name: Name\nprofile_data: Profile"
-
-            result = search_knowledge.run(
-                {
-                    "reasoning": reasoning,
-                    "query_list": query_list,
-                    "knowledge_bases": knowledge_bases,
-                    "with_table_list": False,
-                }
-            )
-
-            assert isinstance(result, dict)
-            assert "columns" in result
-            assert "user_id" in result["columns"]
-            assert "profile_data" in result["columns"]
-
-    def test_search_knowledge_with_synonyms(self):
-        """Test knowledge search with synonym matching."""
-        reasoning = "Testing synonym search"
-        query_list = ["customer", "client", "user"]
-        knowledge_bases = ["columns"]
-
-        with patch("openchatbi.tool.search_knowledge._search_column_from_catalog") as mock_search:
-            mock_search.return_value = "customer_id: Customer identifier\nclient_name: Client name"
-
-            result = search_knowledge.run(
-                {
-                    "reasoning": reasoning,
-                    "query_list": query_list,
-                    "knowledge_bases": knowledge_bases,
-                    "with_table_list": False,
-                }
-            )
-
-            assert isinstance(result, dict)
-            assert "columns" in result
-
-    def test_search_knowledge_case_insensitive(self):
-        """Test case insensitive knowledge search."""
-        reasoning = "Testing case sensitivity"
-        query_list = ["USER", "Data", "PROFILE"]
-        knowledge_bases = ["columns"]
-
-        with patch("openchatbi.tool.search_knowledge._search_column_from_catalog") as mock_search:
-            mock_search.return_value = "user_data: User information"
-
-            result = search_knowledge.run(
-                {
-                    "reasoning": reasoning,
-                    "query_list": query_list,
-                    "knowledge_bases": knowledge_bases,
-                    "with_table_list": False,
-                }
-            )
-
-            assert isinstance(result, dict)
-            assert "columns" in result
-
-    def test_search_knowledge_partial_matches(self):
-        """Test knowledge search with partial matches."""
-        reasoning = "Testing partial matching"
-        query_list = ["usr", "prof"]
-        knowledge_bases = ["columns"]
-
-        with patch("openchatbi.tool.search_knowledge._search_column_from_catalog") as mock_search:
-            mock_search.return_value = "user_profile: User profile data"
-
-            result = search_knowledge.run(
-                {
-                    "reasoning": reasoning,
-                    "query_list": query_list,
-                    "knowledge_bases": knowledge_bases,
-                    "with_table_list": False,
-                }
-            )
-
-            assert isinstance(result, dict)
-
-    def test_search_knowledge_error_handling(self):
-        """Test knowledge search error handling."""
-        reasoning = "Testing error handling"
-        query_list = ["test"]
-        knowledge_bases = ["columns"]
-
-        with patch("openchatbi.tool.search_knowledge._search_column_from_catalog") as mock_search:
-            mock_search.side_effect = Exception("Search error")
-
-            # Should handle exceptions gracefully
-            with pytest.raises(Exception, match="Search error"):
-                search_knowledge.run(
+                    "user_id": {
+                        "column_name": "user_id",
+                        "display_name": "User ID",
+                        "category": "dimension",
+                        "type": "bigint",
+                        "description": "Unique user identifier",
+                        "alias": ["uid"],
+                    },
+                    "revenue": {
+                        "column_name": "revenue",
+                        "display_name": "Revenue",
+                        "category": "metric",
+                        "type": "decimal",
+                        "description": "Revenue amount",
+                    },
+                },
+                clear=True,
+            ):
+                result = search_knowledge.invoke(
                     {
-                        "reasoning": reasoning,
-                        "query_list": query_list,
-                        "knowledge_bases": knowledge_bases,
-                        "with_table_list": False,
+                        "reasoning": "explain fields",
+                        "query_list": ["user", "revenue"],
+                        "knowledge_bases": ["columns"],
                     }
                 )
 
-    def test_show_schema_basic(self):
-        """Test basic schema display functionality."""
-        reasoning = "Showing basic schema"
-        tables = ["user_data"]
+        assert result["columns"] == [
+            {
+                "column_name": "revenue",
+                "display_name": "Revenue",
+                "category": "metric",
+                "type": "decimal",
+                "description": "Revenue amount",
+                "alias": "",
+            },
+            {
+                "column_name": "user_id",
+                "display_name": "User ID",
+                "category": "dimension",
+                "type": "bigint",
+                "description": "Unique user identifier",
+                "alias": ["uid"],
+            },
+        ]
+        assert result["warnings"] == []
 
-        with patch("openchatbi.tool.search_knowledge._list_table_from_catalog") as mock_list:
-            mock_list.return_value = ["Table: user_data\n# Description: User information\n# Columns:\nuser_id: User ID"]
+    def test_search_knowledge_does_not_expose_related_tables(self):
+        with patch.object(sk, "get_relevant_columns", return_value=["order_id"]):
+            with (
+                patch.dict(
+                    sk.col_dict,
+                    {
+                        "order_id": {
+                            "column_name": "order_id",
+                            "display_name": "Order ID",
+                            "category": "dimension",
+                            "type": "bigint",
+                            "description": "Order identifier",
+                        }
+                    },
+                    clear=True,
+                ),
+                patch.dict(sk.column_tables_mapping, {"order_id": ["mart.orders"]}, clear=True),
+            ):
+                result = search_knowledge.invoke(
+                    {
+                        "reasoning": "field meaning only",
+                        "query_list": ["order"],
+                        "knowledge_bases": ["columns"],
+                    }
+                )
 
-            result = show_schema.run({"reasoning": reasoning, "tables": tables})
+        assert "mart.orders" not in str(result["columns"])
+        assert result["warnings"] == []
 
-            assert isinstance(result, list)
-            assert len(result) == 1
-            assert "user_data" in result[0]
-            mock_list.assert_called_once_with(tables)
+    def test_search_knowledge_sql_examples(self):
+        fake_store = Mock()
+        fake_store.retrieve.return_value = [("how many users", "SELECT COUNT(*) FROM users", ["users"])]
 
-    def test_show_schema_detailed_info(self):
-        """Test detailed schema information."""
-        reasoning = "Showing detailed schema"
-        tables = ["user_data", "metrics"]
-
-        with patch("openchatbi.tool.search_knowledge._list_table_from_catalog") as mock_list:
-            mock_list.return_value = [
-                "Table: user_data\n# Columns: user_id, name, email",
-                "Table: metrics\n# Columns: metric_id, value, timestamp",
-            ]
-
-            result = show_schema.run({"reasoning": reasoning, "tables": tables})
-
-            assert isinstance(result, list)
-            assert len(result) == 2
-            assert any("user_data" in schema for schema in result)
-            assert any("metrics" in schema for schema in result)
-
-    def test_show_schema_nonexistent_table(self):
-        """Test schema display for nonexistent table."""
-        reasoning = "Testing nonexistent table"
-        tables = ["nonexistent_table"]
-
-        with patch("openchatbi.tool.search_knowledge._list_table_from_catalog") as mock_list:
-            mock_list.return_value = []
-
-            result = show_schema.run({"reasoning": reasoning, "tables": tables})
-
-            assert isinstance(result, list)
-            assert len(result) == 0
-
-    def test_show_schema_table_error(self):
-        """Test schema display error handling."""
-        reasoning = "Testing schema errors"
-        tables = ["error_table"]
-
-        with patch("openchatbi.tool.search_knowledge._list_table_from_catalog") as mock_list:
-            mock_list.side_effect = Exception("Table access error")
-
-            with pytest.raises(Exception, match="Table access error"):
-                show_schema.run({"reasoning": reasoning, "tables": tables})
-
-    def test_show_schema_complex_table(self):
-        """Test schema display for complex table structure."""
-        reasoning = "Showing complex schema"
-        tables = ["complex_table"]
-
-        with patch("openchatbi.tool.search_knowledge._list_table_from_catalog") as mock_list:
-            mock_list.return_value = [
-                "Table: complex_table\n# Description: Complex data structure\n# Columns:\nid: Primary key\ndata: JSON data\ncreated_at: Timestamp"
-            ]
-
-            result = show_schema.run({"reasoning": reasoning, "tables": tables})
-
-            assert isinstance(result, list)
-            assert "complex_table" in result[0]
-            assert "Primary key" in result[0]
-
-    def test_search_knowledge_with_metrics(self):
-        """Test knowledge search focusing on metrics."""
-        reasoning = "Finding metrics columns"
-        query_list = ["revenue", "clicks", "impressions"]
-        knowledge_bases = ["columns"]
-
-        with patch("openchatbi.tool.search_knowledge._search_column_from_catalog") as mock_search:
-            mock_search.return_value = "revenue: Revenue amount\nclicks: Click count\nimpressions: Impression count"
-
-            result = search_knowledge.run(
+        with patch.object(sk, "get_learned_sql_store", return_value=fake_store):
+            result = search_knowledge.invoke(
                 {
-                    "reasoning": reasoning,
-                    "query_list": query_list,
-                    "knowledge_bases": knowledge_bases,
-                    "with_table_list": False,
+                    "reasoning": "need examples",
+                    "query_list": ["user count"],
+                    "knowledge_bases": ["sql_examples"],
                 }
             )
 
-            assert isinstance(result, dict)
-            assert "revenue" in result["columns"]
-            assert "clicks" in result["columns"]
+        assert "sql_examples" in result
+        assert "SELECT COUNT(*) FROM users" in result["sql_examples"]
+        assert result["warnings"] == []
+        fake_store.retrieve.assert_called_once()
 
-    def test_search_knowledge_contextual_search(self):
-        """Test contextual knowledge search."""
-        reasoning = "Contextual search for user behavior"
-        query_list = ["user", "behavior", "tracking"]
-        knowledge_bases = ["columns"]
+    def test_search_knowledge_business_without_dedicated_store(self):
+        fake_config = SimpleNamespace(bi_config={})
 
-        with patch("openchatbi.tool.search_knowledge._search_column_from_catalog") as mock_search:
-            mock_search.return_value = "user_behavior: User activity tracking\ntracking_id: Tracking identifier"
-
-            result = search_knowledge.run(
+        with patch.object(sk.config, "get", return_value=fake_config):
+            result = search_knowledge.invoke(
                 {
-                    "reasoning": reasoning,
-                    "query_list": query_list,
-                    "knowledge_bases": knowledge_bases,
-                    "with_table_list": False,
+                    "reasoning": "business term",
+                    "query_list": ["revenue"],
+                    "knowledge_bases": ["business"],
                 }
             )
 
-            assert isinstance(result, dict)
-            assert "behavior" in result["columns"]
+        assert "business" in result
+        assert "no dedicated business knowledge available" in result["business"]
+        assert "No dedicated business knowledge available" in result["warnings"][0]
 
-    def test_search_knowledge_with_aggregations(self):
-        """Test knowledge search for aggregation columns."""
-        reasoning = "Finding aggregation metrics"
-        query_list = ["sum", "count", "average"]
-        knowledge_bases = ["columns"]
-
-        with patch("openchatbi.tool.search_knowledge._search_column_from_catalog") as mock_search:
-            mock_search.return_value = "total_count: Count aggregation\naverage_value: Average calculation"
-
-            result = search_knowledge.run(
+    def test_search_knowledge_rejects_invalid_knowledge_base(self):
+        with pytest.raises(Exception):
+            search_knowledge.invoke(
                 {
-                    "reasoning": reasoning,
-                    "query_list": query_list,
-                    "knowledge_bases": knowledge_bases,
-                    "with_table_list": False,
+                    "reasoning": "invalid kb",
+                    "query_list": ["orders"],
+                    "knowledge_bases": ["not_supported"],
                 }
             )
 
-            assert isinstance(result, dict)
 
-    def test_show_schema_with_examples(self):
-        """Test schema display with usage examples."""
-        reasoning = "Showing schema with examples"
-        tables = ["example_table"]
+class TestSearchSchema:
+    """Schema discovery is table-centric and structured."""
 
-        with patch("openchatbi.tool.search_knowledge._list_table_from_catalog") as mock_list:
-            mock_list.return_value = [
-                "Table: example_table\n# Description: Example usage\n## Derived metrics:\nSELECT COUNT(*) FROM example_table"
-            ]
+    def test_search_schema_returns_candidate_tables(self):
+        fake_catalog = Mock()
+        fake_catalog.get_table_information.return_value = {
+            "description": "Orders fact table",
+            "selection_rule": "Use for order analysis",
+        }
+        fake_catalog.get_column_list.return_value = [
+            {
+                "column_name": "order_id",
+                "display_name": "Order ID",
+                "category": "dimension",
+                "type": "bigint",
+                "description": "Order identifier",
+            },
+            {
+                "column_name": "order_date",
+                "display_name": "Order Date",
+                "category": "dimension",
+                "type": "date",
+                "description": "Date the order was placed",
+            },
+            {
+                "column_name": "order_total",
+                "display_name": "Order Total",
+                "category": "metric",
+                "type": "decimal",
+                "description": "Order revenue",
+            },
+        ]
 
-            result = show_schema.run({"reasoning": reasoning, "tables": tables})
-
-            assert isinstance(result, list)
-            assert "example_table" in result[0]
-            assert "Derived metrics" in result[0]
-
-    def test_search_knowledge_performance(self):
-        """Test knowledge search performance characteristics."""
-        reasoning = "Testing search performance"
-        query_list = ["performance", "speed", "optimization"]
-        knowledge_bases = ["columns"]
-
-        with patch("openchatbi.tool.search_knowledge._search_column_from_catalog") as mock_search:
-            mock_search.return_value = "performance_metric: Performance measurement"
-
-            result = search_knowledge.run(
+        with (
+            patch.object(sk.config, "get", return_value=SimpleNamespace(catalog_store=fake_catalog)),
+            patch.object(sk, "get_relevant_columns", return_value=["order_id", "order_date"]),
+            patch.dict(
+                sk.column_tables_mapping,
+                {"order_id": ["mart.orders"], "order_date": ["mart.orders"]},
+                clear=True,
+            ),
+        ):
+            result = search_schema.invoke(
                 {
-                    "reasoning": reasoning,
-                    "query_list": query_list,
-                    "knowledge_bases": knowledge_bases,
-                    "with_table_list": False,
+                    "reasoning": "find order schema",
+                    "query_list": ["orders", "daily order count"],
+                    "metrics": ["order count"],
                 }
             )
 
-            assert isinstance(result, dict)
-            # Just ensure it completes without performance issues
+        assert result["matched_column_count"] == 2
+        assert result["candidates"][0]["table"] == "mart.orders"
+        assert result["candidates"][0]["matched_columns"] == ["order_date", "order_id"]
+        assert result["candidates"][0]["date_columns"] == ["order_date"]
+        assert result["candidates"][0]["metric_columns"] == ["order_total"]
+        assert result["candidates"][0]["dimension_columns"] == ["order_id", "order_date"]
+        assert result["candidates"][0]["columns"][0]["column_name"] == "order_id"
+        assert result["warnings"] == []
 
-    def test_search_knowledge_special_characters(self):
-        """Test knowledge search with special characters."""
-        reasoning = "Testing special character handling"
-        query_list = ["user@domain", "data-point", "metric_value"]
-        knowledge_bases = ["columns"]
+    def test_search_schema_respects_max_tables(self):
+        fake_catalog = Mock()
+        fake_catalog.get_table_information.side_effect = lambda table: {"description": table}
+        fake_catalog.get_column_list.return_value = [
+            {
+                "column_name": "order_id",
+                "display_name": "Order ID",
+                "category": "dimension",
+                "type": "bigint",
+                "description": "Order identifier",
+            }
+        ]
 
-        with patch("openchatbi.tool.search_knowledge._search_column_from_catalog") as mock_search:
-            mock_search.return_value = "user_email: User email address\ndata_point: Data measurement"
-
-            result = search_knowledge.run(
+        with (
+            patch.object(sk.config, "get", return_value=SimpleNamespace(catalog_store=fake_catalog)),
+            patch.object(sk, "get_relevant_columns", return_value=["order_id"]),
+            patch.dict(sk.column_tables_mapping, {"order_id": ["a.orders", "b.orders"]}, clear=True),
+        ):
+            result = search_schema.invoke(
                 {
-                    "reasoning": reasoning,
-                    "query_list": query_list,
-                    "knowledge_bases": knowledge_bases,
-                    "with_table_list": False,
+                    "reasoning": "limit candidates",
+                    "query_list": ["orders"],
+                    "max_tables": 1,
                 }
             )
 
-            assert isinstance(result, dict)
+        assert len(result["candidates"]) == 1
+        assert "Returned top 1 tables out of 2 candidates." in result["warnings"]
 
-    def test_search_knowledge_unicode_support(self):
-        """Test knowledge search with unicode characters."""
-        reasoning = "Testing unicode support"
-        query_list = ["utilización", "données", "用户"]
-        knowledge_bases = ["columns"]
+    def test_search_schema_no_matches(self):
+        fake_catalog = Mock()
 
-        with patch("openchatbi.tool.search_knowledge._search_column_from_catalog") as mock_search:
-            mock_search.return_value = "user_data: International user data"
-
-            result = search_knowledge.run(
+        with (
+            patch.object(sk.config, "get", return_value=SimpleNamespace(catalog_store=fake_catalog)),
+            patch.object(sk, "get_relevant_columns", return_value=[]),
+            patch.dict(sk.column_tables_mapping, {}, clear=True),
+        ):
+            result = search_schema.invoke(
                 {
-                    "reasoning": reasoning,
-                    "query_list": query_list,
-                    "knowledge_bases": knowledge_bases,
-                    "with_table_list": False,
+                    "reasoning": "unknown schema",
+                    "query_list": ["not-a-real-term"],
                 }
             )
 
-            assert isinstance(result, dict)
+        assert result["candidates"] == []
+        assert result["unmatched_terms"] == ["not-a-real-term"]
+        assert "No relevant columns matched the schema query terms." in result["warnings"]
+        assert "No schema candidates found for the provided query terms." in result["warnings"]
 
-    def test_knowledge_integration_with_state(self):
-        """Test knowledge search integration with agent state."""
-        reasoning = "Testing state integration"
-        query_list = ["state", "integration"]
-        knowledge_bases = ["columns"]
 
-        with patch("openchatbi.tool.search_knowledge._search_column_from_catalog") as mock_search:
-            mock_search.return_value = "state_data: Application state information"
+class TestShowSchema:
+    """Known table schema inspection returns full structured metadata."""
 
-            # Test that the tool can be called in the context of agent state
-            result = search_knowledge.run(
-                {
-                    "reasoning": reasoning,
-                    "query_list": query_list,
-                    "knowledge_bases": knowledge_bases,
-                    "with_table_list": False,
-                }
-            )
+    def test_show_schema_returns_structured_table_details(self):
+        fake_catalog = Mock()
+        fake_catalog.get_table_information.return_value = {
+            "description": "Orders fact table",
+            "selection_rule": "Use for order analysis",
+            "sql_rule": "Filter by order_date",
+            "derived_metric": "order_count = COUNT(order_id)",
+        }
+        fake_catalog.get_column_list.return_value = [
+            {
+                "column_name": "order_id",
+                "display_name": "Order ID",
+                "category": "dimension",
+                "type": "bigint",
+                "description": "Order identifier",
+            },
+            {
+                "column_name": "order_date",
+                "display_name": "Order Date",
+                "category": "dimension",
+                "type": "date",
+                "description": "Order date",
+            },
+        ]
 
-            assert isinstance(result, dict)
-            assert "columns" in result
+        with patch.object(sk.config, "get", return_value=SimpleNamespace(catalog_store=fake_catalog)):
+            result = show_schema.invoke({"reasoning": "inspect", "tables": ["mart.orders"]})
+
+        schema = result["schemas"][0]
+        assert schema["table"] == "mart.orders"
+        assert schema["selection_rule"] == "Use for order analysis"
+        assert schema["sql_rule"] == "Filter by order_date"
+        assert schema["derived_metric"] == "order_count = COUNT(order_id)"
+        assert schema["date_columns"] == ["order_date"]
+        assert schema["dimension_columns"] == ["order_id", "order_date"]
+        assert result["missing_tables"] == []
+        assert result["warnings"] == []
+
+    def test_show_schema_reports_missing_tables(self):
+        fake_catalog = Mock()
+        fake_catalog.get_table_information.return_value = {}
+
+        with patch.object(sk.config, "get", return_value=SimpleNamespace(catalog_store=fake_catalog)):
+            result = show_schema.invoke({"reasoning": "inspect", "tables": ["missing.table"]})
+
+        assert result["schemas"] == []
+        assert result["missing_tables"] == ["missing.table"]
+        assert "Some tables were not found in catalog" in result["warnings"][0]

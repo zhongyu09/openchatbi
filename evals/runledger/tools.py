@@ -4,7 +4,7 @@ from typing import Any
 
 from openchatbi.tool.run_python_code import run_python_code
 from openchatbi.tool.save_report import save_report
-from openchatbi.tool.search_knowledge import search_knowledge, show_schema
+from openchatbi.tool.search_knowledge import search_knowledge, search_schema, show_schema
 
 
 def _invoke_tool(tool, args: dict[str, Any]) -> Any:
@@ -13,6 +13,10 @@ def _invoke_tool(tool, args: dict[str, Any]) -> Any:
 
 def _search_knowledge(args: dict[str, Any]) -> Any:
     return _invoke_tool(search_knowledge, args)
+
+
+def _search_schema(args: dict[str, Any]) -> Any:
+    return _invoke_tool(search_schema, args)
 
 
 def _show_schema(args: dict[str, Any]) -> Any:
@@ -36,6 +40,7 @@ def _text2sql(args: dict[str, Any]) -> Any:
 
 TOOLS = {
     "search_knowledge": _search_knowledge,
+    "search_schema": _search_schema,
     "show_schema": _show_schema,
     "text2sql": _text2sql,
     "run_python_code": _run_python_code,

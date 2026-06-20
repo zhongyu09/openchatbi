@@ -4,6 +4,7 @@ mode: replay
 cases_path: cases
 tool_registry:
   - search_knowledge
+  - search_schema
   - show_schema
   - text2sql
   - run_python_code

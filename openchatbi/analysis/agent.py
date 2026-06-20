@@ -14,6 +14,7 @@ from openchatbi.llm.llm import get_analysis_llm
 from openchatbi.tool.adtributor_tool import adtributor_drilldown
 from openchatbi.tool.anomaly_detection import anomaly_detection
 from openchatbi.tool.run_python_code import run_python_code
+from openchatbi.tool.search_knowledge import search_schema, show_schema
 from openchatbi.tool.timeseries_forecast import check_forecast_service_health, timeseries_forecast
 
 logger = logging.getLogger(__name__)
@@ -131,7 +132,7 @@ def build_data_analysis_agent(
     # 1. Prepare tools
     text2sql_tool = get_sql_tools(sql_graph=sql_graph, sync_mode=sync_mode)
 
-    tools = [text2sql_tool, run_python_code]
+    tools = [search_schema, show_schema, text2sql_tool, run_python_code]
 
     # Add forecast and anomaly detection if service is healthy
     if check_forecast_service_health():

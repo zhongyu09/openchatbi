@@ -136,7 +136,6 @@ class TestSearchKnowledgeSqlExamples:
                     "reasoning": "need examples",
                     "query_list": ["user count"],
                     "knowledge_bases": ["sql_examples"],
-                    "with_table_list": False,
                 }
             )
         assert "sql_examples" in result
@@ -148,19 +147,18 @@ class TestSearchKnowledgeSqlExamples:
         # at least return a (possibly empty) keyed entry, not silently drop.
         from openchatbi.tool import search_knowledge as sk
 
-        with (
-            patch.object(sk, "get_learned_sql_store", return_value=None),
-            patch.object(sk, "_search_column_from_catalog", return_value="revenue: Revenue amount"),
-        ):
+        fake_config = Mock()
+        fake_config.bi_config = {"basic_knowledge_glossary": "revenue: Revenue amount"}
+        with patch.object(sk.config, "get", return_value=fake_config):
             result = sk.search_knowledge.invoke(
                 {
                     "reasoning": "biz",
                     "query_list": ["revenue"],
                     "knowledge_bases": ["business"],
-                    "with_table_list": False,
                 }
             )
         assert "business" in result
+        assert "Revenue amount" in result["business"]
 
     def test_sql_examples_branch_none_store_no_op(self):
         """When learned SQL store is None, sql_examples returns a graceful message."""
@@ -172,7 +170,6 @@ class TestSearchKnowledgeSqlExamples:
                     "reasoning": "need examples",
                     "query_list": ["count"],
                     "knowledge_bases": ["sql_examples"],
-                    "with_table_list": False,
                 }
             )
         assert "sql_examples" in result

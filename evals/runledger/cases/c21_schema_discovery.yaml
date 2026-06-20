@@ -1,0 +1,10 @@
+id: c21_schema_discovery
+category: text2sql
+description: "schema discovery for daily order count"
+input:
+  prompt: "Find tables related to daily order count and order date"
+cassette: cassettes/c21_schema_discovery.jsonl
+gold:
+  expected_sql: ""
+  expected_tool_trajectory: ["search_schema"]
+  expected_result_contains: ["orders"]

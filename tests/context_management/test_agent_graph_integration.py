@@ -97,6 +97,7 @@ class TestAgentGraphIntegration:
         # Mock all the tool imports directly
         with (
             patch("openchatbi.agent_graph.search_knowledge", create_mock_tool("search_knowledge")),
+            patch("openchatbi.agent_graph.search_schema", create_mock_tool("search_schema")),
             patch("openchatbi.agent_graph.show_schema", create_mock_tool("show_schema")),
             patch("openchatbi.agent_graph.run_python_code", create_mock_tool("run_python_code")),
             patch("openchatbi.agent_graph.save_report", create_mock_tool("save_report")),
@@ -145,6 +146,7 @@ class TestAgentGraphIntegration:
         # Mock all the tool imports directly - same pattern as with context management
         with (
             patch("openchatbi.agent_graph.search_knowledge", create_mock_tool("search_knowledge")),
+            patch("openchatbi.agent_graph.search_schema", create_mock_tool("search_schema")),
             patch("openchatbi.agent_graph.show_schema", create_mock_tool("show_schema")),
             patch("openchatbi.agent_graph.run_python_code", create_mock_tool("run_python_code")),
             patch("openchatbi.agent_graph.save_report", create_mock_tool("save_report")),

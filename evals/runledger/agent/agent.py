@@ -81,7 +81,15 @@ class SearchKnowledgeInput(BaseModel):
     reasoning: str = Field(description="Reason for searching knowledge")
     query_list: list[str] = Field(description="Query terms")
     knowledge_bases: list[str] = Field(description="Knowledge bases to search")
-    with_table_list: bool = Field(default=False, description="Include table list")
+
+
+class SearchSchemaInput(BaseModel):
+    reasoning: str = Field(description="Reason for searching schema")
+    query_list: list[str] = Field(description="Business terms, entities, metrics, and fields to discover schema for")
+    dimensions: list[str] = Field(default_factory=list, description="Known dimension terms to prioritize")
+    metrics: list[str] = Field(default_factory=list, description="Known metric terms to prioritize")
+    max_tables: int = Field(default=5, description="Maximum number of candidate tables to return")
+    include_columns: bool = Field(default=True, description="Include detailed matched column metadata")
 
 
 class ShowSchemaInput(BaseModel):
@@ -110,7 +118,6 @@ def _build_tool_proxies(channel: JsonlChannel) -> dict[str, StructuredTool]:
         reasoning: str,
         query_list: list[str],
         knowledge_bases: list[str],
-        with_table_list: bool = False,
     ) -> Any:
         return _runledger_tool_call(
             channel,
@@ -119,7 +126,27 @@ def _build_tool_proxies(channel: JsonlChannel) -> dict[str, StructuredTool]:
                 "reasoning": reasoning,
                 "query_list": query_list,
                 "knowledge_bases": knowledge_bases,
-                "with_table_list": with_table_list,
+            },
+        )
+
+    def search_schema(
+        reasoning: str,
+        query_list: list[str],
+        dimensions: list[str] | None = None,
+        metrics: list[str] | None = None,
+        max_tables: int = 5,
+        include_columns: bool = True,
+    ) -> Any:
+        return _runledger_tool_call(
+            channel,
+            "search_schema",
+            {
+                "reasoning": reasoning,
+                "query_list": query_list,
+                "dimensions": dimensions or [],
+                "metrics": metrics or [],
+                "max_tables": max_tables,
+                "include_columns": include_columns,
             },
         )
 
@@ -157,6 +184,12 @@ def _build_tool_proxies(channel: JsonlChannel) -> dict[str, StructuredTool]:
             name="search_knowledge",
             description="RunLedger proxy for search_knowledge",
             args_schema=SearchKnowledgeInput,
+        ),
+        "search_schema": StructuredTool.from_function(
+            func=search_schema,
+            name="search_schema",
+            description="RunLedger proxy for search_schema",
+            args_schema=SearchSchemaInput,
         ),
         "show_schema": StructuredTool.from_function(
             func=show_schema,
@@ -202,6 +235,7 @@ _TRAJECTORIES: dict[str, list[str | None]] = {
     "Detect anomalies in daily signup counts": ["text2sql", "run_python_code", None],
     "Plot the revenue trend for 2024": ["text2sql", "run_python_code", None],
     "What columns describe customer churn?": ["search_knowledge", None],
+    "Find tables related to daily order count and order date": ["search_schema", None],
     "Explain the orders fact table": ["show_schema", None],
     "What does the metric DAU mean?": ["search_knowledge", None],
     "List the schema of the customers table": ["show_schema", None],
@@ -220,7 +254,14 @@ _TOOL_ARGS_BUILDERS = {
         "reasoning": "Look up relevant knowledge",
         "query_list": [q],
         "knowledge_bases": ["columns"],
-        "with_table_list": False,
+    },
+    "search_schema": lambda q: {
+        "reasoning": "Discover relevant schema",
+        "query_list": [q],
+        "dimensions": [],
+        "metrics": [],
+        "max_tables": 5,
+        "include_columns": True,
     },
     "show_schema": lambda q: {"reasoning": "Inspect schema", "tables": [q]},
     "text2sql": lambda q: {"reasoning": "Generate SQL", "context": q},
@@ -259,6 +300,7 @@ def _configure_agent_graph(channel: JsonlChannel) -> None:
     tool_proxies = _build_tool_proxies(channel)
 
     agent_graph.search_knowledge = tool_proxies["search_knowledge"]
+    agent_graph.search_schema = tool_proxies["search_schema"]
     agent_graph.show_schema = tool_proxies["show_schema"]
     agent_graph.run_python_code = tool_proxies["run_python_code"]
     agent_graph.save_report = tool_proxies["save_report"]

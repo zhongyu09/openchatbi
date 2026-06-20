@@ -132,6 +132,22 @@ def _extract_tool_error_message(content: object) -> str:
     return preview_text(text, 300)
 
 
+def _message_list(value: object) -> list[object]:
+    """Normalize a node-output messages payload.
+
+    LangGraph/deepagents may emit messages as a plain list or wrap a replacement
+    value in ``Overwrite(value=[...])``. The stream parser only needs to inspect
+    the messages, so unwrap that shape locally and tolerate a single message.
+    """
+    if value is None:
+        return []
+    if value.__class__.__name__ == "Overwrite" and hasattr(value, "value"):
+        value = getattr(value, "value")
+    if isinstance(value, list | tuple):
+        return list(value)
+    return [value]
+
+
 def _describe_generic_node(node_output: dict) -> list[str]:
     """Describe tool calls / tool results from an arbitrary sub-agent node.
 
@@ -141,7 +157,7 @@ def _describe_generic_node(node_output: dict) -> list[str]:
     stream.
     """
     descriptions: list[str] = []
-    for message in node_output.get("messages") or []:
+    for message in _message_list(node_output.get("messages")):
         tool_calls = getattr(message, "tool_calls", None)
         if isinstance(message, AIMessage) and tool_calls:
             for tool_call in tool_calls:
@@ -258,7 +274,7 @@ class AgentStreamProcessor:
             extra_steps: list[StreamStep] = []
 
             if node_name == "llm_node":
-                message_obj = (node_output.get("messages") or [None])[0]
+                message_obj = (_message_list(node_output.get("messages")) or [None])[0]
                 if isinstance(message_obj, AIMessage) and message_obj.tool_calls:
                     sub_agents = [
                         t["name"] for t in message_obj.tool_calls if t["name"] in ("data_analysis", "text2sql")
@@ -274,7 +290,7 @@ class AgentStreamProcessor:
                         data = {"sub_agents": sub_agents}
 
             elif node_name == "information_extraction":
-                message_obj = (node_output.get("messages") or [None])[0]
+                message_obj = (_message_list(node_output.get("messages")) or [None])[0]
                 if message_obj and getattr(message_obj, "tool_calls", None):
                     tool_name = message_obj.tool_calls[0]["name"]
                     desc = f"🛠️ Using tool: {tool_name}"
@@ -330,7 +346,7 @@ class AgentStreamProcessor:
                     kind = "confidence"
                     data = {"sql_confidence": score, "confidence_reasons": reasons}
             elif node_name == "use_tool":
-                for message in node_output.get("messages") or []:
+                for message in _message_list(node_output.get("messages")):
                     if not isinstance(message, ToolMessage):
                         continue
                     if getattr(message, "status", None) != "error":

@@ -4,6 +4,7 @@ from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 import pytest
+from pydantic import ValidationError
 
 from openchatbi.tool import search_knowledge as sk
 from openchatbi.tool.search_knowledge import search_knowledge, search_schema, show_schema
@@ -127,7 +128,7 @@ class TestSearchKnowledge:
         assert "No dedicated business knowledge available" in result["warnings"][0]
 
     def test_search_knowledge_rejects_invalid_knowledge_base(self):
-        with pytest.raises(Exception):
+        with pytest.raises(ValidationError):
             search_knowledge.invoke(
                 {
                     "reasoning": "invalid kb",

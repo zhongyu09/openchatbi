@@ -142,7 +142,7 @@ def _message_list(value: object) -> list[object]:
     if value is None:
         return []
     if value.__class__.__name__ == "Overwrite" and hasattr(value, "value"):
-        value = getattr(value, "value")
+        value = value.value
     if isinstance(value, list | tuple):
         return list(value)
     return [value]

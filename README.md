@@ -825,6 +825,18 @@ uv run pytest test/test_generate_sql.py
 uv run pytest test/test_agent_graph.py
 ```
 
+#### RunLedger Replay Evals
+
+RunLedger provides deterministic replay coverage for the agent/tool protocol
+using recorded JSONL cassettes. It does not require live LLM or warehouse access
+in replay mode.
+
+```bash
+uv run --extra eval runledger run evals/runledger --mode replay --baseline baselines/runledger-openchatbi.json
+```
+
+Run artifacts are written under `runledger_out/`.
+
 ### Pre-commit Hooks
 
 Install pre-commit hooks for automatic code quality checks:

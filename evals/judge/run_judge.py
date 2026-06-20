@@ -218,7 +218,7 @@ def run(
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="evals.judge.run_judge")
-    parser.add_argument("--cases", default="evals/runledger/cases")
+    parser.add_argument("--cases", default="evals/judge/cases")
     parser.add_argument("--out", default="judge_out/report.json")
     parser.add_argument(
         "--generated",

@@ -32,11 +32,9 @@ runledger baseline promote \
 
 ### Case YAML (`cases/*.yaml`)
 - `id`, `description`, `input.prompt`, `cassette` — consumed by RunLedger.
-- `category` — one of `aggregation | join | timerange | anomaly | visualization | text2sql | report`.
-- `gold` — consumed by the out-of-band LLM judge (`evals/judge/`), ignored by RunLedger:
-  - `expected_sql` — hand-written gold SQL (empty string for knowledge/schema-only cases).
-  - `expected_tool_trajectory` — ordered list of tool names the agent should call.
-  - `expected_result_contains` — lowercase substrings expected in the final reply.
+- RunLedger `0.1.1` rejects unknown fields, so these files intentionally do
+  not contain judge-only metadata such as `category` or `gold`.
+- Judge cases live separately under `evals/judge/cases/`.
 
 ### Cassette JSONL (`cassettes/*.jsonl`)
 One line per tool call, in trajectory order. Shape:
@@ -47,14 +45,15 @@ recorded calls by tool name + args.
 ### Protocol note: keying on prompt
 The JSONL protocol carries no case-id. The agent driver (`agent/agent.py:_scripted_llm_call`)
 keys the scripted trajectory on the **user prompt text** (`_TRAJECTORIES`) and advances by the
-count of `ToolMessage`s already in history. Adding a case therefore requires (1) a `cases/*.yaml`,
-(2) a matching `cassettes/*.jsonl`, and (3) a `_TRAJECTORIES[prompt]` entry.
+count of `ToolMessage`s already in history. Adding a RunLedger case therefore requires
+(1) a `cases/*.yaml`, (2) a matching `cassettes/*.jsonl`, and (3) a `_TRAJECTORIES[prompt]` entry.
 
 ### Adding a new case
 1. Add a `_TRAJECTORIES["your prompt"]` entry in `evals/runledger/agent/agent.py`.
-2. Create `evals/runledger/cases/<id>.yaml` with `id`, `category`, `description`, `input.prompt`, `cassette`, and `gold`.
+2. Create `evals/runledger/cases/<id>.yaml` with only RunLedger-supported fields.
 3. Create `evals/runledger/cassettes/<id>.jsonl` with one JSONL line per tool call in trajectory order. The `args` fields must match what `_TOOL_ARGS_BUILDERS` emit for that prompt.
-4. Run `uv run pytest tests/eval/test_runledger_agent.py -v` to verify the new case passes the consistency checks.
+4. If the case should also be judged by LLM-as-Judge, add a separate `evals/judge/cases/<id>.yaml`.
+5. Run `uv run pytest tests/eval/test_runledger_agent.py -v` to verify the new case passes the consistency checks.
 
 ### Running unit tests (no runledger required)
 ```bash

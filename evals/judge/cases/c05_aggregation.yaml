@@ -1,0 +1,9 @@
+id: c05_aggregation
+category: aggregation
+description: "daily active users over a rolling 30-day window"
+input:
+  prompt: "Show daily active users for the last 30 days"
+gold:
+  expected_sql: "SELECT event_date, COUNT(DISTINCT user_id) AS dau FROM events WHERE event_date >= CURRENT_DATE - INTERVAL '30' DAY GROUP BY event_date ORDER BY event_date"
+  expected_tool_trajectory: ["text2sql"]
+  expected_result_contains: ["dau", "date"]

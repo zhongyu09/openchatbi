@@ -1,10 +1,5 @@
 id: c18_aggregation
-category: aggregation
 description: "conversion rate breakdown by marketing channel"
 input:
   prompt: "Break down conversion rate by channel"
 cassette: cassettes/c18_aggregation.jsonl
-gold:
-  expected_sql: "SELECT channel, SUM(conversions) * 1.0 / SUM(visits) AS conversion_rate FROM funnel GROUP BY channel"
-  expected_tool_trajectory: ["text2sql"]
-  expected_result_contains: ["conversion", "channel"]

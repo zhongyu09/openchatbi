@@ -1,0 +1,9 @@
+id: c02_aggregation
+category: aggregation
+description: "count aggregation over a time-filtered fact table"
+input:
+  prompt: "How many orders were placed in 2024?"
+gold:
+  expected_sql: "SELECT COUNT(*) FROM orders WHERE order_date >= DATE '2024-01-01' AND order_date < DATE '2025-01-01'"
+  expected_tool_trajectory: ["text2sql"]
+  expected_result_contains: ["count"]

@@ -1,0 +1,9 @@
+id: c07_join
+category: join
+description: "anti-join to find products with orders but no shipments"
+input:
+  prompt: "Which products have orders but no shipments?"
+gold:
+  expected_sql: "SELECT p.product_id FROM products p JOIN orders o ON o.product_id = p.product_id LEFT JOIN shipments s ON s.order_id = o.order_id WHERE s.order_id IS NULL"
+  expected_tool_trajectory: ["text2sql"]
+  expected_result_contains: ["product", "shipment"]

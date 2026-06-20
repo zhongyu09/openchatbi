@@ -1,0 +1,9 @@
+id: c06_join
+category: join
+description: "join orders with customers to rank top spenders"
+input:
+  prompt: "Join orders with customers and list top 10 spenders"
+gold:
+  expected_sql: "SELECT c.customer_id, c.name, SUM(o.order_total) AS spend FROM orders o JOIN customers c ON o.customer_id = c.customer_id GROUP BY c.customer_id, c.name ORDER BY spend DESC LIMIT 10"
+  expected_tool_trajectory: ["text2sql"]
+  expected_result_contains: ["spend", "customer"]

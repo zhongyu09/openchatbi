@@ -363,10 +363,10 @@ def test_no_config_arg_does_not_reload(tmp_path, monkeypatch):
 
 
 def test_integration_real_cases_mocked_evaluator(tmp_path, monkeypatch):
-    """Smoke-mode run against the real evals/runledger/cases with a mocked evaluator."""
+    """Smoke-mode run against the real evals/judge/cases with a mocked evaluator."""
     import pathlib
 
-    real_cases = pathlib.Path(__file__).parents[2] / "evals" / "runledger" / "cases"
+    real_cases = pathlib.Path(__file__).parents[2] / "evals" / "judge" / "cases"
     if not real_cases.exists():
         import pytest
 

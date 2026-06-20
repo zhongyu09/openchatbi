@@ -275,9 +275,14 @@ def _build_match_reason(
 
 def _search_business_knowledge(query_list: list[str]) -> tuple[str, str | None]:
     """Return configured business knowledge."""
-    # not implement yet
-    warning = "knowledge base is empty!"
-    return "", warning
+    bi_config = getattr(config.get(), "bi_config", {}) or {}
+    glossary = bi_config.get("basic_knowledge_glossary", "")
+    if glossary:
+        return str(glossary), None
+    return (
+        "(no dedicated business knowledge available)",
+        "No dedicated business knowledge available.",
+    )
 
 
 def _search_sql_examples(query_list: list[str]) -> tuple[str, str | None]:

@@ -1,0 +1,9 @@
+id: c20_report
+category: report
+description: "summarize daily order volume and persist as a report"
+input:
+  prompt: "Summarize order volume and save it as a report"
+gold:
+  expected_sql: "SELECT date_trunc('day', order_date) AS day, COUNT(*) AS orders FROM orders GROUP BY 1 ORDER BY 1"
+  expected_tool_trajectory: ["text2sql", "save_report"]
+  expected_result_contains: ["report"]

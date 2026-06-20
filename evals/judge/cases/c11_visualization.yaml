@@ -1,0 +1,9 @@
+id: c11_visualization
+category: visualization
+description: "revenue trend chart for 2024 via sql then python plot"
+input:
+  prompt: "Plot the revenue trend for 2024"
+gold:
+  expected_sql: "SELECT date_trunc('month', order_date) AS month, SUM(revenue) AS revenue FROM orders WHERE order_date >= DATE '2024-01-01' AND order_date < DATE '2025-01-01' GROUP BY 1 ORDER BY 1"
+  expected_tool_trajectory: ["text2sql", "run_python_code"]
+  expected_result_contains: ["revenue", "trend"]

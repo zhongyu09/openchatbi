@@ -20,4 +20,7 @@ budgets:
   max_tool_calls: 8
   max_tool_errors: 0
 
+regression:
+  min_pass_rate: 0.95
+
 baseline_path: ../../baselines/runledger-openchatbi.json

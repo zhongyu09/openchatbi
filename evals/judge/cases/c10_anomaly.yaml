@@ -1,0 +1,9 @@
+id: c10_anomaly
+category: anomaly
+description: "detect anomalies in daily signup counts using python post-processing"
+input:
+  prompt: "Detect anomalies in daily signup counts"
+gold:
+  expected_sql: "SELECT signup_date, COUNT(*) AS signups FROM users GROUP BY signup_date ORDER BY signup_date"
+  expected_tool_trajectory: ["text2sql", "run_python_code"]
+  expected_result_contains: ["anomaly", "signup"]

@@ -1,0 +1,9 @@
+id: c14_text2sql
+category: text2sql
+description: "knowledge lookup for metric definition DAU"
+input:
+  prompt: "What does the metric DAU mean?"
+gold:
+  expected_sql: ""
+  expected_tool_trajectory: ["search_knowledge"]
+  expected_result_contains: ["DAU"]

@@ -2,8 +2,8 @@
   "aggregates": {
     "cases_error": 0,
     "cases_fail": 0,
-    "cases_pass": 1,
-    "cases_total": 1,
+    "cases_pass": 21,
+    "cases_total": 21,
     "metrics": {
       "cost_usd": {
         "max": null,
@@ -34,11 +34,11 @@
         "p95": null
       },
       "tool_calls": {
-        "max": 1.0,
-        "mean": 1.0,
+        "max": 3.0,
+        "mean": 1.2857142857142858,
         "min": 1.0,
         "p50": 1.0,
-        "p95": 1.0
+        "p95": 2.0
       },
       "tool_errors": {
         "max": 0.0,
@@ -48,11 +48,11 @@
         "p95": 0.0
       },
       "wall_ms": {
-        "max": 1.0,
-        "mean": 1.0,
-        "min": 1.0,
-        "p50": 1.0,
-        "p95": 1.0
+        "max": 5010.0,
+        "mean": 3756.714285714286,
+        "min": 3560.0,
+        "p50": 3688.0,
+        "p95": 3880.0
       }
     },
     "pass_rate": 1.0
@@ -66,10 +66,262 @@
       "cost_usd": null,
       "failed_assertions": null,
       "failure_reason": null,
-      "id": "t1",
+      "id": "c02_aggregation",
       "replay": {
-        "cassette_path": "evals/runledger/cassettes/t1.jsonl",
-        "cassette_sha256": "7e9830609490d140bf09178106dfa647bba4c9ec15859072b5aa2c3ae1659289"
+        "cassette_path": "/Users/rain/Projects/openchatbi/evals/runledger/cassettes/c02_aggregation.jsonl",
+        "cassette_sha256": "a14d1846e76eb548f76d20c2857992186771a123b0a8fd777eef443cfe49eee3"
+      },
+      "status": "pass",
+      "steps": null,
+      "tokens_in": null,
+      "tokens_out": null,
+      "tool_calls": 1,
+      "tool_calls_by_name": {
+        "text2sql": 1
+      },
+      "tool_errors": 0,
+      "tool_errors_by_name": {},
+      "wall_ms": 5010
+    },
+    {
+      "assertions": {
+        "failed": 0,
+        "total": 1
+      },
+      "cost_usd": null,
+      "failed_assertions": null,
+      "failure_reason": null,
+      "id": "c03_aggregation",
+      "replay": {
+        "cassette_path": "/Users/rain/Projects/openchatbi/evals/runledger/cassettes/c03_aggregation.jsonl",
+        "cassette_sha256": "e4d42c4af7f0ae2cb2073034ee037454f3b1d19b90d2893f0b8592b1312b4cea"
+      },
+      "status": "pass",
+      "steps": null,
+      "tokens_in": null,
+      "tokens_out": null,
+      "tool_calls": 1,
+      "tool_calls_by_name": {
+        "text2sql": 1
+      },
+      "tool_errors": 0,
+      "tool_errors_by_name": {},
+      "wall_ms": 3685
+    },
+    {
+      "assertions": {
+        "failed": 0,
+        "total": 1
+      },
+      "cost_usd": null,
+      "failed_assertions": null,
+      "failure_reason": null,
+      "id": "c04_aggregation",
+      "replay": {
+        "cassette_path": "/Users/rain/Projects/openchatbi/evals/runledger/cassettes/c04_aggregation.jsonl",
+        "cassette_sha256": "d7567e9e8d257def7b9b7a1c9bd4e8d4658b71efaa20ad4d802e981fd3fb3dd7"
+      },
+      "status": "pass",
+      "steps": null,
+      "tokens_in": null,
+      "tokens_out": null,
+      "tool_calls": 1,
+      "tool_calls_by_name": {
+        "text2sql": 1
+      },
+      "tool_errors": 0,
+      "tool_errors_by_name": {},
+      "wall_ms": 3844
+    },
+    {
+      "assertions": {
+        "failed": 0,
+        "total": 1
+      },
+      "cost_usd": null,
+      "failed_assertions": null,
+      "failure_reason": null,
+      "id": "c05_aggregation",
+      "replay": {
+        "cassette_path": "/Users/rain/Projects/openchatbi/evals/runledger/cassettes/c05_aggregation.jsonl",
+        "cassette_sha256": "329d2296784ac2d26c9bd4723a083027e90cafa4eef7af1746c522dfe04cb017"
+      },
+      "status": "pass",
+      "steps": null,
+      "tokens_in": null,
+      "tokens_out": null,
+      "tool_calls": 1,
+      "tool_calls_by_name": {
+        "text2sql": 1
+      },
+      "tool_errors": 0,
+      "tool_errors_by_name": {},
+      "wall_ms": 3748
+    },
+    {
+      "assertions": {
+        "failed": 0,
+        "total": 1
+      },
+      "cost_usd": null,
+      "failed_assertions": null,
+      "failure_reason": null,
+      "id": "c06_join",
+      "replay": {
+        "cassette_path": "/Users/rain/Projects/openchatbi/evals/runledger/cassettes/c06_join.jsonl",
+        "cassette_sha256": "41b1212e3607da45caedd240fea8364da5addfd3c97f4c6a97668af2c354dd86"
+      },
+      "status": "pass",
+      "steps": null,
+      "tokens_in": null,
+      "tokens_out": null,
+      "tool_calls": 1,
+      "tool_calls_by_name": {
+        "text2sql": 1
+      },
+      "tool_errors": 0,
+      "tool_errors_by_name": {},
+      "wall_ms": 3668
+    },
+    {
+      "assertions": {
+        "failed": 0,
+        "total": 1
+      },
+      "cost_usd": null,
+      "failed_assertions": null,
+      "failure_reason": null,
+      "id": "c07_join",
+      "replay": {
+        "cassette_path": "/Users/rain/Projects/openchatbi/evals/runledger/cassettes/c07_join.jsonl",
+        "cassette_sha256": "280e659ddc9bb8d8f3202c63cf5a1f23ed59d611247c1b22445a613f3b69dc5f"
+      },
+      "status": "pass",
+      "steps": null,
+      "tokens_in": null,
+      "tokens_out": null,
+      "tool_calls": 1,
+      "tool_calls_by_name": {
+        "text2sql": 1
+      },
+      "tool_errors": 0,
+      "tool_errors_by_name": {},
+      "wall_ms": 3697
+    },
+    {
+      "assertions": {
+        "failed": 0,
+        "total": 1
+      },
+      "cost_usd": null,
+      "failed_assertions": null,
+      "failure_reason": null,
+      "id": "c08_timerange",
+      "replay": {
+        "cassette_path": "/Users/rain/Projects/openchatbi/evals/runledger/cassettes/c08_timerange.jsonl",
+        "cassette_sha256": "bf632e7000b49cc04a60d963d39804f9c88d47b5a76fd0b60788118eec62b01e"
+      },
+      "status": "pass",
+      "steps": null,
+      "tokens_in": null,
+      "tokens_out": null,
+      "tool_calls": 1,
+      "tool_calls_by_name": {
+        "text2sql": 1
+      },
+      "tool_errors": 0,
+      "tool_errors_by_name": {},
+      "wall_ms": 3591
+    },
+    {
+      "assertions": {
+        "failed": 0,
+        "total": 1
+      },
+      "cost_usd": null,
+      "failed_assertions": null,
+      "failure_reason": null,
+      "id": "c09_timerange",
+      "replay": {
+        "cassette_path": "/Users/rain/Projects/openchatbi/evals/runledger/cassettes/c09_timerange.jsonl",
+        "cassette_sha256": "0855570c1a9ed96209ea0e0500bd367a2e37e670f1d1993c1cb6ba1d8d6fabc0"
+      },
+      "status": "pass",
+      "steps": null,
+      "tokens_in": null,
+      "tokens_out": null,
+      "tool_calls": 1,
+      "tool_calls_by_name": {
+        "text2sql": 1
+      },
+      "tool_errors": 0,
+      "tool_errors_by_name": {},
+      "wall_ms": 3688
+    },
+    {
+      "assertions": {
+        "failed": 0,
+        "total": 1
+      },
+      "cost_usd": null,
+      "failed_assertions": null,
+      "failure_reason": null,
+      "id": "c10_anomaly",
+      "replay": {
+        "cassette_path": "/Users/rain/Projects/openchatbi/evals/runledger/cassettes/c10_anomaly.jsonl",
+        "cassette_sha256": "943cf2c02e430c9fa1fe7a466976a1f6354c2d9f8ea70317ac42316fbd1e0675"
+      },
+      "status": "pass",
+      "steps": null,
+      "tokens_in": null,
+      "tokens_out": null,
+      "tool_calls": 2,
+      "tool_calls_by_name": {
+        "run_python_code": 1,
+        "text2sql": 1
+      },
+      "tool_errors": 0,
+      "tool_errors_by_name": {},
+      "wall_ms": 3802
+    },
+    {
+      "assertions": {
+        "failed": 0,
+        "total": 1
+      },
+      "cost_usd": null,
+      "failed_assertions": null,
+      "failure_reason": null,
+      "id": "c11_visualization",
+      "replay": {
+        "cassette_path": "/Users/rain/Projects/openchatbi/evals/runledger/cassettes/c11_visualization.jsonl",
+        "cassette_sha256": "e9e36e941fe69cc059c9c5b1d9c2920dffd745af0c5c9e5e2d335f0b10af8ba2"
+      },
+      "status": "pass",
+      "steps": null,
+      "tokens_in": null,
+      "tokens_out": null,
+      "tool_calls": 2,
+      "tool_calls_by_name": {
+        "run_python_code": 1,
+        "text2sql": 1
+      },
+      "tool_errors": 0,
+      "tool_errors_by_name": {},
+      "wall_ms": 3652
+    },
+    {
+      "assertions": {
+        "failed": 0,
+        "total": 1
+      },
+      "cost_usd": null,
+      "failed_assertions": null,
+      "failure_reason": null,
+      "id": "c12_text2sql",
+      "replay": {
+        "cassette_path": "/Users/rain/Projects/openchatbi/evals/runledger/cassettes/c12_text2sql.jsonl",
+        "cassette_sha256": "f4a610ad92efa745bd720f3d35f92abcf795bb30a807ba3589716d9b2fbc0600"
       },
       "status": "pass",
       "steps": null,
@@ -81,16 +333,349 @@
       },
       "tool_errors": 0,
       "tool_errors_by_name": {},
-      "wall_ms": 1
+      "wall_ms": 3723
+    },
+    {
+      "assertions": {
+        "failed": 0,
+        "total": 1
+      },
+      "cost_usd": null,
+      "failed_assertions": null,
+      "failure_reason": null,
+      "id": "c13_text2sql",
+      "replay": {
+        "cassette_path": "/Users/rain/Projects/openchatbi/evals/runledger/cassettes/c13_text2sql.jsonl",
+        "cassette_sha256": "bd3f54c3ef186d3e13142fcdf4ae96ed86cc3205d11c250fc41568af154debfa"
+      },
+      "status": "pass",
+      "steps": null,
+      "tokens_in": null,
+      "tokens_out": null,
+      "tool_calls": 1,
+      "tool_calls_by_name": {
+        "show_schema": 1
+      },
+      "tool_errors": 0,
+      "tool_errors_by_name": {},
+      "wall_ms": 3582
+    },
+    {
+      "assertions": {
+        "failed": 0,
+        "total": 1
+      },
+      "cost_usd": null,
+      "failed_assertions": null,
+      "failure_reason": null,
+      "id": "c14_text2sql",
+      "replay": {
+        "cassette_path": "/Users/rain/Projects/openchatbi/evals/runledger/cassettes/c14_text2sql.jsonl",
+        "cassette_sha256": "0e1f38445c6f38ba3bbe58cb8d32ecd6a5d59a56b1e697429d89601178cbc907"
+      },
+      "status": "pass",
+      "steps": null,
+      "tokens_in": null,
+      "tokens_out": null,
+      "tool_calls": 1,
+      "tool_calls_by_name": {
+        "search_knowledge": 1
+      },
+      "tool_errors": 0,
+      "tool_errors_by_name": {},
+      "wall_ms": 3663
+    },
+    {
+      "assertions": {
+        "failed": 0,
+        "total": 1
+      },
+      "cost_usd": null,
+      "failed_assertions": null,
+      "failure_reason": null,
+      "id": "c15_text2sql",
+      "replay": {
+        "cassette_path": "/Users/rain/Projects/openchatbi/evals/runledger/cassettes/c15_text2sql.jsonl",
+        "cassette_sha256": "97a8bfccf7b9c9b2ae608757c78c4bcf1627b2f3f01935a6dd60688a1a67f44e"
+      },
+      "status": "pass",
+      "steps": null,
+      "tokens_in": null,
+      "tokens_out": null,
+      "tool_calls": 1,
+      "tool_calls_by_name": {
+        "show_schema": 1
+      },
+      "tool_errors": 0,
+      "tool_errors_by_name": {},
+      "wall_ms": 3631
+    },
+    {
+      "assertions": {
+        "failed": 0,
+        "total": 1
+      },
+      "cost_usd": null,
+      "failed_assertions": null,
+      "failure_reason": null,
+      "id": "c16_aggregation",
+      "replay": {
+        "cassette_path": "/Users/rain/Projects/openchatbi/evals/runledger/cassettes/c16_aggregation.jsonl",
+        "cassette_sha256": "80daa4827a7b67e1457a2c0c49662e032ed51ec96ef6147b633f0e5ec7ba06ed"
+      },
+      "status": "pass",
+      "steps": null,
+      "tokens_in": null,
+      "tokens_out": null,
+      "tool_calls": 1,
+      "tool_calls_by_name": {
+        "text2sql": 1
+      },
+      "tool_errors": 0,
+      "tool_errors_by_name": {},
+      "wall_ms": 3577
+    },
+    {
+      "assertions": {
+        "failed": 0,
+        "total": 1
+      },
+      "cost_usd": null,
+      "failed_assertions": null,
+      "failure_reason": null,
+      "id": "c17_visualization",
+      "replay": {
+        "cassette_path": "/Users/rain/Projects/openchatbi/evals/runledger/cassettes/c17_visualization.jsonl",
+        "cassette_sha256": "507f70ca4aab337939269c59c3f4774fa0c26fdbbfa5f99d00cdf86616c8928a"
+      },
+      "status": "pass",
+      "steps": null,
+      "tokens_in": null,
+      "tokens_out": null,
+      "tool_calls": 2,
+      "tool_calls_by_name": {
+        "run_python_code": 1,
+        "text2sql": 1
+      },
+      "tool_errors": 0,
+      "tool_errors_by_name": {},
+      "wall_ms": 3737
+    },
+    {
+      "assertions": {
+        "failed": 0,
+        "total": 1
+      },
+      "cost_usd": null,
+      "failed_assertions": null,
+      "failure_reason": null,
+      "id": "c18_aggregation",
+      "replay": {
+        "cassette_path": "/Users/rain/Projects/openchatbi/evals/runledger/cassettes/c18_aggregation.jsonl",
+        "cassette_sha256": "543f0b142c71d8da980fbe2f1075debd7e515613d807c031a8c8dd1f738536f8"
+      },
+      "status": "pass",
+      "steps": null,
+      "tokens_in": null,
+      "tokens_out": null,
+      "tool_calls": 1,
+      "tool_calls_by_name": {
+        "text2sql": 1
+      },
+      "tool_errors": 0,
+      "tool_errors_by_name": {},
+      "wall_ms": 3788
+    },
+    {
+      "assertions": {
+        "failed": 0,
+        "total": 1
+      },
+      "cost_usd": null,
+      "failed_assertions": null,
+      "failure_reason": null,
+      "id": "c19_report",
+      "replay": {
+        "cassette_path": "/Users/rain/Projects/openchatbi/evals/runledger/cassettes/c19_report.jsonl",
+        "cassette_sha256": "d8541390377a9c70b0d23f985df472c3eab9e912105e3ccbea4338efbb232414"
+      },
+      "status": "pass",
+      "steps": null,
+      "tokens_in": null,
+      "tokens_out": null,
+      "tool_calls": 3,
+      "tool_calls_by_name": {
+        "save_report": 1,
+        "search_knowledge": 1,
+        "text2sql": 1
+      },
+      "tool_errors": 0,
+      "tool_errors_by_name": {},
+      "wall_ms": 3651
+    },
+    {
+      "assertions": {
+        "failed": 0,
+        "total": 1
+      },
+      "cost_usd": null,
+      "failed_assertions": null,
+      "failure_reason": null,
+      "id": "c20_report",
+      "replay": {
+        "cassette_path": "/Users/rain/Projects/openchatbi/evals/runledger/cassettes/c20_report.jsonl",
+        "cassette_sha256": "08404b6a35563bf6f75843ebcd14d229d95b120bbc6a17af2cab37a3f7c4d66e"
+      },
+      "status": "pass",
+      "steps": null,
+      "tokens_in": null,
+      "tokens_out": null,
+      "tool_calls": 2,
+      "tool_calls_by_name": {
+        "save_report": 1,
+        "text2sql": 1
+      },
+      "tool_errors": 0,
+      "tool_errors_by_name": {},
+      "wall_ms": 3880
+    },
+    {
+      "assertions": {
+        "failed": 0,
+        "total": 1
+      },
+      "cost_usd": null,
+      "failed_assertions": null,
+      "failure_reason": null,
+      "id": "c21_schema_discovery",
+      "replay": {
+        "cassette_path": "/Users/rain/Projects/openchatbi/evals/runledger/cassettes/c21_schema_discovery.jsonl",
+        "cassette_sha256": "f6a908c0e5a0247373b6bafe575656e736d2dc03a7c7265b3b9676fee85a2681"
+      },
+      "status": "pass",
+      "steps": null,
+      "tokens_in": null,
+      "tokens_out": null,
+      "tool_calls": 1,
+      "tool_calls_by_name": {
+        "search_schema": 1
+      },
+      "tool_errors": 0,
+      "tool_errors_by_name": {},
+      "wall_ms": 3560
+    },
+    {
+      "assertions": {
+        "failed": 0,
+        "total": 1
+      },
+      "cost_usd": null,
+      "failed_assertions": null,
+      "failure_reason": null,
+      "id": "t1",
+      "replay": {
+        "cassette_path": "/Users/rain/Projects/openchatbi/evals/runledger/cassettes/t1.jsonl",
+        "cassette_sha256": "71be11893d4d74779f90e0ebd31bd5964fe8f6ef140337d51a9e40912c7b0347"
+      },
+      "status": "pass",
+      "steps": null,
+      "tokens_in": null,
+      "tokens_out": null,
+      "tool_calls": 1,
+      "tool_calls_by_name": {
+        "search_knowledge": 1
+      },
+      "tool_errors": 0,
+      "tool_errors_by_name": {},
+      "wall_ms": 3714
     }
   ],
-  "generated_at": "2026-01-03T19:10:00Z",
+  "generated_at": "2026-06-20T14:27:42.249788Z",
+  "regression": {
+    "baseline_path": "baselines/runledger-openchatbi.json",
+    "case_diffs": {
+      "missing_in_current": [],
+      "new_in_current": [
+        "c02_aggregation",
+        "c03_aggregation",
+        "c04_aggregation",
+        "c05_aggregation",
+        "c06_join",
+        "c07_join",
+        "c08_timerange",
+        "c09_timerange",
+        "c10_anomaly",
+        "c11_visualization",
+        "c12_text2sql",
+        "c13_text2sql",
+        "c14_text2sql",
+        "c15_text2sql",
+        "c16_aggregation",
+        "c17_visualization",
+        "c18_aggregation",
+        "c19_report",
+        "c20_report",
+        "c21_schema_discovery"
+      ],
+      "status_changed": []
+    },
+    "checks": [
+      {
+        "baseline": 1.0,
+        "current": 1.0,
+        "delta": 0.0,
+        "id": "min_pass_rate",
+        "note": "No min_pass_rate configured.",
+        "status": "skipped",
+        "threshold": null
+      },
+      {
+        "baseline": 1.0,
+        "current": 3756.714285714286,
+        "delta_pct": 3755.714285714286,
+        "id": "max_avg_wall_ms_delta_pct",
+        "note": "No max_avg_wall_ms_delta_pct configured.",
+        "status": "skipped",
+        "threshold": null
+      },
+      {
+        "baseline": 1.0,
+        "current": 3880.0,
+        "delta_pct": 3879.0,
+        "id": "max_p95_wall_ms_delta_pct",
+        "note": "No max_p95_wall_ms_delta_pct configured.",
+        "status": "skipped",
+        "threshold": null
+      }
+    ],
+    "metrics": {
+      "pass_rate": {
+        "baseline": 1.0,
+        "current": 1.0,
+        "delta": 0.0
+      },
+      "wall_ms": {
+        "mean": {
+          "baseline": 1.0,
+          "current": 3756.714285714286,
+          "delta_pct": 3755.714285714286
+        },
+        "p95": {
+          "baseline": 1.0,
+          "current": 3880.0,
+          "delta_pct": 3879.0
+        }
+      }
+    },
+    "passed": true,
+    "warnings": []
+  },
   "run": {
     "ci": null,
     "exit_status": "success",
     "git_sha": null,
     "mode": "replay",
-    "run_id": "baseline"
+    "run_id": "20260620-142742-ac0901"
   },
   "runledger_version": "0.1.1",
   "schema_version": 1,
@@ -99,7 +684,7 @@
       "python",
       "evals/runledger/agent/agent.py"
     ],
-    "cases_total": 1,
+    "cases_total": 21,
     "name": "runledger-openchatbi",
     "suite_config_hash": null,
     "suite_path": "evals/runledger/suite.yaml",

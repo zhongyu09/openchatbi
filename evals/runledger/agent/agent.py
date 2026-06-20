@@ -2,6 +2,7 @@ import builtins
 import json
 import sys
 from itertools import count
+from typing import Literal
 from typing import Any
 from unittest.mock import MagicMock
 
@@ -9,9 +10,6 @@ from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langchain_core.tools import StructuredTool
 from langgraph.checkpoint.memory import MemorySaver
 from pydantic import BaseModel, Field
-
-import openchatbi.agent_graph as agent_graph
-from openchatbi import config
 
 _CALL_COUNTER = count(1)
 
@@ -27,8 +25,8 @@ def _safe_print(*args: Any, **kwargs: Any) -> None:
     _REAL_PRINT(*args, **kwargs)
 
 
-# NOTE: builtins.print is patched inside main() only, not at import time.
-# Patching at module level breaks test isolation (capsys sees empty stdout).
+# NOTE: stdout suppression is enabled by main() before importing openchatbi.
+# Importing this module in tests should not mutate process-wide print behavior.
 
 
 class JsonlChannel:
@@ -79,22 +77,26 @@ def _runledger_tool_call(channel: JsonlChannel, name: str, args: dict[str, Any])
 
 class SearchKnowledgeInput(BaseModel):
     reasoning: str = Field(description="Reason for searching knowledge")
-    query_list: list[str] = Field(description="Query terms")
-    knowledge_bases: list[str] = Field(description="Knowledge bases to search")
+    query_list: list[str] = Field(min_length=1, max_length=5, description="Query terms")
+    knowledge_bases: list[Literal["columns", "business", "sql_examples"]] = Field(
+        min_length=1, max_length=3, description="Knowledge bases to search"
+    )
 
 
 class SearchSchemaInput(BaseModel):
     reasoning: str = Field(description="Reason for searching schema")
-    query_list: list[str] = Field(description="Business terms, entities, metrics, and fields to discover schema for")
+    query_list: list[str] = Field(
+        min_length=1, max_length=5, description="Business terms, entities, metrics, and fields to discover schema for"
+    )
     dimensions: list[str] = Field(default_factory=list, description="Known dimension terms to prioritize")
     metrics: list[str] = Field(default_factory=list, description="Known metric terms to prioritize")
-    max_tables: int = Field(default=5, description="Maximum number of candidate tables to return")
+    max_tables: int = Field(default=5, ge=1, le=20, description="Maximum number of candidate tables to return")
     include_columns: bool = Field(default=True, description="Include detailed matched column metadata")
 
 
 class ShowSchemaInput(BaseModel):
     reasoning: str = Field(description="Reason for showing schema")
-    tables: list[str] = Field(description="Table names")
+    tables: list[str] = Field(min_length=1, max_length=5, description="Table names")
 
 
 class Text2SQLInput(BaseModel):
@@ -296,7 +298,24 @@ def _scripted_llm_call(chat_model: Any, messages: list[Any], **_kwargs: Any) -> 
     )
 
 
-def _configure_agent_graph(channel: JsonlChannel) -> None:
+class DataAnalysisInput(BaseModel):
+    reasoning: str = Field(description="Reason for delegating to data analysis")
+    task: str = Field(description="Self-contained analysis task")
+
+
+def _build_data_analysis_stub() -> StructuredTool:
+    def data_analysis(reasoning: str, task: str) -> str:
+        return f"Skipped data analysis during RunLedger replay: {task or reasoning}"
+
+    return StructuredTool.from_function(
+        func=data_analysis,
+        name="data_analysis",
+        description="RunLedger stub for the data analysis sub-agent",
+        args_schema=DataAnalysisInput,
+    )
+
+
+def _configure_agent_graph(agent_graph: Any, channel: JsonlChannel) -> None:
     tool_proxies = _build_tool_proxies(channel)
 
     agent_graph.search_knowledge = tool_proxies["search_knowledge"]
@@ -308,15 +327,17 @@ def _configure_agent_graph(channel: JsonlChannel) -> None:
     agent_graph.build_sql_graph = lambda *_args, **_kwargs: object()
     agent_graph.get_memory_tools = lambda *_args, **_kwargs: []
     agent_graph.create_mcp_tools_sync = lambda *_args, **_kwargs: []
-    # Forecast health is now checked inside the data analysis sub-agent, not the
-    # main agent graph; stub it there to keep the eval hermetic (no network).
+
+    # The main graph imports this factory at build time; replace it before graph
+    # construction so replay stays hermetic and never initializes deepagents.
     import openchatbi.analysis.agent as analysis_agent
 
+    analysis_agent.get_data_analysis_tool = lambda *_args, **_kwargs: _build_data_analysis_stub()
     analysis_agent.check_forecast_service_health = lambda: False
     agent_graph.call_llm_chat_model_with_retry = _scripted_llm_call
 
 
-def _bootstrap_config() -> None:
+def _bootstrap_config(config: Any) -> None:
     config.set(
         {
             "default_llm": MagicMock(),
@@ -332,13 +353,16 @@ def main() -> int:
     # importing this module in tests does not pollute capsys/stdout capture.
     builtins.print = _safe_print
 
+    import openchatbi.agent_graph as agent_graph
+    from openchatbi import config
+
     channel = JsonlChannel(sys.stdin)
     message = channel.read()
     if not message or message.get("type") != "task_start":
         return 1
 
-    _bootstrap_config()
-    _configure_agent_graph(channel)
+    _bootstrap_config(config)
+    _configure_agent_graph(agent_graph, channel)
 
     prompt = ""
     payload = message.get("input", {})
@@ -346,6 +370,7 @@ def main() -> int:
         prompt = payload.get("prompt") or payload.get("question") or payload.get("query") or ""
     if not prompt:
         prompt = "OpenChatBI"
+    thread_id = str(message.get("case_id") or message.get("task_id") or prompt)
 
     graph = agent_graph.build_agent_graph_sync(
         catalog=config.get().catalog_store,
@@ -354,7 +379,10 @@ def main() -> int:
         enable_context_management=False,
     )
 
-    result = graph.invoke({"messages": [{"role": "user", "content": prompt}]})
+    result = graph.invoke(
+        {"messages": [{"role": "user", "content": prompt}]},
+        config={"configurable": {"thread_id": thread_id}},
+    )
     output = ""
     if isinstance(result, dict) and result.get("messages"):
         output = str(result["messages"][-1].content)

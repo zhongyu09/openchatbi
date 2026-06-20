@@ -276,9 +276,11 @@ class ConfigLoader:
         if "catalog_store" in config_data:
             if "store_type" not in config_data["catalog_store"]:
                 raise ValueError("catalog_store must have a store_type field.")
+            catalog_store_config = dict(config_data["catalog_store"])
+            auto_load = catalog_store_config.pop("auto_load", True)
             catalog_store = create_catalog_store(
-                **config_data["catalog_store"],
-                auto_load=config_data["catalog_store"].get("auto_load", True),
+                **catalog_store_config,
+                auto_load=auto_load,
                 data_warehouse_config=config_data.get("data_warehouse_config"),
             )
         else:

@@ -1,0 +1,9 @@
+id: c16_aggregation
+category: aggregation
+description: "count distinct users who signed up in the last 7 days"
+input:
+  prompt: "How many active users signed up last week?"
+gold:
+  expected_sql: "SELECT COUNT(DISTINCT user_id) AS active_users FROM users WHERE signup_date >= CURRENT_DATE - INTERVAL '7' DAY"
+  expected_tool_trajectory: ["text2sql"]
+  expected_result_contains: ["active", "user"]

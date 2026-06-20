@@ -9,7 +9,7 @@ from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
 
 def _load_agent():
-    # agent.py mutates builtins.print on import; import once and reuse.
+    # Import once and reuse so trajectory tables stay stable across tests.
     return importlib.import_module("evals.runledger.agent.agent")
 
 
@@ -72,6 +72,7 @@ def test_trajectories_prompt_keys_are_unique():
 
 
 _CASES_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "evals", "runledger", "cases")
+_JUDGE_CASES_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "evals", "judge", "cases")
 
 
 def test_corpus_has_at_least_20_cases():
@@ -79,10 +80,19 @@ def test_corpus_has_at_least_20_cases():
     assert len(files) >= 20, f"Expected >=20 cases, found {len(files)}"
 
 
-def test_every_case_has_category_and_gold():
+def test_runledger_cases_use_strict_schema():
     for path in glob.glob(os.path.join(_CASES_DIR, "*.yaml")):
-        if os.path.basename(path) == "t1.yaml":
-            continue  # seed case predates the gold schema
+        with open(path) as fh:
+            case = yaml.safe_load(fh)
+        assert set(case) <= {"id", "description", "input", "cassette", "assertions", "budgets"}, path
+        assert "category" not in case, path
+        assert "gold" not in case, path
+
+
+def test_judge_cases_have_category_and_gold():
+    paths = glob.glob(os.path.join(_JUDGE_CASES_DIR, "*.yaml"))
+    assert paths, "No Judge case YAML files found"
+    for path in paths:
         with open(path) as fh:
             case = yaml.safe_load(fh)
         assert "category" in case, path
@@ -92,9 +102,7 @@ def test_every_case_has_category_and_gold():
 
 def test_gold_trajectory_matches_driver_table():
     agent = _load_agent()
-    for path in glob.glob(os.path.join(_CASES_DIR, "*.yaml")):
-        if os.path.basename(path) == "t1.yaml":
-            continue
+    for path in glob.glob(os.path.join(_JUDGE_CASES_DIR, "*.yaml")):
         with open(path) as fh:
             case = yaml.safe_load(fh)
         prompt = case["input"]["prompt"]

@@ -47,7 +47,7 @@ jobs:
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
-          python -m evals.judge.run_judge --cases evals/runledger/cases --out judge_out/report.json
+          python -m evals.judge.run_judge --cases evals/judge/cases --out judge_out/report.json
       - name: Upload judge report
         uses: actions/upload-artifact@v4
         with:

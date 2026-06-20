@@ -1,0 +1,9 @@
+id: c08_timerange
+category: timerange
+description: "sales aggregation over an explicit date range"
+input:
+  prompt: "What were sales between 2024-01-01 and 2024-03-31?"
+gold:
+  expected_sql: "SELECT SUM(order_total) AS sales FROM orders WHERE order_date >= DATE '2024-01-01' AND order_date <= DATE '2024-03-31'"
+  expected_tool_trajectory: ["text2sql"]
+  expected_result_contains: ["sales"]

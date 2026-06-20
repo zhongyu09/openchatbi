@@ -1,10 +1,5 @@
 id: c17_visualization
-category: visualization
 description: "forecast next quarter revenue using historical monthly data"
 input:
   prompt: "Forecast next quarter revenue from history"
 cassette: cassettes/c17_visualization.jsonl
-gold:
-  expected_sql: "SELECT date_trunc('month', order_date) AS month, SUM(revenue) AS revenue FROM orders GROUP BY 1 ORDER BY 1"
-  expected_tool_trajectory: ["text2sql", "run_python_code"]
-  expected_result_contains: ["forecast", "revenue"]

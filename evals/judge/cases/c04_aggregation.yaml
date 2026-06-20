@@ -1,0 +1,9 @@
+id: c04_aggregation
+category: aggregation
+description: "average order value per customer"
+input:
+  prompt: "What is the average order value per customer?"
+gold:
+  expected_sql: "SELECT customer_id, AVG(order_total) AS avg_order_value FROM orders GROUP BY customer_id"
+  expected_tool_trajectory: ["text2sql"]
+  expected_result_contains: ["avg", "customer"]

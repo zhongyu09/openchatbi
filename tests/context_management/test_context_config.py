@@ -12,9 +12,9 @@ class TestContextConfig:
 
         # Test default values
         assert config.enabled is True
-        assert config.summary_trigger_tokens == 12000
-        assert config.keep_recent_messages == 20
-        assert config.max_tool_output_length == 2000
+        assert config.summary_trigger_tokens == 50000
+        assert config.keep_recent_messages == 30
+        assert config.max_tool_output_length == 3000
         assert config.max_sql_result_rows == 50
         assert config.max_code_output_lines == 50
 

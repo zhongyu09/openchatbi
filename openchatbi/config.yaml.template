@@ -25,13 +25,13 @@ context_config:
   enabled: true
 
   # Token limit that triggers context management (when conversation exceeds this, compression starts)
-  summary_trigger_tokens: 12000
+  summary_trigger_tokens: 50000
 
   # Number of recent messages to always preserve in full (never compress these)
-  keep_recent_messages: 20
+  keep_recent_messages: 30
 
   # Historical tool output compression limits
-  max_tool_output_length: 2000  # Max length for historical tool outputs
+  max_tool_output_length: 3000  # Max length for historical tool outputs
   max_sql_result_rows: 50       # Max rows to keep in CSV results
   max_code_output_lines: 50     # Max lines for code execution output
 

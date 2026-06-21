@@ -13,13 +13,13 @@ class ContextConfig:
     enabled: bool = True
 
     # Token limits for triggering context management
-    summary_trigger_tokens: int = 12000
+    summary_trigger_tokens: int = 50000
 
     # Message retention (how many recent messages to always preserve)
-    keep_recent_messages: int = 20
+    keep_recent_messages: int = 30
 
     # Historical tool output compression limits
-    max_tool_output_length: int = 2000  # Max length for historical tool outputs
+    max_tool_output_length: int = 3000  # Max length for historical tool outputs
     max_sql_result_rows: int = 50  # Max rows to keep in CSV results
     max_code_output_lines: int = 50  # Max lines for code execution output
 

@@ -1,6 +1,7 @@
 """Data Analysis Agent implementation."""
 
 import logging
+from typing import cast
 
 from deepagents import create_deep_agent
 from langchain_core.runnables import RunnableConfig
@@ -38,10 +39,10 @@ def _build_sub_agent_config(config: RunnableConfig | None) -> RunnableConfig:
     ``checkpoint_id`` reset below, not by ``checkpoint_ns``. Other config keys
     (callbacks, tags, metadata) are propagated as-is.
     """
-    sub_config: RunnableConfig = {}
+    sub_config: RunnableConfig = cast(RunnableConfig, {})
     configurable: dict = {}
     if config:
-        sub_config = {k: v for k, v in config.items() if k != "configurable"}
+        sub_config = cast(RunnableConfig, {k: v for k, v in config.items() if k != "configurable"})
         configurable = dict(config.get("configurable") or {})
 
     parent_thread_id = configurable.get("thread_id")
@@ -205,7 +206,7 @@ def get_data_analysis_tool(
         memory_store=memory_store,
     )
 
-    def call_data_analysis_sync(reasoning: str, task: str, config: RunnableConfig = None) -> str:
+    def call_data_analysis_sync(reasoning: str, task: str, config: RunnableConfig | None = None) -> str:
         """Sync function for data analysis tool."""
         logger.info(f"Delegating to data analysis agent (sync). Reasoning: {reasoning}, Task: {task}")
         import traceback
@@ -225,7 +226,7 @@ def get_data_analysis_tool(
             traceback.print_exc()
             return f"Error occurred during data analysis: {str(e)}"
 
-    async def call_data_analysis_async(reasoning: str, task: str, config: RunnableConfig = None) -> str:
+    async def call_data_analysis_async(reasoning: str, task: str, config: RunnableConfig | None = None) -> str:
         """Async function for data analysis tool."""
         logger.info(f"Delegating to data analysis agent (async). Reasoning: {reasoning}, Task: {task}")
         import traceback

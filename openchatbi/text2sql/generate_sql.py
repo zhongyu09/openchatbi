@@ -32,6 +32,7 @@ from openchatbi.text2sql.data import get_learned_sql_store, sql_example_dicts, s
 from openchatbi.text2sql.errors import (
     EmptyResultError,
     SQLSecurityError,
+    Text2SQLError,
     classify_sql_exception,
 )
 from openchatbi.text2sql.visualization import VisualizationService
@@ -479,7 +480,7 @@ def create_sql_nodes(
                 )
                 previous_errors = list(state.get("previous_sql_errors", []))
                 attempt = len(previous_errors) + 1
-                err = EmptyResultError("Query returned no rows")
+                err: Text2SQLError = EmptyResultError("Query returned no rows")
                 previous_errors.append(
                     {
                         "sql": sql_query,

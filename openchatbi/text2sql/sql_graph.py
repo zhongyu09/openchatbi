@@ -1,5 +1,9 @@
 """SQL generation graph construction and execution."""
 
+from typing import cast
+
+from langchain_core.language_models import BaseChatModel
+from langchain_core.tools import BaseTool
 from langchain_openai.chat_models.base import BaseChatOpenAI
 from langgraph.constants import END, START
 from langgraph.graph import StateGraph
@@ -126,13 +130,15 @@ def build_sql_graph(
     Returns:
         CompiledStateGraph: Compiled SQL graph ready for execution.
     """
-    tools = [search_knowledge, AskHuman]
+    tools: list[BaseTool] = [search_knowledge, AskHuman]  # type: ignore[list-item]
     search_tool_node = ToolNode([search_knowledge])
     default_llm = get_llm(llm_provider)
     if isinstance(default_llm, BaseChatOpenAI):
-        llm_with_tools = default_llm.bind_tools(tools, strict=True).bind(response_format={"type": "json_object"})
+        llm_with_tools = cast(
+            BaseChatModel, default_llm.bind_tools(tools, strict=True).bind(response_format={"type": "json_object"})
+        )
     else:
-        llm_with_tools = default_llm.bind_tools(tools)
+        llm_with_tools = cast(BaseChatModel, default_llm.bind_tools(tools))
     # Create SQL processing nodes with visualization configuration
     (
         generate_sql_node,
@@ -234,5 +240,5 @@ def build_sql_graph(
     # Add edge from visualization to end
     graph.add_edge("generate_visualization", END)
 
-    graph = graph.compile(name="text2sql_graph", checkpointer=checkpointer, store=memory_store)
-    return graph
+    compiled = graph.compile(name="text2sql_graph", checkpointer=checkpointer, store=memory_store)
+    return compiled

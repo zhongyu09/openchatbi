@@ -49,7 +49,7 @@ def build_column_tables_mapping(catalog):
     return column_tables_mapping
 
 
-def build_columns_retriever(catalog, vector_db_path: str = None):
+def build_columns_retriever(catalog, vector_db_path: str | None = None):
     """Build BM25 and vector retrievers for columns.
 
     Args:

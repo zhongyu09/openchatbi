@@ -31,7 +31,7 @@ from openchatbi.memory_scoring import composite_score
 try:
     from pydantic import BaseModel, ConfigDict
 except ImportError:
-    ConfigDict = None
+    ConfigDict = None  # type: ignore[assignment,misc]
 
 # Use AsyncSqliteStore for async operations
 async_memory_store = None
@@ -178,7 +178,7 @@ def _rerank_search_results(items: list) -> list:
 
 class StructuredToolWithRequired(StructuredTool):
     def __init__(self, orig_tool: StructuredTool):
-        name = getattr(orig_tool, "name", None)
+        name = getattr(orig_tool, "name", None) or ""
         super().__init__(
             name=name,
             description=orig_tool.description,
@@ -246,4 +246,4 @@ def get_memory_tools(
 async def get_async_memory_tools(llm: BaseChatModel) -> list[StructuredTool]:
     """Get memory tools configured with async store."""
     async_store = await get_async_memory_store()
-    return get_memory_tools(llm, sync_mode=False, store=async_store)
+    return get_memory_tools(llm, sync_mode=False, store=async_store) or []

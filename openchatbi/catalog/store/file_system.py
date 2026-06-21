@@ -35,10 +35,10 @@ class FileSystemCatalogStore(CatalogStore):
     _common_columns_cache: dict | None
     _table_spec_columns_cache: dict | None
     _sql_example_cache: dict | None
-    _table_selection_example_cache: dict | None
+    _table_selection_example_cache: list[tuple[str, list[str]]] | None
 
     _data_warehouse_config: dict
-    _sql_engine: Engine
+    _sql_engine: Engine | None
 
     def __init__(self, data_path: str, data_warehouse_config: dict):
         """Initialize filesystem catalog store.
@@ -305,13 +305,13 @@ class FileSystemCatalogStore(CatalogStore):
             return False
 
     @staticmethod
-    def _save_csv_file(file_path: str, data: list[dict[str, str]], headers: list[str] = None) -> bool:
+    def _save_csv_file(file_path: str, data: list[dict[str, Any]], headers: list[str] | None = None) -> bool:
         """
         Save CSV file
 
         Args:
             file_path (str): File path
-            data (List[Dict[str, str]]): List of rows as dictionaries
+            data (List[Dict[str, Any]]): List of rows as dictionaries
             headers (List[str]): List of header names in sequence
 
         Returns:
@@ -333,7 +333,7 @@ class FileSystemCatalogStore(CatalogStore):
                         headers.append(key)
 
             with open(file_path, "w", encoding="utf-8", newline="") as f:
-                writer = csv.DictWriter(f, fieldnames=headers)
+                writer = csv.DictWriter(f, fieldnames=headers or sorted(all_headers))
                 writer.writeheader()
                 for row in data:
                     writer.writerow(row)
@@ -530,10 +530,10 @@ class FileSystemCatalogStore(CatalogStore):
                 column_info["is_common"] = False
                 result.append(column_info)
             else:
-                column_info = _common_columns.get(column)
-                if column_info:
-                    column_info["is_common"] = True
-                    result.append(column_info)
+                common_column_info = _common_columns.get(column)
+                if common_column_info:
+                    common_column_info["is_common"] = True
+                    result.append(common_column_info)
         return result
 
     def get_table_information(self, table: str, database: str | None = None) -> dict[str, Any]:

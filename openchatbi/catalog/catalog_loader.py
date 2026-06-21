@@ -1,5 +1,5 @@
 import logging
-from typing import Any
+from typing import Any, cast
 
 from sqlalchemy import MetaData, inspect
 from sqlalchemy.engine import Engine
@@ -93,7 +93,7 @@ class DataCatalogLoader:
         """
         try:
             indexes = self.inspector.get_indexes(table_name)
-            return indexes
+            return cast(list[dict[str, Any]], indexes)
         except Exception as e:
             logger.warning(f"Failed to get indexes for table {table_name}: {e}")
             return []
@@ -110,7 +110,7 @@ class DataCatalogLoader:
         """
         try:
             foreign_keys = self.inspector.get_foreign_keys(table_name)
-            return foreign_keys
+            return cast(list[dict[str, Any]], foreign_keys)
         except Exception as e:
             logger.warning(f"Failed to get foreign keys for table {table_name}: {e}")
             return []
@@ -149,13 +149,13 @@ class DataCatalogLoader:
                     # Get table comment if available
                     table_comment = ""
                     try:
-                        table_info = self.inspector.get_table_comment(table_name)
-                        table_comment = table_info.get("text", "") if table_info else ""
+                        raw_comment = self.inspector.get_table_comment(table_name)
+                        table_comment = (raw_comment.get("text") or "") if raw_comment else ""
                     except Exception as e:
                         # Some databases don't support table comments
                         logger.info("Skipping table comment for %s: %s", table_name, e)
 
-                    table_info = {"description": table_comment, "selection_rule": "", "sql_rule": ""}
+                    table_info: dict[str, Any] = {"description": table_comment, "selection_rule": "", "sql_rule": ""}
                     if catalog_store.save_table_information(table_name, table_info, columns, database_name):
                         success_count += 1
                         logger.info(f"Successfully loaded table: {database_name}.{table_name}")

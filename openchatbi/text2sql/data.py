@@ -27,7 +27,7 @@ if _catalog_store:
     )
 else:
     sql_example_retriever, sql_example_dicts, sql_example_vector_db = None, {}, None
-    learned_sql_store = None
+    learned_sql_store: LearnedSQLStore | None = None
     table_selection_retriever, table_selection_example_dict = None, {}
 
 

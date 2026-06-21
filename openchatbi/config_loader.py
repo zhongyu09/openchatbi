@@ -86,7 +86,7 @@ class Config(BaseModel):
     catalog_store: Any = None
 
     # Path to the vector database file
-    vector_db_path: str = None
+    vector_db_path: str | None = None
 
     # MCP Servers Configuration
     mcp_servers: list[dict[str, Any]] = []
@@ -185,7 +185,7 @@ class ConfigLoader:
             raise ValueError("Configuration has not been loaded. Please call load() or set() first.")
         return self._config
 
-    def load(self, config_file: str = None) -> None:
+    def load(self, config_file: str | None = None) -> None:
         """Load configuration from a YAML file.
 
         Args:

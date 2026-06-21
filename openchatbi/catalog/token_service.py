@@ -14,10 +14,10 @@ class TokenService:
     with external services.
     """
 
-    base_url = None
-    token = None
-    user_name = None
-    password = None
+    base_url: str | None = None
+    token: str | None = None
+    user_name: str | None = None
+    password: str | None = None
 
     def __init__(self, user_name: str, password: str):
         """Initialize token service."""

@@ -1,5 +1,6 @@
 import logging
 import os
+from typing import Any
 
 from openchatbi.catalog.catalog_loader import load_catalog_from_data_warehouse
 from openchatbi.catalog.catalog_store import CatalogStore
@@ -10,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 # Factory function for creating CatalogStore instances
 def create_catalog_store(
-    store_type: str, auto_load: bool = True, data_warehouse_config: dict = None, **kwargs
+    store_type: str, auto_load: bool = True, data_warehouse_config: dict[str, Any] | None = None, **kwargs
 ) -> CatalogStore:
     """
     Create a CatalogStore instance
@@ -32,7 +33,7 @@ def create_catalog_store(
         # convert relative path to absolute path
         if not data_path.startswith("/"):
             data_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), data_path)
-        catalog_store = FileSystemCatalogStore(data_path, data_warehouse_config)
+        catalog_store = FileSystemCatalogStore(data_path, data_warehouse_config or {})
 
         # Check if autoload is enabled and if catalog files are missing
         if auto_load:

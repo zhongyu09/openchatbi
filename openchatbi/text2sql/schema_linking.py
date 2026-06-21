@@ -63,7 +63,7 @@ def schema_linking(llm: BaseChatModel, catalog: CatalogStore):
             if not table_info:
                 continue
             if start_time and "start_time" in table_info:
-                if datetime.strptime(table_info.get("start_time"), datetime_format) > start_time:
+                if datetime.strptime(str(table_info.get("start_time") or ""), datetime_format) > start_time:
                     continue
             columns = []
             for column_name in relevant_columns:

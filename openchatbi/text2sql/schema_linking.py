@@ -1,6 +1,8 @@
 """Schema linking module for table and column selection in text2sql."""
 
+import traceback
 from datetime import datetime
+from typing import Any
 
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage, SystemMessage
@@ -11,7 +13,7 @@ from openchatbi.constants import datetime_format
 from openchatbi.graph_state import SQLGraphState
 from openchatbi.prompts.system_prompt import get_table_selection_prompt_template
 from openchatbi.text2sql.data import table_selection_example_dict, table_selection_retriever
-from openchatbi.utils import extract_json_from_answer, log
+from openchatbi.utils import extract_json_from_answer, get_text_from_content, log
 
 
 def schema_linking(llm: BaseChatModel, catalog: CatalogStore):
@@ -153,6 +155,15 @@ def schema_linking(llm: BaseChatModel, catalog: CatalogStore):
                 return False
         return True
 
+    def _parse_table_selection_json(llm_answer_content: Any) -> dict[str, Any]:
+        """Extract and parse table selection JSON from LLM response content."""
+        try:
+            text = get_text_from_content(llm_answer_content)
+            return extract_json_from_answer(text)
+        except Exception:
+            log(traceback.format_exc())
+            return {}
+
     def _call_llm_select(llm: BaseChatModel, system_prompt, messages, question, candidate_tables):
         """Calls the language model to select appropriate tables for the question.
 
@@ -180,7 +191,7 @@ def schema_linking(llm: BaseChatModel, catalog: CatalogStore):
                 # print("_call_llm_select")
                 # print(messages)
                 response = llm.invoke([SystemMessage(system_prompt)] + messages)
-                result = extract_json_from_answer(response.content)
+                result = _parse_table_selection_json(response.content)
                 selected_tables = result.get("tables")
                 log(result)
                 if _verify_table(selected_tables, candidate_tables):

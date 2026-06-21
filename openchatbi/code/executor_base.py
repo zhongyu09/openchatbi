@@ -4,15 +4,15 @@ from typing import Any
 class ExecutorBase:
     """Base class for executing python code."""
 
-    _variable: dict
+    _variable: dict[str, Any]
 
-    def __init__(self, variable: dict = None):
+    def __init__(self, variable: dict[str, Any] | None = None) -> None:
         if variable is None:
             self._variable = {}
         else:
             self._variable = variable
 
-    def run_code(self, code: str) -> (bool, str):
+    def run_code(self, code: str) -> tuple[bool, str]:
         """Execute python code."""
         raise NotImplementedError()
 

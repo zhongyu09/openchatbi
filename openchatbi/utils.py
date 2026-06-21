@@ -3,8 +3,9 @@
 import json
 import sys
 import uuid
+from collections.abc import Iterable, Sequence
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from fastapi import HTTPException
 from fastapi.responses import FileResponse
@@ -19,12 +20,12 @@ from openchatbi.graph_state import AgentState
 from openchatbi.text_segmenter import _segmenter
 
 
-def log(args) -> None:
+def log(args: object) -> None:
     """Log messages to stderr for debugging."""
     print(args, file=sys.stderr, flush=True)
 
 
-def get_text_from_content(content: str | list[str | dict]) -> str:
+def get_text_from_content(content: str | list[str | dict[str, Any]]) -> str:
     """Extract text from various content formats.
 
     Args:
@@ -35,11 +36,13 @@ def get_text_from_content(content: str | list[str | dict]) -> str:
     """
     if isinstance(content, str):
         return content
-    elif isinstance(content, list):
-        if isinstance(content[0], str):
-            return "".join(content)
-        elif isinstance(content[0], dict):
-            return "".join([item.get("text", "") for item in content])
+    if isinstance(content, list):
+        if not content:
+            return ""
+        if all(isinstance(item, str) for item in content):
+            return "".join(cast(list[str], content))
+        if all(isinstance(item, dict) for item in content):
+            return "".join(str(item.get("text", "")) for item in cast(list[dict[str, Any]], content))
     return ""
 
 
@@ -57,7 +60,7 @@ def get_text_from_message_chunk(chunk: AIMessageChunk) -> str:
     return get_text_from_content(chunk.content)
 
 
-def extract_json_from_answer(answer: str) -> dict:
+def extract_json_from_answer(answer: str) -> dict[str, Any]:
     """Extract the first JSON object from a string answer.
 
     Args:
@@ -69,7 +72,11 @@ def extract_json_from_answer(answer: str) -> dict:
     pattern = regex.compile(r"\{(?:[^{}]+|(?R))*\}")
     matches = pattern.findall(answer)
     json_result = matches[0] if matches else "{}"
-    return json.loads(json_result)
+    parsed = json.loads(json_result)
+    if isinstance(parsed, dict):
+        return parsed
+    log(f"Expected JSON object from answer, got {type(parsed).__name__}: {parsed!r}")
+    return {}
 
 
 def get_report_download_response(filename: str) -> FileResponse:
@@ -128,12 +135,12 @@ def get_report_download_response(filename: str) -> FileResponse:
 
 def _create_chroma_from_texts(
     texts: list[str],
-    embedding,
+    embedding: Any,
     collection_name: str,
-    metadatas,
-    collection_metadata: dict,
+    metadatas: list[dict[str, Any]] | None,
+    collection_metadata: dict[str, Any] | None,
     chroma_dir: str,
-):
+) -> Chroma:
     """Helper function to create Chroma client from texts."""
     return Chroma.from_texts(
         texts,
@@ -147,11 +154,11 @@ def _create_chroma_from_texts(
 
 def create_vector_db(
     texts: list[str],
-    embedding=None,
+    embedding: Any = None,
     collection_name: str = "langchain",
-    metadatas=None,
-    collection_metadata: dict = None,
-    chroma_db_path: str = None,
+    metadatas: list[dict[str, Any]] | None = None,
+    collection_metadata: dict[str, Any] | None = None,
+    chroma_db_path: str | None = None,
 ) -> VectorStore:
     """Create or reuse a Chroma vector database.
 
@@ -220,7 +227,7 @@ def create_vector_db(
     return client
 
 
-def recover_incomplete_tool_calls(state: AgentState) -> list:
+def recover_incomplete_tool_calls(state: AgentState) -> list[Any]:
     """Recover from incomplete tool calls by creating message operations to insert ToolMessages correctly.
 
     When the graph execution is interrupted (e.g., by kill or app restart)
@@ -235,12 +242,12 @@ def recover_incomplete_tool_calls(state: AgentState) -> list:
     Returns:
         list: Message operations to insert recovery ToolMessages, or empty list if no recovery needed.
     """
-    messages = state.get("messages", [])
+    messages = cast(list[Any], state.get("messages", []))
     if not messages:
         return []
 
     # Find the last AIMessage with tool_calls
-    last_ai_message = None
+    last_ai_message: AIMessage | None = None
     last_ai_index = -1
 
     for i in range(len(messages) - 1, -1, -1):
@@ -268,7 +275,7 @@ def recover_incomplete_tool_calls(state: AgentState) -> list:
         return []  # All tool calls have responses
 
     # Create failure ToolMessages for unhandled tool calls
-    recovery_messages = []
+    recovery_messages: list[ToolMessage] = []
     for tool_call in last_ai_message.tool_calls:
         if tool_call["id"] in unhandled_tool_call_ids:
             failure_msg = ToolMessage(
@@ -278,15 +285,17 @@ def recover_incomplete_tool_calls(state: AgentState) -> list:
             recovery_messages.append(failure_msg)
 
     # Build operations to insert recovery messages in correct position
-    operations = []
+    operations: list[Any] = []
     messages_after_ai = messages[last_ai_index + 1 :]
 
     # Collect IDs that will be removed
-    removed_ids = set()
+    removed_ids: set[str] = set()
 
     # If there are messages after the AIMessage, we need to remove them first
     if messages_after_ai:
         for msg in messages_after_ai:
+            if msg.id is None:
+                msg.id = str(uuid.uuid4())
             operations.append(RemoveMessage(id=msg.id))
             removed_ids.add(msg.id)
 
@@ -297,14 +306,10 @@ def recover_incomplete_tool_calls(state: AgentState) -> list:
     # CRITICAL: Must regenerate Message ids if matches a RemoveMessage to prevent RemoveMessage from being cancelled
     if messages_after_ai:
         for msg in messages_after_ai:
-            # Only regenerate ID if this message's ID was removed
             if msg.id in removed_ids:
                 # Create a copy with new ID to prevent the RemoveMessage from being discarded
                 new_msg = msg.model_copy(update={"id": str(uuid.uuid4())})
                 operations.append(new_msg)
-            else:
-                # Keep original message as-is if ID wasn't removed
-                operations.append(msg)
 
     log(f"Recovered {len(recovery_messages)} incomplete tool calls")
     return operations
@@ -316,9 +321,9 @@ class SimpleStore(VectorStore):
     def __init__(
         self,
         texts: list[str],
-        metadatas: list[dict] | None = None,
+        metadatas: list[dict[str, Any]] | None = None,
         ids: list[str] | None = None,
-    ):
+    ) -> None:
         """Initialize SimpleStore with texts.
 
         Args:
@@ -327,7 +332,7 @@ class SimpleStore(VectorStore):
             ids: Optional list of IDs for each document.
         """
         self.texts = texts
-        self.metadatas = metadatas or [{} for _ in texts]
+        self.metadatas: list[dict[str, Any]] = metadatas or [{} for _ in texts]
         self.ids = ids or [str(uuid.uuid4()) for _ in texts]
 
         # Create Document objects
@@ -339,7 +344,7 @@ class SimpleStore(VectorStore):
         # Tokenize texts and create BM25 index
         self.tokenized_corpus = [self._tokenize(text) for text in texts]
         # BM25Okapi doesn't support empty corpus, so set to None if empty
-        self.bm25 = BM25Okapi(self.tokenized_corpus) if texts else None
+        self.bm25: BM25Okapi | None = BM25Okapi(self.tokenized_corpus) if texts else None
 
     def _tokenize(self, text: str) -> list[str]:
         """Tokenize text for BM25 indexing using TextSegmenter.
@@ -363,7 +368,7 @@ class SimpleStore(VectorStore):
         Returns:
             List of most similar Document objects.
         """
-        if not self.texts:
+        if not self.texts or self.bm25 is None:
             return []
 
         # Tokenize query
@@ -390,7 +395,7 @@ class SimpleStore(VectorStore):
         Returns:
             List of (Document, score) tuples.
         """
-        if not self.texts:
+        if not self.texts or self.bm25 is None:
             return []
 
         # Tokenize query
@@ -406,7 +411,7 @@ class SimpleStore(VectorStore):
         # Return (Document, score) tuples
         return [(self.documents[i], score) for i, score in top_k_items]
 
-    def _select_relevance_score_fn(self):
+    def _select_relevance_score_fn(self) -> Any:
         """Return relevance score function for BM25.
 
         BM25 scores are already relevance scores, so return identity function.
@@ -415,8 +420,8 @@ class SimpleStore(VectorStore):
 
     def add_texts(
         self,
-        texts: list[str],
-        metadatas: list[dict] | None = None,
+        texts: Iterable[str],
+        metadatas: list[dict[str, Any]] | None = None,
         *,
         ids: list[str] | None = None,
         **kwargs: Any,
@@ -432,7 +437,7 @@ class SimpleStore(VectorStore):
         Returns:
             List of IDs of added texts.
         """
-
+        texts = list(texts)
         if metadatas is None:
             metadatas = [{} for _ in texts]
 
@@ -493,7 +498,7 @@ class SimpleStore(VectorStore):
 
         return True
 
-    def get_by_ids(self, ids: list[str], /) -> list[Document]:
+    def get_by_ids(self, ids: Sequence[str], /) -> list[Document]:
         """Get documents by their IDs.
 
         Args:
@@ -510,7 +515,7 @@ class SimpleStore(VectorStore):
         cls,
         texts: list[str],
         embedding: Any = None,  # Unused but required by interface
-        metadatas: list[dict] | None = None,
+        metadatas: list[dict[str, Any]] | None = None,
         *,
         ids: list[str] | None = None,
         **kwargs: Any,
@@ -575,7 +580,7 @@ class SimpleStore(VectorStore):
         normalized_candidates = [(doc, (score - min_score) / score_range) for doc, score in candidates]
 
         # MMR implementation following standard algorithm
-        selected = []
+        selected: list[int] = []
         remaining = list(range(len(normalized_candidates)))
 
         # Select documents iteratively using MMR formula

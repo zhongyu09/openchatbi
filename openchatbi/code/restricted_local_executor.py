@@ -1,5 +1,6 @@
 import sys
 from io import StringIO
+from typing import Any
 
 from RestrictedPython import compile_restricted, safe_globals, utility_builtins
 from RestrictedPython.Guards import safe_builtins, safer_getattr
@@ -9,14 +10,14 @@ from openchatbi.code.executor_base import ExecutorBase
 
 class RestrictedLocalExecutor(ExecutorBase):
 
-    def run_code(self, code: str) -> (bool, str):
+    def run_code(self, code: str) -> tuple[bool, str]:
         try:
             # compile restricted code
             byte_code = compile_restricted(code, "<string>", "exec")
             if byte_code is None:
                 return False, "Failed to compile restricted code"
 
-            restricted_locals = {}
+            restricted_locals: dict[str, Any] = {}
             restricted_globals = safe_globals.copy()
 
             # Set up restricted environment with necessary functions

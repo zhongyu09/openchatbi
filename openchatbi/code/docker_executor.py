@@ -1,10 +1,12 @@
 import logging
 import os
 import shutil
+
 # Used only for fixed Docker CLI health checks.
 import subprocess  # nosec B404
 import tempfile
 from pathlib import Path
+from typing import Any
 
 import docker
 from docker.errors import ContainerError
@@ -57,7 +59,7 @@ def check_docker_status() -> tuple[bool, str]:
 class DockerExecutor(ExecutorBase):
     """Docker-based Python code executor for isolated execution."""
 
-    def __init__(self, variable: dict = None):
+    def __init__(self, variable: dict[str, Any] | None = None) -> None:
         super().__init__(variable)
         self.image_name = "python-executor"
         self.dockerfile_path = Path(__file__).parent.parent.parent / "Dockerfile.python-executor"
@@ -66,14 +68,14 @@ class DockerExecutor(ExecutorBase):
         self._check_docker_availability()
 
         try:
-            self.client = docker.from_env()
+            self.client: Any = docker.from_env()
             # Build Docker image if it doesn't exist
             self._ensure_image_exists()
         except Exception as e:
             self._handle_docker_error(e)
 
     @staticmethod
-    def _check_docker_availability():
+    def _check_docker_availability() -> None:
         """Check if Docker is installed and available."""
         # Check if Docker CLI is installed
         docker_cli_path = _get_docker_cli_path()
@@ -104,7 +106,7 @@ class DockerExecutor(ExecutorBase):
             ) from None
 
     @staticmethod
-    def _handle_docker_error(error: Exception):
+    def _handle_docker_error(error: Exception) -> None:
         """Handle Docker-related errors with specific error messages."""
         error_str = str(error).lower()
 
@@ -123,7 +125,7 @@ class DockerExecutor(ExecutorBase):
                 f"Error: {str(error)}"
             )
 
-    def _ensure_image_exists(self):
+    def _ensure_image_exists(self) -> None:
         """Build Docker image if it doesn't exist."""
         try:
             self.client.images.get(self.image_name)
@@ -188,7 +190,7 @@ class DockerExecutor(ExecutorBase):
                     # Log but don't fail the operation for cleanup issues
                     print(f"Warning: Failed to clean up temporary file {temp_file_path}: {e}")
 
-    def __del__(self):
+    def __del__(self) -> None:
         """Clean up Docker client on deletion."""
         try:
             if hasattr(self, "client") and self.client is not None:

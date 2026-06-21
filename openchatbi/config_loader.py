@@ -162,10 +162,10 @@ class ConfigLoader:
     for the application, including LLM models, SQL dialect, and other settings.
     """
 
-    _instance = None
-    _config: Config = None
+    _instance: "ConfigLoader | None" = None
+    _config: Config | None = None
 
-    def __new__(cls):
+    def __new__(cls) -> "ConfigLoader":
         if cls._instance is None:
             cls._instance = super().__new__(cls)
         return cls._instance

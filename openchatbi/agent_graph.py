@@ -5,13 +5,14 @@ import json
 import logging
 import traceback
 from collections.abc import Callable
-from typing import Any
+from typing import Any, cast
 
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import StructuredTool
 from langchain_openai.chat_models.base import BaseChatOpenAI
+from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.constants import START
 from langgraph.errors import GraphInterrupt
 from langgraph.graph import END, StateGraph
@@ -36,12 +37,12 @@ from openchatbi.tool.memory import get_memory_tools
 from openchatbi.tool.run_python_code import run_python_code
 from openchatbi.tool.save_report import save_report
 from openchatbi.tool.search_knowledge import search_knowledge, search_schema, show_schema
-from openchatbi.utils import log, recover_incomplete_tool_calls
+from openchatbi.utils import get_text_from_content, log, recover_incomplete_tool_calls
 
 logger = logging.getLogger(__name__)
 
 
-def _get_mcp_servers():
+def _get_mcp_servers() -> list[Any]:
     """Get MCP servers from config with fallback for tests."""
     try:
         return config.get().mcp_servers
@@ -58,7 +59,8 @@ def ask_human(state: AgentState) -> dict[str, Any]:
     Returns:
         dict: Updated state with human feedback as a tool message and user input.
     """
-    tool_call = state["messages"][-1].tool_calls[0]
+    last_message = cast(AIMessage, state["messages"][-1])
+    tool_call = last_message.tool_calls[0]
     tool_call_id = tool_call["id"]
     args = tool_call["args"]
     user_feedback = interrupt({"text": args["question"], "buttons": args.get("options", None)})
@@ -111,7 +113,7 @@ def _normalize_text2sql_context(context: str | dict[str, Any] | list[dict[str, A
         return str(context)
 
 
-def _format_sql_response(sql_graph_response: dict) -> str:
+def _format_sql_response(sql_graph_response: dict[str, Any]) -> str:
     """Format SQL graph response into a standardized string format.
 
     Args:
@@ -124,7 +126,7 @@ def _format_sql_response(sql_graph_response: dict) -> str:
     data = sql_graph_response.get("data", "")
     visualization_dsl = sql_graph_response.get("visualization_dsl", {})
 
-    response_parts = []
+    response_parts: list[str] = []
     if sql:
         response_parts.append(f"SQL Query:\n```sql\n{sql}\n```")
     if data:
@@ -142,7 +144,7 @@ def _format_sql_response(sql_graph_response: dict) -> str:
     return "\n\n".join(response_parts) if response_parts else "No results returned."
 
 
-def get_sql_tools(sql_graph: CompiledStateGraph, sync_mode: bool = False) -> Callable:
+def get_sql_tools(sql_graph: CompiledStateGraph[Any, None, Any, Any], sync_mode: bool = False) -> StructuredTool:
     """Create SQL generation tool from compiled SQL graph.
 
     Args:
@@ -209,7 +211,11 @@ def get_sql_tools(sql_graph: CompiledStateGraph, sync_mode: bool = False) -> Cal
         )
 
 
-def agent_llm_call(llm: BaseChatModel, tools: list, context_manager: ContextManager = None) -> Callable:
+def agent_llm_call(
+    llm: BaseChatModel,
+    tools: list[Any],
+    context_manager: ContextManager | None = None,
+) -> Callable[..., Any]:
     """Create llm call function to generate reasoning and determine next node based on tool calls in LLM response.
 
     Args:
@@ -227,21 +233,21 @@ def agent_llm_call(llm: BaseChatModel, tools: list, context_manager: ContextMana
     else:
         llm_with_tools = llm.bind_tools(tools)
 
-    def _call_model(state: AgentState):
+    def _call_model(state: AgentState) -> dict[str, Any]:
         # First, check and recover any incomplete tool calls
         recovery_ops = recover_incomplete_tool_calls(state)
         if recovery_ops:
             return {"messages": recovery_ops, "agent_next_node": "llm_node"}
 
         messages = state["messages"]
-        final_messages = []
+        final_messages: list[HumanMessage | AIMessage] = []
         if isinstance(messages[-1], HumanMessage):
             final_messages.append(messages[-1])
 
         # Apply context management if available (before processing)
         if context_manager:
             original_count = len(messages)
-            context_manager.manage_context_messages(messages)
+            context_manager.manage_context_messages(messages)  # type: ignore[arg-type]
             if len(messages) != original_count:
                 logger.info(f"Context management: modified messages from {original_count} to {len(messages)}")
 
@@ -250,7 +256,7 @@ def agent_llm_call(llm: BaseChatModel, tools: list, context_manager: ContextMana
         )
 
         response = call_llm_chat_model_with_retry(
-            llm_with_tools,
+            cast(BaseChatModel, llm_with_tools),
             ([SystemMessage(system_prompt)] + messages),
             streaming_tokens=True,
             bound_tools=tools,
@@ -265,7 +271,7 @@ def agent_llm_call(llm: BaseChatModel, tools: list, context_manager: ContextMana
                 normal_tool_calls = [call for call in tool_calls if call["name"] != "AskHuman"]
 
                 # Create Send objects for parallel routing
-                sends = []
+                sends: list[Send] = []
                 if ask_human_calls:
                     # Create message with only AskHuman calls
                     ask_human_msg = AIMessage(content=response.content, tool_calls=ask_human_calls)
@@ -278,10 +284,11 @@ def agent_llm_call(llm: BaseChatModel, tools: list, context_manager: ContextMana
 
                 return {"messages": [response], "history_messages": final_messages, "sends": sends}
             else:
+                final_answer = get_text_from_content(response.content)
                 final_messages.append(AIMessage(response.content))
                 return {
                     "messages": [response],
-                    "final_answer": response.content,
+                    "final_answer": final_answer,
                     "history_messages": final_messages,
                     "agent_next_node": END,
                 }
@@ -300,13 +307,13 @@ def agent_llm_call(llm: BaseChatModel, tools: list, context_manager: ContextMana
 def _build_graph_core(
     catalog: CatalogStore,
     sync_mode: bool,
-    checkpointer: Checkpointer,
-    memory_store: BaseStore,
-    memory_tools: list[Callable] | None,
-    mcp_tools: list,
+    checkpointer: Checkpointer | None,
+    memory_store: BaseStore | None,
+    memory_tools: list[Any] | None,
+    mcp_tools: list[Any],
     enable_context_management: bool = True,
     llm_provider: str | None = None,
-) -> CompiledStateGraph:
+) -> CompiledStateGraph[AgentState, None, InputState, OutputState]:
     """Core graph building logic shared by both sync and async versions.
 
     Args:
@@ -321,7 +328,7 @@ def _build_graph_core(
     Returns:
         CompiledStateGraph: Compiled agent graph ready for execution
     """
-    sql_graph = build_sql_graph(catalog, checkpointer, memory_store, llm_provider=llm_provider)
+    sql_graph = build_sql_graph(catalog, checkpointer, cast(BaseStore, memory_store), llm_provider=llm_provider)
     call_sql_graph_tool = get_sql_tools(sql_graph=sql_graph, sync_mode=sync_mode)
 
     # Add data analysis agent tool
@@ -331,16 +338,17 @@ def _build_graph_core(
         sql_graph=sql_graph,
         sync_mode=sync_mode,
         llm_provider=llm_provider,
-        checkpointer=checkpointer,
+        checkpointer=cast(BaseCheckpointSaver[Any] | None, checkpointer if checkpointer is not False else None),
         memory_store=memory_store,
     )
 
     # Use provided memory tools or create them
-    if not memory_tools:
-        memory_tools = get_memory_tools(get_llm(llm_provider), sync_mode=sync_mode, store=memory_store)
+    memory_tools_for_graph: list[Any] | None = list(memory_tools) if memory_tools else None
+    if not memory_tools_for_graph:
+        memory_tools_for_graph = get_memory_tools(get_llm(llm_provider), sync_mode=sync_mode, store=memory_store)
 
     log(str(mcp_tools))
-    normal_tools = [
+    normal_tools: list[Any] = [
         search_knowledge,
         search_schema,
         show_schema,
@@ -349,8 +357,8 @@ def _build_graph_core(
         run_python_code,
         save_report,
     ]
-    if memory_tools:
-        normal_tools.extend(memory_tools)
+    if memory_tools_for_graph:
+        normal_tools.extend(memory_tools_for_graph)
     # Forecasting/anomaly/drill-down analysis is delegated to the data analysis
     # agent (the `data_analysis` tool), which owns timeseries_forecast and the
     # related health check. It is intentionally not exposed directly here.
@@ -367,7 +375,8 @@ def _build_graph_core(
     graph = StateGraph(AgentState, input_schema=InputState, output_schema=OutputState)
 
     # Add nodes to the graph
-    graph.add_node("llm_node", agent_llm_call(get_llm(llm_provider), normal_tools + [AskHuman], context_manager))
+    agent_tools: list[Any] = [*normal_tools, AskHuman]
+    graph.add_node("llm_node", agent_llm_call(get_llm(llm_provider), agent_tools, context_manager))
     graph.add_node("ask_human", ask_human)
     graph.add_node("use_tool", tool_node)
 
@@ -377,7 +386,7 @@ def _build_graph_core(
     graph.add_edge("use_tool", "llm_node")
 
     # Add conditional routing from llm node
-    def route_tools(state: AgentState):
+    def route_tools(state: AgentState) -> str | list[Send]:
         # Only use sends if the last message came from the llm node (has tool_calls)
         last_message = state["messages"][-1] if state["messages"] else None
         if (
@@ -388,10 +397,10 @@ def _build_graph_core(
             and state["sends"]
         ):
             return state["sends"]  # Return Send objects for parallel execution
-        elif "agent_next_node" in state:
-            return state["agent_next_node"]  # Return single node name
-        else:
-            return END
+        next_node = state.get("agent_next_node")
+        if next_node:
+            return next_node  # Return single node name
+        return END
 
     graph.add_conditional_edges(
         "llm_node",
@@ -405,17 +414,17 @@ def _build_graph_core(
         },
     )
 
-    graph = graph.compile(name="agent_graph", checkpointer=checkpointer, store=memory_store)
-    return graph
+    compiled_graph = graph.compile(name="agent_graph", checkpointer=checkpointer, store=memory_store)
+    return compiled_graph
 
 
 def build_agent_graph_sync(
     catalog: CatalogStore,
-    checkpointer: Checkpointer = None,
-    memory_store: BaseStore = None,
+    checkpointer: Checkpointer | None = None,
+    memory_store: BaseStore | None = None,
     enable_context_management: bool = True,
     llm_provider: str | None = None,
-) -> CompiledStateGraph:
+) -> CompiledStateGraph[Any, None, Any, Any]:
     """Build the main agent graph with all nodes and edges (sync version).
 
     Args:
@@ -444,12 +453,12 @@ def build_agent_graph_sync(
 
 async def build_agent_graph_async(
     catalog: CatalogStore,
-    checkpointer: Checkpointer = None,
-    memory_store: BaseStore = None,
-    memory_tools: list[Callable] = None,
+    checkpointer: Checkpointer | None = None,
+    memory_store: BaseStore | None = None,
+    memory_tools: list[Any] | None = None,
     enable_context_management: bool = True,
     llm_provider: str | None = None,
-) -> CompiledStateGraph:
+) -> CompiledStateGraph[Any, None, Any, Any]:
     """Build the main agent graph with all nodes and edges (async version).
 
     This function is identical to build_agent_graph_sync but properly handles

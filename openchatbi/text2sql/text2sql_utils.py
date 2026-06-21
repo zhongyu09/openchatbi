@@ -9,7 +9,7 @@ from openchatbi.llm.llm import get_embedding_model
 from openchatbi.utils import create_vector_db, log
 
 
-def _init_sql_example_retriever(catalog, vector_db_path: str = None):
+def _init_sql_example_retriever(catalog, vector_db_path: str | None = None):
     """Initialize SQL example retriever from catalog.
 
     Args:
@@ -150,7 +150,7 @@ class LearnedSQLStore:
                     log(f"use_count touch failed (ignored): {e}")
 
 
-def _init_table_selection_example_dict(catalog, vector_db_path: str = None):
+def _init_table_selection_example_dict(catalog, vector_db_path: str | None = None):
     """Initialize table selection example retriever from catalog.
 
     Args:

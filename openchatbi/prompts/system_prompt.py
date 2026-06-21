@@ -5,13 +5,13 @@ import importlib.resources
 from openchatbi import config
 
 # Global cache variables for lazy loading (only for file I/O operations)
-_dialect_rules_cache = None
-_agent_prompt_template_cache = None
-_extraction_prompt_template_cache = None
-_table_selection_prompt_template_cache = None
-_text2sql_prompt_template_cache = None
-_visualization_prompt_template_cache = None
-_summary_prompt_template_cache = None
+_dialect_rules_cache: dict[str, str] | None = None
+_agent_prompt_template_cache: str | None = None
+_extraction_prompt_template_cache: str | None = None
+_table_selection_prompt_template_cache: str | None = None
+_text2sql_prompt_template_cache: str | None = None
+_visualization_prompt_template_cache: str | None = None
+_summary_prompt_template_cache: str | None = None
 
 
 def get_basic_knowledge():

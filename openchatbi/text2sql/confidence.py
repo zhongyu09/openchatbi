@@ -10,6 +10,7 @@ from __future__ import annotations
 import importlib.resources
 import json
 from dataclasses import dataclass, field
+from typing import cast
 
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage, SystemMessage
@@ -55,7 +56,7 @@ class SimpleSQLEvaluator:
     def _low_temp_llm(self) -> BaseChatModel:
         # Bind a low temperature when the provider supports it; no-op otherwise.
         try:
-            return self.llm.bind(temperature=0.0)
+            return cast(BaseChatModel, self.llm.bind(temperature=0.0))
         except Exception:
             return self.llm
 

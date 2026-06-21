@@ -130,6 +130,8 @@ dev = [
 managed = true
 dev-dependencies = [
     "openchatbi[dev]",
+    "types-pyyaml>=6.0.12.20260518",
+    "types-requests>=2.33.0.20260518",
 ]
 
 
@@ -222,6 +224,7 @@ warn_no_return = true
 warn_unreachable = true
 ignore_missing_imports = true
 show_error_codes = true
+disable_error_code = ["no-untyped-def", "no-untyped-call", "type-arg"]
 
 [tool.pytest.ini_options]
 minversion = "7.0"

@@ -26,15 +26,15 @@ def create_sqlalchemy_engine_instance(data_warehouse_config: dict[str, Any]) -> 
     Returns:
         Configured SQLAlchemy engine
     """
-    database_uri = data_warehouse_config.get("uri")
+    database_uri: str = data_warehouse_config.get("uri") or ""
 
-    engine_args = {"echo": True}
+    engine_args: dict[str, Any] = {"echo": True}
 
     # Handle Presto authentication
     if "presto" in database_uri and "token_service" in data_warehouse_config:
-        token_service = data_warehouse_config.get("token_service")
-        user_name = data_warehouse_config.get("user_name")
-        password = data_warehouse_config.get("password")
+        token_service = str(data_warehouse_config.get("token_service") or "")
+        user_name = str(data_warehouse_config.get("user_name") or "")
+        password = str(data_warehouse_config.get("password") or "")
         header_extra_params = data_warehouse_config.get("header_extra_params", {})
         token = apply_token_for_user(token_service, user_name, password)
         log(f"Applied presto token: {token} for user: {user_name}")

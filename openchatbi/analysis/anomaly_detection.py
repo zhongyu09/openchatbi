@@ -501,7 +501,8 @@ def _build_severity_curve(
     directions = ["none"] * n
 
     for i in range(n):
-        if scan_predicted[i] is None:
+        pred_i = scan_predicted[i]
+        if pred_i is None:
             continue
 
         lo = max(0, i - evaluation_window + 1)
@@ -529,7 +530,7 @@ def _build_severity_curve(
             smoothing=smoothing,
         )
         severity[i] = score
-        directions[i] = "drop" if scan_actual[i] < scan_predicted[i] else "rise"
+        directions[i] = "drop" if scan_actual[i] < pred_i else "rise"
 
     return severity, directions
 

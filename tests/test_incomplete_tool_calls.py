@@ -3,6 +3,7 @@
 from unittest.mock import Mock
 
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
+from langgraph.graph.message import add_messages
 
 from openchatbi.agent_graph import agent_llm_call
 from openchatbi.graph_state import AgentState
@@ -120,6 +121,34 @@ class TestIncompleteToolCallRecovery:
         original_msg = operations[2]
         assert original_msg.tool_call_id == "call_1"
         assert original_msg.content == "Search completed"
+
+    def test_partial_incomplete_tool_calls_with_missing_message_id(self):
+        """Test recovery can reorder a following message that does not already have an ID."""
+        messages = [
+            HumanMessage(content="Search and analyze"),
+            AIMessage(
+                content="I'll search and analyze.",
+                tool_calls=[
+                    {"name": "search", "args": {"query": "data"}, "id": "call_1"},
+                    {"name": "analyze", "args": {"data": "result"}, "id": "call_2"},
+                ],
+            ),
+            ToolMessage(content="Search completed", tool_call_id="call_1", id=None),
+        ]
+        state = AgentState(messages=messages)
+
+        operations = recover_incomplete_tool_calls(state)
+        updated_messages = add_messages(messages, operations)
+
+        assert len(operations) == 3
+        assert messages[2].id is not None
+        assert isinstance(updated_messages[2], ToolMessage)
+        assert updated_messages[2].tool_call_id == "call_2"
+        assert "interrupted" in updated_messages[2].content.lower()
+        assert isinstance(updated_messages[3], ToolMessage)
+        assert updated_messages[3].tool_call_id == "call_1"
+        assert updated_messages[3].content == "Search completed"
+        assert updated_messages[3].id != messages[2].id
 
     def test_multiple_ai_messages_with_tool_calls(self):
         """Test recovery considers only the last AIMessage with tool calls."""

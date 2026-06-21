@@ -1,5 +1,5 @@
 import logging
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 import pandas as pd
@@ -45,7 +45,7 @@ def add_surprise(df: pd.DataFrame, derived: bool, merged_divide: int = 1) -> pd.
             p_term = np.nan_to_num(p * np.log(2 * p / (p + q)))
             q_term = np.nan_to_num(q * np.log(2 * q / (p + q)))
             surprise = 0.5 * (p_term + q_term)
-        return surprise
+        return np.asarray(surprise)
 
     if derived:
         df["surprise"] = compute_surprise("real_numerator", "predict_numerator") + compute_surprise(
@@ -191,28 +191,32 @@ def adtributor(
     # Rank dimensions
     ranked_candidates = sorted(
         [c for c in candidates if not c.get("skipped_direction", False)],
-        key=lambda x: x.get("total_surprise", 0),
+        key=lambda x: cast(float, x.get("total_surprise", 0)),
         reverse=True,
     )
-    ranked_dimensions = [c["dimension"] for c in ranked_candidates]
+    ranked_dimensions = [cast(str, c["dimension"]) for c in ranked_candidates]
 
     # Get root causes (top k)
-    rc_candidates = sorted([c for c in candidates if "elements" in c], key=lambda t: t["surprise"], reverse=True)[:k]
+    rc_candidates = sorted(
+        [c for c in candidates if "elements" in c],
+        key=lambda t: cast(float, t["surprise"]),
+        reverse=True,
+    )[:k]
 
-    root_causes = {c["dimension"]: c["elements"] for c in rc_candidates}
+    root_causes: dict[str, list[Any]] = {cast(str, c["dimension"]): cast(list, c["elements"]) for c in rc_candidates}
 
     if not root_causes:
         status = "no_root_cause"
 
-    dimension_details = {}
+    dimension_details: dict[str, DimensionResult] = {}
     for c in candidates:
-        dim = c["dimension"]
+        dim = cast(str, c["dimension"])
         dimension_details[dim] = DimensionResult(
-            explanatory_power=c.get("explanatory_power"),
-            total_surprise=c.get("total_surprise", 0.0),
-            elements=c.get("elements"),
-            surprise=c.get("surprise"),
-            reason=c.get("reason", ""),
+            explanatory_power=cast(float | None, c.get("explanatory_power")),
+            total_surprise=cast(float, c.get("total_surprise", 0.0)),
+            elements=cast(list | None, c.get("elements")),
+            surprise=cast(float | None, c.get("surprise")),
+            reason=cast(str, c.get("reason", "")),
         )
 
     return AdtributorOutput(

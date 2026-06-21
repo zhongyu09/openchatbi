@@ -39,7 +39,7 @@ def get_columns_metadata(catalog):
 
 def build_column_tables_mapping(catalog):
     """Build a mapping of column names to their corresponding table names."""
-    column_tables_mapping = {}
+    column_tables_mapping: dict[str, list[str]] = {}
     for table_name in catalog.get_table_list():
         for column in catalog.get_column_list(table_name):
             column_name = column["column_name"]
@@ -49,7 +49,7 @@ def build_column_tables_mapping(catalog):
     return column_tables_mapping
 
 
-def build_columns_retriever(catalog, vector_db_path: str = None):
+def build_columns_retriever(catalog, vector_db_path: str | None = None):
     """Build BM25 and vector retrievers for columns.
 
     Args:

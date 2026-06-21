@@ -4,6 +4,7 @@ from langchain_core.tools import tool
 from pydantic import BaseModel, Field
 
 from openchatbi.code.docker_executor import DockerExecutor, check_docker_status
+from openchatbi.code.executor_base import ExecutorBase
 from openchatbi.code.local_executor import LocalExecutor
 from openchatbi.code.restricted_local_executor import RestrictedLocalExecutor
 from openchatbi.config_loader import ConfigLoader
@@ -15,7 +16,7 @@ class PythonCodeInput(BaseModel):
     code: str = Field(description="The python code to execute")
 
 
-def _create_executor():
+def _create_executor() -> ExecutorBase:
     """Create appropriate executor based on configuration."""
     config_loader = ConfigLoader()
     try:

@@ -32,7 +32,7 @@ _MAX_RECORDS = 1000
 # (Task 4), NOT by routing them through this wrapper.
 
 
-def record_llm_call(rec: LLMCallRecord) -> None:
+def record_llm_call(rec: LLMCallRecord | None) -> None:
     """Record an LLM call (best-effort; never raises into the call path)."""
     try:
         if rec is None:

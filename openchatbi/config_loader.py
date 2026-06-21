@@ -86,7 +86,7 @@ class Config(BaseModel):
     catalog_store: Any = None
 
     # Path to the vector database file
-    vector_db_path: str = None
+    vector_db_path: str | None = None
 
     # MCP Servers Configuration
     mcp_servers: list[dict[str, Any]] = []
@@ -162,10 +162,10 @@ class ConfigLoader:
     for the application, including LLM models, SQL dialect, and other settings.
     """
 
-    _instance = None
-    _config: Config = None
+    _instance: "ConfigLoader | None" = None
+    _config: Config | None = None
 
-    def __new__(cls):
+    def __new__(cls) -> "ConfigLoader":
         if cls._instance is None:
             cls._instance = super().__new__(cls)
         return cls._instance
@@ -185,7 +185,7 @@ class ConfigLoader:
             raise ValueError("Configuration has not been loaded. Please call load() or set() first.")
         return self._config
 
-    def load(self, config_file: str = None) -> None:
+    def load(self, config_file: str | None = None) -> None:
         """Load configuration from a YAML file.
 
         Args:
@@ -362,7 +362,7 @@ class ConfigLoader:
 
         import yaml
 
-        bi_config_data = {}
+        bi_config_data: dict[str, Any] = {}
 
         try:
             with open(bi_config_file, encoding="utf-8") as file:

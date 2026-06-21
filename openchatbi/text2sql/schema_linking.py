@@ -1,6 +1,8 @@
 """Schema linking module for table and column selection in text2sql."""
 
+import traceback
 from datetime import datetime
+from typing import Any
 
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage, SystemMessage
@@ -11,7 +13,7 @@ from openchatbi.constants import datetime_format
 from openchatbi.graph_state import SQLGraphState
 from openchatbi.prompts.system_prompt import get_table_selection_prompt_template
 from openchatbi.text2sql.data import table_selection_example_dict, table_selection_retriever
-from openchatbi.utils import extract_json_from_answer, log
+from openchatbi.utils import extract_json_from_answer, get_text_from_content, log
 
 
 def schema_linking(llm: BaseChatModel, catalog: CatalogStore):
@@ -61,7 +63,7 @@ def schema_linking(llm: BaseChatModel, catalog: CatalogStore):
             if not table_info:
                 continue
             if start_time and "start_time" in table_info:
-                if datetime.strptime(table_info.get("start_time"), datetime_format) > start_time:
+                if datetime.strptime(str(table_info.get("start_time") or ""), datetime_format) > start_time:
                     continue
             columns = []
             for column_name in relevant_columns:
@@ -153,7 +155,16 @@ def schema_linking(llm: BaseChatModel, catalog: CatalogStore):
                 return False
         return True
 
-    def _call_llm_select(llm: BaseChatModel, system_prompt, messages, question, candidate_tables):
+    def _parse_table_selection_json(llm_answer_content: Any) -> dict[str, Any]:
+        """Extract and parse table selection JSON from LLM response content."""
+        try:
+            text = get_text_from_content(llm_answer_content)
+            return extract_json_from_answer(text)
+        except Exception:
+            log(traceback.format_exc())
+            return {}
+
+    def _call_llm_select(llm: BaseChatModel, system_prompt, messages, question, candidate_tables) -> dict[str, Any]:
         """Calls the language model to select appropriate tables for the question.
 
         Retries up to 3 times if the LLM's answer is invalid.
@@ -180,7 +191,7 @@ def schema_linking(llm: BaseChatModel, catalog: CatalogStore):
                 # print("_call_llm_select")
                 # print(messages)
                 response = llm.invoke([SystemMessage(system_prompt)] + messages)
-                result = extract_json_from_answer(response.content)
+                result = _parse_table_selection_json(response.content)
                 selected_tables = result.get("tables")
                 log(result)
                 if _verify_table(selected_tables, candidate_tables):
@@ -188,7 +199,7 @@ def schema_linking(llm: BaseChatModel, catalog: CatalogStore):
                 else:
                     messages.append(
                         HumanMessage(
-                            f'The selected table {",".join([table.get("table") for table in result.get("tables")])} is not valid. '
+                            f'The selected table {",".join([table.get("table") for table in result.get("tables") or []])} is not valid. '
                             f"Do not select this table, please try again."
                         )
                     )
@@ -197,7 +208,7 @@ def schema_linking(llm: BaseChatModel, catalog: CatalogStore):
                     retry_flag = False
                 if retry_flag:
                     log(
-                        f"The selected table {','.join([table.get('table') for table in result.get('tables')])} is not in the candidate tables."
+                        f"The selected table {','.join([table.get('table') for table in result.get('tables') or []])} is not in the candidate tables."
                     )
                     log("Retry Table Selection...")
 
@@ -221,7 +232,7 @@ def schema_linking(llm: BaseChatModel, catalog: CatalogStore):
         metrics = info_entities.get("metrics", [])
         start_time = info_entities.get("start_time")
 
-        invalid_table = []
+        invalid_table: list[str] = []
         log("Retrieving related table schema...")
         # 1. Get related tables and columns
         related_table_column_dict = _get_related_tables_and_columns(

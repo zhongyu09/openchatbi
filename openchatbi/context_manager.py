@@ -3,6 +3,7 @@
 import json
 import re
 import uuid
+from typing import Any
 
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage, ToolMessage
@@ -16,7 +17,7 @@ from openchatbi.utils import log
 class ContextManager:
     """Manages conversation context to prevent token limit issues."""
 
-    def __init__(self, llm: BaseChatModel, config: ContextConfig = None):
+    def __init__(self, llm: BaseChatModel, config: ContextConfig | None = None) -> None:
         """Initialize context manager.
 
         Args:
@@ -30,7 +31,7 @@ class ContextManager:
     # PUBLIC API METHODS
     # ============================================================================
 
-    def manage_context_messages(self, messages: list) -> None:
+    def manage_context_messages(self, messages: list[BaseMessage]) -> None:
         """Main context management function that directly modifies messages list.
 
         Args:
@@ -201,8 +202,8 @@ class ContextManager:
             return text[:truncate_len] + "... [truncated]"
         return text
 
-    def _truncate_text_or_list(self, content):
-        results = []
+    def _truncate_text_or_list(self, content: str | list[str | dict[str, Any]]) -> list[str]:
+        results: list[str] = []
         if isinstance(content, str):
             results.append(self._truncate_text(content))
         elif isinstance(content, list):
@@ -210,9 +211,10 @@ class ContextManager:
                 if isinstance(item, str):
                     results.append(self._truncate_text(item))
                 elif isinstance(item, dict):
-                    if item["type"] == "text":
-                        results.append(self._truncate_text(item["text"]))
-                    elif item["type"] == "tool_use":
+                    item_type = item.get("type")
+                    if item_type == "text":
+                        results.append(self._truncate_text(str(item.get("text", ""))))
+                    elif item_type == "tool_use":
                         results.append(json.dumps(item))
         return results
 
@@ -287,7 +289,11 @@ class ContextManager:
 
         if len(historical_messages) == 1:
             msg = historical_messages[0]
-            if isinstance(msg, AIMessage) and msg.content.startswith("[Conversation Summary]"):
+            if (
+                isinstance(msg, AIMessage)
+                and isinstance(msg.content, str)
+                and msg.content.startswith("[Conversation Summary]")
+            ):
                 return
 
         # Generate summary
@@ -321,7 +327,7 @@ class ContextManager:
         # Find the nearest HumanMessage
         for i in range(naive_split, -1, -1):
             msg = messages[i]
-            if isinstance(msg, HumanMessage) or isinstance(msg, dict) and msg["role"] == "user":
+            if isinstance(msg, HumanMessage):
                 return i  # Split before this HumanMessage
 
         return naive_split

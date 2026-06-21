@@ -22,7 +22,7 @@ from typing import Any
 from langchain_core.messages import AIMessage, AIMessageChunk, ToolMessage
 
 from openchatbi.observability.pricing import estimate_cost
-from openchatbi.utils import get_text_from_message_chunk
+from openchatbi.utils import get_text_from_content, get_text_from_message_chunk
 
 # Node names that belong to the text2sql SQL subgraph. Their intermediate token
 # stream is intentionally not surfaced as raw "thinking" because the dedicated
@@ -232,7 +232,12 @@ class AgentStreamProcessor:
                     int(usage.get("output_tokens", 0) or 0),
                 )
 
-        token = get_text_from_message_chunk(chunk) if isinstance(chunk, AIMessageChunk | AIMessage) else ""
+        if isinstance(chunk, AIMessageChunk):
+            token = get_text_from_message_chunk(chunk)
+        elif isinstance(chunk, AIMessage):
+            token = get_text_from_content(chunk.content)
+        else:
+            token = ""
         if not token:
             return
 
@@ -291,8 +296,9 @@ class AgentStreamProcessor:
 
             elif node_name == "information_extraction":
                 message_obj = (_message_list(node_output.get("messages")) or [None])[0]
-                if message_obj and getattr(message_obj, "tool_calls", None):
-                    tool_name = message_obj.tool_calls[0]["name"]
+                tool_calls = getattr(message_obj, "tool_calls", None)
+                if message_obj and tool_calls:
+                    tool_name = tool_calls[0]["name"]
                     desc = f"🛠️ Using tool: {tool_name}"
                     kind = "tool"
                     data = {"tools": [tool_name]}

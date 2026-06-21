@@ -116,7 +116,7 @@ def adtributor_drilldown(
         return {"error": f"Algorithm execution failed: {str(e)}"}
 
     # 4. Generate Narrative
-    result = {"status": output.status, "root_causes": output.root_causes, "dimension_details": {}}
+    result: dict[str, Any] = {"status": output.status, "root_causes": output.root_causes, "dimension_details": {}}
 
     if output.status == "no_anomaly_direction":
         result["summary_narrative"] = (

@@ -14,10 +14,10 @@ class TokenService:
     with external services.
     """
 
-    base_url = None
-    token = None
-    user_name = None
-    password = None
+    base_url: str | None = None
+    token: str | None = None
+    user_name: str | None = None
+    password: str | None = None
 
     def __init__(self, user_name: str, password: str):
         """Initialize token service."""
@@ -26,6 +26,7 @@ class TokenService:
 
     def apply_token(self):
         """Apply for authentication token using credentials."""
+        assert self.base_url is not None, "base_url must be set before calling apply_token"
         response = requests.post(
             self.base_url + "/apply_token",
             data=json.dumps({"user_name": self.user_name, "password": self.password}),

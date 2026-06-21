@@ -116,7 +116,7 @@ def information_extraction_conditional_edges(state: SQLGraphState):
             print(f"Unknown tool call: {tool_calls[0]['name']}")
             return "end"
     else:
-        if "rewrite_question" in state:
+        if state.get("rewrite_question"):
             return "next"
         else:
             return "end"

@@ -36,9 +36,7 @@ def check_docker_status() -> tuple[bool, str]:
 
         # Check if Docker daemon is running
         # Fixed command and arguments; no user input reaches subprocess.
-        result = subprocess.run(  # nosec B603
-            [docker_cli_path, "info"], capture_output=True, text=True, timeout=10
-        )
+        result = subprocess.run([docker_cli_path, "info"], capture_output=True, text=True, timeout=10)  # nosec B603
 
         if result.returncode == 0:
             return True, "Docker is installed and running"
@@ -85,9 +83,7 @@ class DockerExecutor(ExecutorBase):
         # Check if Docker daemon is running
         try:
             # Fixed command and arguments; no user input reaches subprocess.
-            result = subprocess.run(  # nosec B603
-                [docker_cli_path, "info"], capture_output=True, text=True, timeout=10
-            )
+            result = subprocess.run([docker_cli_path, "info"], capture_output=True, text=True, timeout=10)  # nosec B603
             if result.returncode != 0:
                 if "Cannot connect to the Docker daemon" in result.stderr:
                     raise RuntimeError(

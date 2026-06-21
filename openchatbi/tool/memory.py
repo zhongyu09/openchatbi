@@ -200,9 +200,7 @@ class StructuredToolWithRequired(StructuredTool):
         return tcs
 
 
-def get_memory_tools(
-    llm: BaseChatModel, sync_mode: bool = False, store: Any | None = None
-) -> list[BaseTool] | None:
+def get_memory_tools(llm: BaseChatModel, sync_mode: bool = False, store: Any | None = None) -> list[BaseTool] | None:
     # Get the appropriate store based on mode
     if not store:
         if sync_mode:

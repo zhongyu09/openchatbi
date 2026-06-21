@@ -289,8 +289,10 @@ class ContextManager:
 
         if len(historical_messages) == 1:
             msg = historical_messages[0]
-            if isinstance(msg, AIMessage) and isinstance(msg.content, str) and msg.content.startswith(
-                "[Conversation Summary]"
+            if (
+                isinstance(msg, AIMessage)
+                and isinstance(msg.content, str)
+                and msg.content.startswith("[Conversation Summary]")
             ):
                 return
 

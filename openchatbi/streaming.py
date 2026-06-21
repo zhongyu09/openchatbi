@@ -296,8 +296,9 @@ class AgentStreamProcessor:
 
             elif node_name == "information_extraction":
                 message_obj = (_message_list(node_output.get("messages")) or [None])[0]
-                if message_obj and getattr(message_obj, "tool_calls", None):
-                    tool_name = getattr(message_obj, "tool_calls")[0]["name"]
+                tool_calls = getattr(message_obj, "tool_calls", None)
+                if message_obj and tool_calls:
+                    tool_name = tool_calls[0]["name"]
                     desc = f"🛠️ Using tool: {tool_name}"
                     kind = "tool"
                     data = {"tools": [tool_name]}

@@ -52,7 +52,7 @@ class DataCatalogLoader:
                     columns = self.inspector.get_columns(table_name)
                     column_list = []
                     for column in columns:
-                        is_common_column = column not in ("id", "name", "type", "status")
+                        is_common_column = column["name"] not in ("id", "name", "type", "status")
                         column_info = {
                             "column_name": column["name"],
                             "display_name": "",

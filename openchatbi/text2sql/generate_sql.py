@@ -281,7 +281,7 @@ def create_sql_nodes(
     def _analyze_dataframe_schema(df: pd.DataFrame) -> dict[str, Any]:
         """Analyze DataFrame to understand column types and characteristics."""
         try:
-            schema_info = {
+            schema_info: dict[str, Any] = {
                 "columns": list(df.columns),
                 "column_types": {},
                 "row_count": len(df),
@@ -411,10 +411,10 @@ def create_sql_nodes(
         Returns:
             dict: Updated state with generated SQL query.
         """
-        if "rewrite_question" not in state:
+        if not state.get("rewrite_question"):
             log("Missing rewrite question, skipping SQL generation.")
             return {}
-        if "tables" not in state or len(state["tables"]) == 0:
+        if not state.get("tables"):
             log("Missing tables, skipping SQL generation.")
             return {}
 
@@ -653,7 +653,8 @@ def create_sql_nodes(
             if messages and hasattr(messages[-1], "content"):
                 current_content = messages[-1].content
                 viz_info = f"\n\n**Visualization Generated**: {viz_dsl.chart_type.title()} chart with {len(viz_dsl.data_columns)} column(s)"
-                messages[-1] = AIMessage(current_content + viz_info)
+                if isinstance(current_content, str):
+                    messages[-1] = AIMessage(current_content + viz_info)
 
             return {"visualization_dsl": viz_dsl.to_dict(), "messages": messages}
         except Exception as e:

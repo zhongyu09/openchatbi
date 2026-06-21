@@ -277,8 +277,9 @@ class VisualizationService:
             )
 
             # Call LLM with the formatted prompt
+            assert self.llm is not None, "llm must be set"
             response = self.llm.invoke([HumanMessage(content=prompt)])
-            chart_type_str = response.content.strip().lower()
+            chart_type_str = str(response.content).strip().lower()
             return self.CHART_TYPE_MAPPING.get(chart_type_str, ChartType.TABLE)
 
         except Exception:

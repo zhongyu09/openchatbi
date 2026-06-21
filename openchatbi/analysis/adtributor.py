@@ -45,7 +45,7 @@ def add_surprise(df: pd.DataFrame, derived: bool, merged_divide: int = 1) -> pd.
             p_term = np.nan_to_num(p * np.log(2 * p / (p + q)))
             q_term = np.nan_to_num(q * np.log(2 * q / (p + q)))
             surprise = 0.5 * (p_term + q_term)
-        return surprise
+        return np.asarray(surprise)
 
     if derived:
         df["surprise"] = compute_surprise("real_numerator", "predict_numerator") + compute_surprise(

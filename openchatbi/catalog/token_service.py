@@ -26,6 +26,7 @@ class TokenService:
 
     def apply_token(self):
         """Apply for authentication token using credentials."""
+        assert self.base_url is not None, "base_url must be set before calling apply_token"
         response = requests.post(
             self.base_url + "/apply_token",
             data=json.dumps({"user_name": self.user_name, "password": self.password}),

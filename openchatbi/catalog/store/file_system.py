@@ -40,7 +40,7 @@ class FileSystemCatalogStore(CatalogStore):
     _data_warehouse_config: dict
     _sql_engine: Engine | None
 
-    def __init__(self, data_path: str, data_warehouse_config: dict):
+    def __init__(self, data_path: str, data_warehouse_config: dict | None = None):
         """Initialize filesystem catalog store.
 
         Args:
@@ -322,7 +322,7 @@ class FileSystemCatalogStore(CatalogStore):
                 return True
 
             # Get all possible headers from all rows
-            all_headers = set()
+            all_headers: set[str] = set()
             for row in data:
                 all_headers.update(row.keys())
 
@@ -349,7 +349,7 @@ class FileSystemCatalogStore(CatalogStore):
         table_columns_csv = self._load_csv_file(self.table_columns_file)
 
         # Get unique db_name.table_name combinations
-        table_dict = {}
+        table_dict: dict[str, list[str]] = {}
         for row in table_columns_csv:
             if "db_name" in row and "table_name" in row and "column_name" in row:
                 db_name = row["db_name"]
@@ -544,7 +544,7 @@ class FileSystemCatalogStore(CatalogStore):
 
         if db_name in self._table_info_cache and table_name in self._table_info_cache[db_name]:
             # Return a copy to prevent external modifications
-            return self._table_info_cache[db_name][table_name].copy()
+            return dict(self._table_info_cache[db_name][table_name])
 
         return {}
 

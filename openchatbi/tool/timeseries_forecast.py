@@ -93,7 +93,7 @@ def _probe_service_health(service_url: str) -> bool:
             min_input_length = health_data.get("min_input_length")
             if isinstance(min_input_length, int) and min_input_length > 0:
                 _min_input_length_cache[service_url] = min_input_length
-            return health_data.get("model_initialized", False)
+            return bool(health_data.get("model_initialized", False))
         else:
             log(
                 f"Time series forecasting service health check failed: "
@@ -166,7 +166,7 @@ def call_timeseries_service(
         response = requests.post(f"{service_url}/predict", json=payload, timeout=30)
 
         if response.status_code == 200:
-            return response.json()
+            return dict(response.json())
         else:
             return {
                 "error": f"Service returned status {response.status_code}: {response.text}",

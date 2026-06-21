@@ -13,7 +13,7 @@ except ImportError:  # pragma: no cover
 # Make sure langgraph sqlite connector uses the same sqlite module.
 sys.modules["sqlite3"] = sqlite3
 
-from langchain_core.tools import StructuredTool, tool
+from langchain_core.tools import BaseTool, StructuredTool, tool
 from langchain_core.language_models import BaseChatModel
 from langchain_openai.chat_models.base import BaseChatOpenAI
 from langgraph.store.sqlite import SqliteStore
@@ -64,7 +64,7 @@ def get_sync_memory_store() -> SqliteStore | None:
             conn,
             index={
                 "dims": 1536,
-                "embed": embedding_model,
+                "embed": embedding_model,  # type: ignore[typeddict-item]
                 "fields": ["text"],  # specify which fields to embed
             },
         )
@@ -87,7 +87,7 @@ async def get_async_memory_store() -> AsyncSqliteStore | None:
             "memory.db",
             index={
                 "dims": 1536,
-                "embed": embedding_model,
+                "embed": embedding_model,  # type: ignore[typeddict-item]
                 "fields": ["text"],  # specify which fields to embed
             },
         )
@@ -191,9 +191,9 @@ class StructuredToolWithRequired(StructuredTool):
     def tool_call_schema(self) -> Any:
         tcs = super().tool_call_schema
         try:
-            if tcs.model_config:
+            if not isinstance(tcs, dict) and tcs.model_config:
                 tcs.model_config["json_schema_extra"] = fix_schema_for_openai
-            elif ConfigDict is not None:
+            elif not isinstance(tcs, dict) and ConfigDict is not None:
                 tcs.model_config = ConfigDict(json_schema_extra=fix_schema_for_openai)
         except Exception as e:
             logger.warning("Unable to attach OpenAI schema compatibility hook: %s", e)
@@ -202,7 +202,7 @@ class StructuredToolWithRequired(StructuredTool):
 
 def get_memory_tools(
     llm: BaseChatModel, sync_mode: bool = False, store: Any | None = None
-) -> list[StructuredTool] | None:
+) -> list[BaseTool] | None:
     # Get the appropriate store based on mode
     if not store:
         if sync_mode:
@@ -243,7 +243,7 @@ def get_memory_tools(
     return [stamped_manage_memory, reranked_search_memory]
 
 
-async def get_async_memory_tools(llm: BaseChatModel) -> list[StructuredTool]:
+async def get_async_memory_tools(llm: BaseChatModel) -> list[BaseTool]:
     """Get memory tools configured with async store."""
     async_store = await get_async_memory_store()
     return get_memory_tools(llm, sync_mode=False, store=async_store) or []

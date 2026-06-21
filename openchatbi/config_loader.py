@@ -362,7 +362,7 @@ class ConfigLoader:
 
         import yaml
 
-        bi_config_data = {}
+        bi_config_data: dict[str, Any] = {}
 
         try:
             with open(bi_config_file, encoding="utf-8") as file:

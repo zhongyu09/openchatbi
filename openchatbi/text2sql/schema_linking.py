@@ -164,7 +164,7 @@ def schema_linking(llm: BaseChatModel, catalog: CatalogStore):
             log(traceback.format_exc())
             return {}
 
-    def _call_llm_select(llm: BaseChatModel, system_prompt, messages, question, candidate_tables):
+    def _call_llm_select(llm: BaseChatModel, system_prompt, messages, question, candidate_tables) -> dict[str, Any]:
         """Calls the language model to select appropriate tables for the question.
 
         Retries up to 3 times if the LLM's answer is invalid.
@@ -199,7 +199,7 @@ def schema_linking(llm: BaseChatModel, catalog: CatalogStore):
                 else:
                     messages.append(
                         HumanMessage(
-                            f'The selected table {",".join([table.get("table") for table in result.get("tables")])} is not valid. '
+                            f'The selected table {",".join([table.get("table") for table in result.get("tables") or []])} is not valid. '
                             f"Do not select this table, please try again."
                         )
                     )
@@ -208,7 +208,7 @@ def schema_linking(llm: BaseChatModel, catalog: CatalogStore):
                     retry_flag = False
                 if retry_flag:
                     log(
-                        f"The selected table {','.join([table.get('table') for table in result.get('tables')])} is not in the candidate tables."
+                        f"The selected table {','.join([table.get('table') for table in result.get('tables') or []])} is not in the candidate tables."
                     )
                     log("Retry Table Selection...")
 
@@ -232,7 +232,7 @@ def schema_linking(llm: BaseChatModel, catalog: CatalogStore):
         metrics = info_entities.get("metrics", [])
         start_time = info_entities.get("start_time")
 
-        invalid_table = []
+        invalid_table: list[str] = []
         log("Retrieving related table schema...")
         # 1. Get related tables and columns
         related_table_column_dict = _get_related_tables_and_columns(

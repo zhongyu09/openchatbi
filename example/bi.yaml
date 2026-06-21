@@ -32,6 +32,12 @@ basic_knowledge_glossary: |
   
   **Product Catalog:**
   - Product: Items available for purchase
+  - Product Name (`product_name`): Represents the product category. Values include food, book,
+    clothes, electronics, kitchen, beauty, toy, music, outdoor, garden, sports, office, pet,
+    health, and phone. Some values use `category-code` format (e.g. `beauty-1050`); the prefix
+    before `-` is the category. For category aggregation, normalize with:
+    `CASE WHEN INSTR(product_name, '-') > 0 THEN SUBSTR(product_name, 1, INSTR(product_name, '-') - 1)
+    ELSE product_name END`.
   - Product Details: Specifications, descriptions, or additional product information
   
   **Fulfillment & Shipping:**

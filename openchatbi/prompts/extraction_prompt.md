@@ -42,11 +42,18 @@ Identify measurable quantities that can be aggregated:
 **start_time** and **end_time**: Convert relative time expressions to absolute timestamps if the question is related to date/time like trends, aggregated metric, etc.
 - Format: `'%Y-%m-%d %H:%M:%S'`
 - Handle expressions like "yesterday", "last 7 days", "from X to Y"
-- Default to "last 7 days" if no time range and granularity specified
-- Specific default if user mentioned granularity:
-  - Weekly -> "last 12 weeks"
-  - Monthly -> "last 12 months"
-  - Yearly -> "Full data"
+- **Default time range rules**:
+  - Use `null` for all-time totals, rankings, or aggregates without temporal language
+    (e.g. "total orders", "top 10 customers", "which product has the most orders").
+    These queries should scan the full dataset.
+  - Use "last 7 days" only when the question implies recency
+    (e.g. "recent", "latest", "current", "this week", "today") but gives no explicit range.
+    Do not add this default to plain total/count/top-N questions.
+  - Specific defaults when the user mentions granularity WITHOUT a range:
+    - Daily -> "last 7 days"
+    - Weekly -> "last 12 weeks"
+    - Monthly -> "last 12 months"
+    - Yearly -> full data (`start_time`/`end_time` = `null`)
 
 **Example**:
 ```
@@ -86,7 +93,7 @@ Transform the original question into a clear, comprehensive query specification.
 
 **Enhancement Rules**:
 - Add metric definitions in brackets: "CTR" → "click-through rate (clicks/impressions)"
-- Include default time range if none specified
+- Include time range in the rewrite ONLY when it is explicitly mentioned by the user or derived from temporal language; do NOT add a default time filter for all-time aggregate or ranking questions
 - Include visualization preference if provided by user
 - Preserve user intent while adding necessary context
 - Use conversation history to fill gaps

@@ -29,7 +29,17 @@
     A: SELECT product_id, product_name, product_details 
     FROM Products 
     WHERE product_name LIKE ''%laptop%'' 
-    ORDER BY product_name'
+    ORDER BY product_name
+    
+    Q: Count orders by product category (product_name is the category field)
+    A: SELECT CASE WHEN INSTR(p.product_name, ''-'') > 0
+      THEN SUBSTR(p.product_name, 1, INSTR(p.product_name, ''-'') - 1)
+      ELSE p.product_name END AS category,
+      COUNT(DISTINCT oi.order_id) AS order_count
+      FROM Order_Items oi
+      JOIN Products p ON oi.product_id = p.product_id
+      GROUP BY category
+      ORDER BY order_count DESC'
   Shipment_Items: |
     Q: Show which order items are in shipment 456
     A: SELECT si.shipment_id, si.order_item_id, p.product_name 

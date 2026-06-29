@@ -47,7 +47,8 @@ ANTHROPIC_API_KEY=your_key
 ```
 
 `collect_generated --out` defaults to `generated.json` and `--format json`,
-which writes an id-to-SQL map:
+which writes an id-to-SQL map. The file is refreshed after each processed case,
+so interrupted long runs keep completed SQL:
 
 ```json
 {"<case_id>": "SELECT ..."}
@@ -57,6 +58,13 @@ It can also emit JSONL with `--format jsonl`, one record per line:
 
 ```json
 {"id": "...", "prompt": "...", "generated_sql": "SELECT ..."}
+```
+
+Progress is written beside the generated output as
+`<out>.progress.json`, for example `generated.json.progress.json`:
+
+```json
+{"processed": 3, "total": 10, "complete": false, "out": "generated.json"}
 ```
 
 `run_judge --generated` accepts both formats. It matches generated SQL by case
@@ -69,8 +77,10 @@ compiled agent graph uses `output_schema=OutputState`, so `invoke()` results do
 not directly include SQL. If the agent stops at a human-in-the-loop interrupt,
 the case is recorded with empty generated SQL.
 
-The report at `judge_out/report.json` contains overall pass rate and mean score,
-per-category aggregates, and per-case score, pass/fail status, and reasoning.
+The report at `judge_out/report.json` is refreshed after each processed case,
+so interrupted long runs keep the completed results. It contains progress,
+overall pass rate and mean score, per-category aggregates, and per-case score,
+pass/fail status, and reasoning.
 
 ## Case Schema
 

@@ -1,0 +1,22 @@
+{
+  "c02_aggregation": "SELECT COUNT(order_id) AS order_count\nFROM Orders\nWHERE date_order_placed >= '2024-01-01 00:00:00'\n  AND date_order_placed <= '2024-12-31 23:59:59'",
+  "c03_aggregation": "",
+  "c04_aggregation": "",
+  "c05_aggregation": "",
+  "c06_join": "SELECT DISTINCT name FROM pragma_table_info('Order_Items');",
+  "c07_join": "",
+  "c08_timerange": "",
+  "c09_timerange": "",
+  "c10_anomaly": "",
+  "c11_visualization": "",
+  "c12_text2sql": "",
+  "c13_text2sql": "",
+  "c14_text2sql": "",
+  "c15_text2sql": "",
+  "c16_aggregation": "",
+  "c17_visualization": "",
+  "c18_aggregation": "",
+  "c19_report": "",
+  "c20_report": "",
+  "c21_schema_discovery": ""
+}

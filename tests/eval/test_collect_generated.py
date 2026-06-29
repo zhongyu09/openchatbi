@@ -94,6 +94,28 @@ def test_collect_interrupt_state_yields_empty_sql():
     assert records[0]["generated_sql"] == ""
 
 
+def test_collect_calls_on_update_after_each_record():
+    cases = [
+        {"id": "c01", "input": {"prompt": "q1"}},
+        {"id": "c02", "input": {"prompt": "q2"}},
+    ]
+    snapshots = []
+
+    def runner(case):
+        return {"sql": f"SELECT '{case['id']}'"}
+
+    def on_update(records):
+        snapshots.append(list(records))
+
+    records = cg.collect(cases, runner, on_update=on_update)
+
+    assert records == [
+        {"id": "c01", "prompt": "q1", "generated_sql": "SELECT 'c01'"},
+        {"id": "c02", "prompt": "q2", "generated_sql": "SELECT 'c02'"},
+    ]
+    assert [[record["id"] for record in snapshot] for snapshot in snapshots] == [["c01"], ["c01", "c02"]]
+
+
 # ---------------------------------------------------------------------------
 # _state_from_graph — reads terminal SQL from the checkpointer, NOT invoke()
 # ---------------------------------------------------------------------------
@@ -181,6 +203,18 @@ def test_write_output_jsonl_has_full_records(tmp_path):
         assert line["generated_sql"] == rec["generated_sql"]
 
 
+def test_write_progress_records_completion_state(tmp_path):
+    out = tmp_path / "generated.json"
+    cg.write_progress(str(out), processed=1, total=2)
+    progress = json.loads((tmp_path / "generated.json.progress.json").read_text())
+    assert progress == {
+        "processed": 1,
+        "total": 2,
+        "complete": False,
+        "out": str(out),
+    }
+
+
 # ---------------------------------------------------------------------------
 # load_cases
 # ---------------------------------------------------------------------------
@@ -210,6 +244,37 @@ def test_load_cases_reads_id_and_prompt(tmp_path):
     assert cases[1]["input"]["prompt"] == "second question"
     # gold is NOT required — caseless prompt file still loads.
     assert "gold" not in cases[0]
+
+
+def test_main_writes_generated_and_progress_incrementally(tmp_path, monkeypatch):
+    cases_dir = tmp_path / "cases"
+    cases_dir.mkdir()
+    _write_case(cases_dir, "c01", "How many orders?")
+    _write_case(cases_dir, "c02", "Total revenue?")
+
+    def fake_runner(case):
+        return {"sql": f"SELECT /* {case['id']} */ 1"}
+
+    monkeypatch.setattr(cg, "build_agent_runner", lambda config_path: fake_runner)
+    out = tmp_path / "generated.json"
+
+    rc = cg.main(
+        [
+            "--cases",
+            str(cases_dir),
+            "--config",
+            "fake_config.yaml",
+            "--out",
+            str(out),
+        ]
+    )
+
+    assert rc == 0
+    assert json.loads(out.read_text()) == {
+        "c01": "SELECT /* c01 */ 1",
+        "c02": "SELECT /* c02 */ 1",
+    }
+    assert json.loads((tmp_path / "generated.json.progress.json").read_text())["complete"] is True
 
 
 # ---------------------------------------------------------------------------

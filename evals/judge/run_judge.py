@@ -80,6 +80,62 @@ def _load_generated_map(generated_path: str) -> dict[str, str]:
     return result
 
 
+def _build_report(mode: str, results: list[dict[str, Any]], total_cases: int) -> dict[str, Any]:
+    # Aggregate per category — skipped cases are counted but excluded from
+    # pass_rate and mean_score.
+    by_category: dict[str, dict[str, Any]] = {}
+    for r in results:
+        bucket = by_category.setdefault(
+            r["category"],
+            {"scores": [], "passed": 0, "skipped": 0, "total": 0, "evaluated": 0},
+        )
+        bucket["total"] += 1
+        if r["skipped"]:
+            bucket["skipped"] += 1
+        else:
+            bucket["scores"].append(r["score"])
+            bucket["passed"] += 1 if r["passed"] else 0
+            bucket["evaluated"] += 1
+
+    for _cat, bucket in by_category.items():
+        scores = bucket.pop("scores")
+        evaluated = bucket["evaluated"]
+        bucket["mean_score"] = statistics.mean(scores) if scores else 0.0
+        bucket["pass_rate"] = bucket["passed"] / evaluated if evaluated else 0.0
+
+    evaluated_results = [r for r in results if not r["skipped"]]
+    overall_passed = sum(1 for r in evaluated_results if r["passed"])
+    overall_evaluated = len(evaluated_results)
+    overall_skipped = len(results) - overall_evaluated
+
+    return {
+        "mode": mode,
+        "progress": {
+            "processed": len(results),
+            "total": total_cases,
+            "complete": len(results) == total_cases,
+        },
+        "overall": {
+            "total": len(results),
+            "evaluated": overall_evaluated,
+            "skipped": overall_skipped,
+            "passed": overall_passed,
+            "pass_rate": (overall_passed / overall_evaluated) if overall_evaluated else 0.0,
+            "mean_score": (statistics.mean([r["score"] for r in evaluated_results]) if evaluated_results else 0.0),
+        },
+        "by_category": by_category,
+        "cases": results,
+    }
+
+
+def _write_report(mode: str, results: list[dict[str, Any]], out_path: str, total_cases: int) -> None:
+    os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
+    tmp_path = f"{out_path}.tmp"
+    with open(tmp_path, "w") as fh:
+        json.dump(_build_report(mode, results, total_cases), fh, indent=2)
+    os.replace(tmp_path, out_path)
+
+
 def run(
     cases_dir: str,
     out_path: str,
@@ -115,6 +171,7 @@ def run(
         gold = case["gold"]
         prompt: str = case["input"]["prompt"]
         case_id: str = case.get("id", "")
+        result: dict[str, Any]
 
         if mode == "smoke":
             # Gold-vs-gold smoke check — intentional wiring/baseline test.
@@ -126,32 +183,30 @@ def run(
                 generated_sql=gold["expected_sql"],
                 expected_sql=gold["expected_sql"],
             )
-            results.append(
-                {
-                    "id": case_id,
-                    "category": case.get("category", "uncategorized"),
-                    "score": verdict.score,
-                    "passed": verdict.passed,
-                    "skipped": False,
-                    "reasoning": verdict.reasoning,
-                }
-            )
+            result = {
+                "id": case_id,
+                "category": case.get("category", "uncategorized"),
+                "score": verdict.score,
+                "passed": verdict.passed,
+                "skipped": False,
+                "reasoning": verdict.reasoning,
+            }
         else:
             # Look up by case id first, fall back to prompt.
             generated_sql = generated_map.get(case_id) or generated_map.get(prompt)
 
             if generated_sql is None:
-                results.append(
-                    {
-                        "id": case_id,
-                        "category": case.get("category", "uncategorized"),
-                        "score": None,
-                        "passed": False,
-                        "skipped": True,
-                        "skip_reason": "no_generated_sql",
-                        "reasoning": "skipped: no generated SQL found for this case",
-                    }
-                )
+                result = {
+                    "id": case_id,
+                    "category": case.get("category", "uncategorized"),
+                    "score": None,
+                    "passed": False,
+                    "skipped": True,
+                    "skip_reason": "no_generated_sql",
+                    "reasoning": "skipped: no generated SQL found for this case",
+                }
+                results.append(result)
+                _write_report(mode, results, out_path, total_cases=len(cases))
                 continue
 
             verdict = judge.judge(
@@ -159,60 +214,19 @@ def run(
                 generated_sql=generated_sql,
                 expected_sql=gold["expected_sql"],
             )
-            results.append(
-                {
-                    "id": case_id,
-                    "category": case.get("category", "uncategorized"),
-                    "score": verdict.score,
-                    "passed": verdict.passed,
-                    "skipped": False,
-                    "reasoning": verdict.reasoning,
-                }
-            )
+            result = {
+                "id": case_id,
+                "category": case.get("category", "uncategorized"),
+                "score": verdict.score,
+                "passed": verdict.passed,
+                "skipped": False,
+                "reasoning": verdict.reasoning,
+            }
 
-    # Aggregate per category — skipped cases are counted but excluded from
-    # pass_rate and mean_score.
-    by_category: dict[str, dict[str, Any]] = {}
-    for r in results:
-        bucket = by_category.setdefault(
-            r["category"],
-            {"scores": [], "passed": 0, "skipped": 0, "total": 0, "evaluated": 0},
-        )
-        bucket["total"] += 1
-        if r["skipped"]:
-            bucket["skipped"] += 1
-        else:
-            bucket["scores"].append(r["score"])
-            bucket["passed"] += 1 if r["passed"] else 0
-            bucket["evaluated"] += 1
+        results.append(result)
+        _write_report(mode, results, out_path, total_cases=len(cases))
 
-    for _cat, bucket in by_category.items():
-        scores = bucket.pop("scores")
-        evaluated = bucket["evaluated"]
-        bucket["mean_score"] = statistics.mean(scores) if scores else 0.0
-        bucket["pass_rate"] = bucket["passed"] / evaluated if evaluated else 0.0
-
-    evaluated_results = [r for r in results if not r["skipped"]]
-    overall_passed = sum(1 for r in evaluated_results if r["passed"])
-    overall_evaluated = len(evaluated_results)
-    overall_skipped = len(results) - overall_evaluated
-
-    report = {
-        "mode": mode,
-        "overall": {
-            "total": len(results),
-            "evaluated": overall_evaluated,
-            "skipped": overall_skipped,
-            "passed": overall_passed,
-            "pass_rate": (overall_passed / overall_evaluated) if overall_evaluated else 0.0,
-            "mean_score": (statistics.mean([r["score"] for r in evaluated_results]) if evaluated_results else 0.0),
-        },
-        "by_category": by_category,
-        "cases": results,
-    }
-    os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
-    with open(out_path, "w") as fh:
-        json.dump(report, fh, indent=2)
+    _write_report(mode, results, out_path, total_cases=len(cases))
     return 0
 
 

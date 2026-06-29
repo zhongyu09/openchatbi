@@ -112,6 +112,38 @@ def test_run_judge_aggregates_per_category(tmp_path, monkeypatch):
     assert os.path.exists(out_path)
 
 
+def test_run_judge_writes_incremental_report_before_later_failure(tmp_path, monkeypatch):
+    cases_dir = tmp_path / "cases"
+    cases_dir.mkdir()
+    _write_case(cases_dir, "c01", "aggregation", "SELECT COUNT(*) FROM orders")
+    _write_case(cases_dir, "c02", "join", "SELECT * FROM a JOIN b ON a.id=b.id")
+
+    class _FailOnSecondJudge:
+        def __init__(self):
+            self.calls = 0
+
+        def judge(self, question, generated_sql, expected_sql=None, schema=None):
+            self.calls += 1
+            if self.calls == 2:
+                raise RuntimeError("judge failed")
+            return JudgeVerdict(score=0.9, passed=True, reasoning="stub", dimensions={})
+
+    monkeypatch.setattr(run_judge, "_build_judge", lambda: _FailOnSecondJudge())
+    out_path = tmp_path / "judge_out" / "report.json"
+
+    try:
+        run_judge.run(cases_dir=str(cases_dir), out_path=str(out_path))
+    except RuntimeError as exc:
+        assert str(exc) == "judge failed"
+    else:
+        raise AssertionError("expected judge failure")
+
+    report = json.loads(out_path.read_text())
+    assert report["progress"] == {"processed": 1, "total": 2, "complete": False}
+    assert report["overall"]["total"] == 1
+    assert [case["id"] for case in report["cases"]] == ["c01"]
+
+
 # ---------------------------------------------------------------------------
 # New tests: --generated path and smoke mode
 # ---------------------------------------------------------------------------

@@ -46,12 +46,14 @@ def collect(
     cases: list[dict[str, Any]],
     runner: Callable[[dict[str, Any]], dict[str, Any]],
     sql_key: str = "sql",
+    on_update: Callable[[list[dict[str, Any]]], None] | None = None,
 ) -> list[dict[str, Any]]:
     """Run ``runner`` over each case and collect the generated SQL.
 
     ``runner(case) -> state`` is injected so tests need no LLM and no graph.
     Per-case isolation: ANY exception from ``runner`` records an empty SQL for
-    that case and processing continues.
+    that case and processing continues. ``on_update`` is called after each
+    record, allowing CLI runs to persist partial progress.
     """
     records: list[dict[str, Any]] = []
     for case in cases:
@@ -63,6 +65,8 @@ def collect(
         except Exception:
             generated_sql = ""
         records.append({"id": case_id, "prompt": prompt, "generated_sql": generated_sql})
+        if on_update is not None:
+            on_update(records)
     return records
 
 
@@ -158,12 +162,14 @@ def write_output(records: list[dict[str, Any]], out_path: str, fmt: str) -> None
     - ``jsonl``: one ``{"id","prompt","generated_sql"}`` object per line.
     """
     os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
+    tmp_path = f"{out_path}.tmp"
     if fmt == "json":
         obj = {r["id"]: r["generated_sql"] for r in records}
-        with open(out_path, "w") as fh:
+        with open(tmp_path, "w") as fh:
             json.dump(obj, fh, indent=2)
+        os.replace(tmp_path, out_path)
     elif fmt == "jsonl":
-        with open(out_path, "w") as fh:
+        with open(tmp_path, "w") as fh:
             for r in records:
                 fh.write(
                     json.dumps(
@@ -172,8 +178,27 @@ def write_output(records: list[dict[str, Any]], out_path: str, fmt: str) -> None
                     )
                     + "\n"
                 )
+        os.replace(tmp_path, out_path)
     else:
         raise ValueError(f"unknown format: {fmt!r}")
+
+
+def write_progress(out_path: str, processed: int, total: int) -> None:
+    progress_path = f"{out_path}.progress.json"
+    os.makedirs(os.path.dirname(progress_path) or ".", exist_ok=True)
+    tmp_path = f"{progress_path}.tmp"
+    with open(tmp_path, "w") as fh:
+        json.dump(
+            {
+                "processed": processed,
+                "total": total,
+                "complete": processed == total,
+                "out": out_path,
+            },
+            fh,
+            indent=2,
+        )
+    os.replace(tmp_path, progress_path)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -190,8 +215,17 @@ def main(argv: list[str] | None = None) -> int:
         cases = cases[: args.limit]
 
     runner = build_agent_runner(args.config)
-    records = collect(cases, runner)
-    write_output(records, args.out, args.format)
+    total = len(cases)
+
+    def persist(records: list[dict[str, Any]]) -> None:
+        write_output(records, args.out, args.format)
+        write_progress(args.out, processed=len(records), total=total)
+        print(f"collected {len(records)}/{total} cases -> {args.out}", file=sys.stderr)
+
+    records = collect(cases, runner, on_update=persist)
+    if not records:
+        write_output(records, args.out, args.format)
+        write_progress(args.out, processed=0, total=total)
 
     print(f"collected {len(records)} cases -> {args.out}", file=sys.stderr)
     return 0

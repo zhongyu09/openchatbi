@@ -1,8 +1,8 @@
 id: ex07_subquery
 category: subquery
-description: "Customers who have at least one returned order, via an IN subquery."
+description: "Customers who have at least one on-road order, via an IN subquery."
 input:
-  prompt: "Which customers have placed an order that was returned?"
+  prompt: "Which customers have placed an order that is On Road?"
 gold:
-  expected_sql: "SELECT customer_id, customer_name FROM Customers WHERE customer_id IN (SELECT customer_id FROM Orders WHERE order_status = 'Returned') LIMIT 20"
+  expected_sql: "SELECT customer_id, customer_name FROM Customers WHERE customer_id IN (SELECT customer_id FROM Orders WHERE order_status = 'On Road') LIMIT 20"
   expected_tool_trajectory: ["text2sql"]

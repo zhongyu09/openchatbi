@@ -51,8 +51,9 @@ def test_judge_passes_through_schema_and_expected_sql():
     assert kwargs["question"] == "q"
     assert kwargs["sql"] == "SELECT 1"
     assert kwargs["schema_info"] == {"t": ["c"]}
-    # expected_sql is folded into the data_sample context the inner evaluator sees
-    assert "SELECT 2" in (kwargs["data_sample"] or "")
+    # expected_sql is passed as a reference solution, not an execution sample.
+    assert kwargs["reference_sql"] == "SELECT 2"
+    assert kwargs["data_sample"] is None
 
 
 # ---------------------------------------------------------------------------
@@ -316,6 +317,25 @@ def test_smoke_mode_default(tmp_path, monkeypatch, capsys):
     assert "--generated" in captured.err
 
 
+def test_run_judge_emits_progress_logs(tmp_path, monkeypatch, capsys):
+    cases_dir = tmp_path / "cases"
+    cases_dir.mkdir()
+    _write_case(cases_dir, "c01", "aggregation", "SELECT COUNT(*) FROM orders")
+
+    monkeypatch.setattr(run_judge, "_build_judge", lambda: _make_stub_judge([]))
+    out_path = tmp_path / "report.json"
+
+    rc = run_judge.run(cases_dir=str(cases_dir), out_path=str(out_path), generated_path=None)
+
+    assert rc == 0
+    log = capsys.readouterr().err
+    assert "=== Judge Evaluation Plan ===" in log
+    assert "Mode: smoke" in log
+    assert "JUDGING CASE 1/1: c01" in log
+    assert "judged 1/1 cases (passed, score=0.900)" in log
+    assert "Judge evaluation complete: 1/1 cases" in log
+
+
 def test_pass_rate_over_evaluated_only(tmp_path, monkeypatch):
     """pass_rate denominator excludes skipped cases."""
     cases_dir = tmp_path / "cases"
@@ -394,11 +414,11 @@ def test_no_config_arg_does_not_reload(tmp_path, monkeypatch):
     assert loaded == []
 
 
-def test_integration_real_cases_mocked_evaluator(tmp_path, monkeypatch):
-    """Smoke-mode run against the real evals/judge/cases with a mocked evaluator."""
+def test_integration_real_example_cases_mocked_evaluator(tmp_path, monkeypatch):
+    """Smoke-mode run against the real evals/judge/example_cases with a mocked evaluator."""
     import pathlib
 
-    real_cases = pathlib.Path(__file__).parents[2] / "evals" / "judge" / "cases"
+    real_cases = pathlib.Path(__file__).parents[2] / "evals" / "judge" / "example_cases"
     if not real_cases.exists():
         import pytest
 

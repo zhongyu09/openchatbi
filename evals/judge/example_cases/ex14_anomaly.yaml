@@ -1,0 +1,9 @@
+id: ex14_anomaly
+category: anomaly
+description: "Detect anomalies in daily order counts using SQL plus Python post-processing."
+input:
+  prompt: "Detect anomalies in daily order counts."
+gold:
+  expected_sql: "SELECT date(date_order_placed) AS order_date, COUNT(*) AS order_count FROM Orders GROUP BY date(date_order_placed) ORDER BY order_date"
+  expected_tool_trajectory: ["text2sql", "run_python_code"]
+  expected_result_contains: ["anomaly", "order"]

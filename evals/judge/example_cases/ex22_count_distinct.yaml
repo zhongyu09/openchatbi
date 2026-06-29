@@ -1,0 +1,9 @@
+id: ex22_count_distinct
+category: aggregation
+description: "Count distinct customers with orders in the last 7 days."
+input:
+  prompt: "How many distinct customers placed orders in the last 7 days?"
+gold:
+  expected_sql: "SELECT COUNT(DISTINCT customer_id) AS customer_count FROM Orders WHERE date_order_placed >= date('now', '-7 day')"
+  expected_tool_trajectory: ["text2sql"]
+  expected_result_contains: ["customer", "count"]

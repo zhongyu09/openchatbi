@@ -4,10 +4,12 @@ Hermetic: no real LLM, no network, no graph build. ``runner`` is injected as a
 fake so we exercise the pure functions and IO only.
 """
 
+import io
 import json
 
 from evals.judge import collect_generated as cg
 from evals.judge import run_judge
+from openchatbi.observability.context import current_request_id, current_user_id, get_run_context
 
 # ---------------------------------------------------------------------------
 # extract_sql_from_state
@@ -116,6 +118,30 @@ def test_collect_calls_on_update_after_each_record():
     assert [[record["id"] for record in snapshot] for snapshot in snapshots] == [["c01"], ["c01", "c02"]]
 
 
+def test_collect_calls_on_case_start_before_each_record():
+    cases = [
+        {"id": "c01", "input": {"prompt": "q1"}},
+        {"id": "c02", "input": {"prompt": "q2"}},
+    ]
+    events = []
+
+    def runner(case):
+        events.append(("run", case["id"]))
+        return {"sql": f"SELECT '{case['id']}'"}
+
+    def on_case_start(case, idx, total):
+        events.append(("start", case["id"], idx, total))
+
+    cg.collect(cases, runner, on_case_start=on_case_start)
+
+    assert events == [
+        ("start", "c01", 1, 2),
+        ("run", "c01"),
+        ("start", "c02", 2, 2),
+        ("run", "c02"),
+    ]
+
+
 # ---------------------------------------------------------------------------
 # _state_from_graph — reads terminal SQL from the checkpointer, NOT invoke()
 # ---------------------------------------------------------------------------
@@ -129,9 +155,11 @@ class _FakeGraph:
     def __init__(self, updates):
         self._updates = updates  # list of (namespace, update_dict)
         self.stream_calls = []
+        self.run_contexts = []
 
     def stream(self, payload, config, stream_mode=None, subgraphs=None):
         self.stream_calls.append((payload, config, stream_mode, subgraphs))
+        self.run_contexts.append(get_run_context())
         return iter(self._updates)
 
 
@@ -148,8 +176,26 @@ def test_state_from_graph_reads_sql_from_stream_updates():
     # streamed with the right thread_id + subgraphs=True.
     payload, config, stream_mode, subgraphs = graph.stream_calls[0]
     assert config["configurable"]["thread_id"] == "eval-c1"
+    assert config["configurable"]["user_id"] == "eval-c1"
+    assert config["metadata"]["user_id"] == "eval-c1"
+    assert config["metadata"]["request_id"] == "eval-c1"
     assert payload["messages"][0]["content"] == "q"
     assert subgraphs is True
+    assert graph.run_contexts == [("eval-c1", "eval-c1")]
+
+
+def test_state_from_graph_restores_previous_run_context():
+    user_token = current_user_id.set("outer-user")
+    request_token = current_request_id.set("outer-request")
+    graph = _FakeGraph([(("text2sql:1",), {"generate_sql": {"sql": "SELECT 1"}})])
+
+    try:
+        cg._state_from_graph(graph, {"id": "c1", "input": {"prompt": "q"}})
+
+        assert get_run_context() == ("outer-user", "outer-request")
+    finally:
+        current_request_id.reset(request_token)
+        current_user_id.reset(user_token)
 
 
 def test_state_from_graph_regenerate_wins_over_first_sql():
@@ -215,6 +261,89 @@ def test_write_progress_records_completion_state(tmp_path):
     }
 
 
+def test_load_existing_output_json_reads_id_sql_map(tmp_path):
+    out = tmp_path / "generated.json"
+    out.write_text(json.dumps({"c01": "SELECT 1", "c02": ""}))
+
+    assert cg.load_existing_output(str(out), "json") == {"c01": "SELECT 1", "c02": ""}
+
+
+def test_load_existing_output_jsonl_reads_records_by_id(tmp_path):
+    out = tmp_path / "generated.jsonl"
+    out.write_text(
+        "\n".join(
+            [
+                json.dumps({"id": "c01", "prompt": "q1", "generated_sql": "SELECT 1"}),
+                json.dumps({"id": "c02", "prompt": "q2", "generated_sql": ""}),
+            ]
+        )
+    )
+
+    assert cg.load_existing_output(str(out), "jsonl") == {"c01": "SELECT 1", "c02": ""}
+
+
+def test_records_from_existing_preserves_case_order():
+    cases = [
+        {"id": "c01", "input": {"prompt": "q1"}},
+        {"id": "c02", "input": {"prompt": "q2"}},
+        {"id": "c03", "input": {"prompt": "q3"}},
+    ]
+
+    records = cg.records_from_existing(cases, {"c02": "", "c01": "SELECT 1"})
+
+    assert records == [
+        {"id": "c01", "prompt": "q1", "generated_sql": "SELECT 1"},
+        {"id": "c02", "prompt": "q2", "generated_sql": ""},
+    ]
+
+
+def test_merge_records_by_case_order_keeps_existing_and_new_records():
+    cases = [
+        {"id": "c01", "input": {"prompt": "q1"}},
+        {"id": "c02", "input": {"prompt": "q2"}},
+        {"id": "c03", "input": {"prompt": "q3"}},
+    ]
+    existing = {"c01": "SELECT 1"}
+    new_records = [{"id": "c03", "prompt": "q3", "generated_sql": "SELECT 3"}]
+
+    assert cg.merge_records_by_case_order(cases, existing, new_records) == [
+        {"id": "c01", "prompt": "q1", "generated_sql": "SELECT 1"},
+        {"id": "c03", "prompt": "q3", "generated_sql": "SELECT 3"},
+    ]
+
+
+def test_print_collection_plan_lists_completed_empty_and_pending(tmp_path):
+    cases = [
+        {"id": "c01", "input": {"prompt": "Already done?"}},
+        {"id": "c02", "input": {"prompt": "Executed but no sql?"}},
+        {"id": "c03", "input": {"prompt": "Not yet?"}},
+    ]
+    out = tmp_path / "generated.json"
+    out.write_text(json.dumps({"c01": "SELECT 1", "c02": ""}))
+    stream = io.StringIO()
+
+    cg.print_collection_plan(cases, str(out), "json", stream=stream)
+
+    log = stream.getvalue()
+    assert "Total: 3 | Done: 1 | Done with empty SQL: 1 | Pending: 1" in log
+    assert "[done] c01" in log
+    assert "[done, empty SQL] c02" in log
+    assert "[pending] c03" in log
+    assert "Already done?" in log
+
+
+def test_print_case_start_is_visible_and_user_friendly():
+    stream = io.StringIO()
+    case = {"id": "c01", "input": {"prompt": "List ten customers with their id and name."}}
+
+    cg.print_case_start(case, 1, 3, stream=stream)
+
+    log = stream.getvalue()
+    assert "================================================" in log
+    assert "RUNNING CASE 1/3: c01" in log
+    assert "Prompt: List ten customers with their id and name." in log
+
+
 # ---------------------------------------------------------------------------
 # load_cases
 # ---------------------------------------------------------------------------
@@ -275,6 +404,47 @@ def test_main_writes_generated_and_progress_incrementally(tmp_path, monkeypatch)
         "c02": "SELECT /* c02 */ 1",
     }
     assert json.loads((tmp_path / "generated.json.progress.json").read_text())["complete"] is True
+
+
+def test_main_resumes_from_existing_output(tmp_path, monkeypatch, capsys):
+    cases_dir = tmp_path / "cases"
+    cases_dir.mkdir()
+    _write_case(cases_dir, "c01", "First?")
+    _write_case(cases_dir, "c02", "Second?")
+    _write_case(cases_dir, "c03", "Third?")
+
+    called = []
+
+    def fake_runner(case):
+        called.append(case["id"])
+        return {"sql": f"SELECT /* {case['id']} */ 1"}
+
+    monkeypatch.setattr(cg, "build_agent_runner", lambda config_path: fake_runner)
+    out = tmp_path / "generated.json"
+    out.write_text(json.dumps({"c01": "SELECT 1", "c02": ""}))
+
+    rc = cg.main(
+        [
+            "--cases",
+            str(cases_dir),
+            "--config",
+            "fake_config.yaml",
+            "--out",
+            str(out),
+        ]
+    )
+
+    assert rc == 0
+    assert called == ["c03"]
+    assert json.loads(out.read_text()) == {
+        "c01": "SELECT 1",
+        "c02": "",
+        "c03": "SELECT /* c03 */ 1",
+    }
+    progress = json.loads((tmp_path / "generated.json.progress.json").read_text())
+    assert progress["processed"] == 3
+    assert progress["complete"] is True
+    assert "RUNNING CASE 3/3: c03" in capsys.readouterr().err
 
 
 # ---------------------------------------------------------------------------

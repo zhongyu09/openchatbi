@@ -34,7 +34,7 @@ runledger baseline promote \
 - `id`, `description`, `input.prompt`, `cassette` — consumed by RunLedger.
 - RunLedger `0.1.1` rejects unknown fields, so these files intentionally do
   not contain judge-only metadata such as `category` or `gold`.
-- Judge cases live separately under `evals/judge/cases/`.
+- Judge cases live separately under `evals/judge/example_cases/`.
 
 ### Cassette JSONL (`cassettes/*.jsonl`)
 One line per tool call, in trajectory order. Shape:
@@ -52,7 +52,7 @@ count of `ToolMessage`s already in history. Adding a RunLedger case therefore re
 1. Add a `_TRAJECTORIES["your prompt"]` entry in `evals/runledger/agent/agent.py`.
 2. Create `evals/runledger/cases/<id>.yaml` with only RunLedger-supported fields.
 3. Create `evals/runledger/cassettes/<id>.jsonl` with one JSONL line per tool call in trajectory order. The `args` fields must match what `_TOOL_ARGS_BUILDERS` emit for that prompt.
-4. If the case should also be judged by LLM-as-Judge, add a separate `evals/judge/cases/<id>.yaml`.
+4. If the case should also be judged by LLM-as-Judge, add a separate `evals/judge/example_cases/<id>.yaml`.
 5. Run `uv run pytest tests/eval/test_runledger_agent.py -v` to verify the new case passes the consistency checks.
 
 ### Running unit tests (no runledger required)

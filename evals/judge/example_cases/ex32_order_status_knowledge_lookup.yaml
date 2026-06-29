@@ -1,0 +1,9 @@
+id: ex32_order_status_knowledge_lookup
+category: text2sql
+description: "Knowledge lookup for order status business meaning."
+input:
+  prompt: "What does order_status mean in this example schema?"
+gold:
+  expected_sql: ""
+  expected_tool_trajectory: ["search_knowledge"]
+  expected_result_contains: ["Order Status", "Shipped"]

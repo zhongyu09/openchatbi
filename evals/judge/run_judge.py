@@ -136,6 +136,61 @@ def _write_report(mode: str, results: list[dict[str, Any]], out_path: str, total
     os.replace(tmp_path, out_path)
 
 
+def _short_prompt(prompt: str, max_chars: int = 88) -> str:
+    one_line = " ".join(prompt.split())
+    if len(one_line) <= max_chars:
+        return one_line
+    return f"{one_line[: max_chars - 3]}..."
+
+
+def print_judge_plan(
+    cases: list[dict[str, Any]],
+    out_path: str,
+    mode: str,
+    generated_path: str | None,
+    stream: Any = sys.stderr,
+) -> None:
+    """Print a startup summary before judge evaluation begins."""
+    print("=== Judge Evaluation Plan ===", file=stream)
+    print(f"Mode: {mode}", file=stream)
+    if generated_path:
+        print(f"Generated SQL: {generated_path}", file=stream)
+    else:
+        print("Generated SQL: not supplied; using gold SQL for smoke checks.", file=stream)
+    print(f"Output: {out_path}", file=stream)
+    print(f"Total cases: {len(cases)}", file=stream)
+    print("=============================", file=stream)
+
+
+def print_case_start(case: dict[str, Any], idx: int, total: int, stream: Any = sys.stderr) -> None:
+    """Print a visible progress message before judging one case."""
+    case_id = str(case.get("id", ""))
+    prompt = _short_prompt(str((case.get("input") or {}).get("prompt", "")))
+    bar = "=" * 64
+    print("", file=stream)
+    print(bar, file=stream)
+    print(f"JUDGING CASE {idx}/{total}: {case_id}", file=stream)
+    if prompt:
+        print(f"Prompt: {prompt}", file=stream)
+    print(bar, file=stream)
+
+
+def print_case_progress(
+    result: dict[str, Any],
+    processed: int,
+    total: int,
+    out_path: str,
+    stream: Any = sys.stderr,
+) -> None:
+    """Print progress after the incremental report has been persisted."""
+    if result["skipped"]:
+        status = f"skipped: {result.get('skip_reason', 'unknown')}"
+    else:
+        verdict = "passed" if result["passed"] else "failed"
+        status = f"{verdict}, score={result['score']:.3f}"
+    print(f"judged {processed}/{total} cases ({status}) -> {out_path}", file=stream)
+
+
 def run(
     cases_dir: str,
     out_path: str,
@@ -166,12 +221,17 @@ def run(
         mode = "generated"
         generated_map = _load_generated_map(generated_path)
 
+    print_judge_plan(cases, out_path, mode, generated_path, stream=sys.stderr)
+
     results: list[dict[str, Any]] = []
-    for case in cases:
+    total_cases = len(cases)
+    for idx, case in enumerate(cases, start=1):
         gold = case["gold"]
         prompt: str = case["input"]["prompt"]
         case_id: str = case.get("id", "")
         result: dict[str, Any]
+
+        print_case_start(case, idx, total_cases, stream=sys.stderr)
 
         if mode == "smoke":
             # Gold-vs-gold smoke check — intentional wiring/baseline test.
@@ -206,7 +266,8 @@ def run(
                     "reasoning": "skipped: no generated SQL found for this case",
                 }
                 results.append(result)
-                _write_report(mode, results, out_path, total_cases=len(cases))
+                _write_report(mode, results, out_path, total_cases=total_cases)
+                print_case_progress(result, len(results), total_cases, out_path, stream=sys.stderr)
                 continue
 
             verdict = judge.judge(
@@ -224,15 +285,17 @@ def run(
             }
 
         results.append(result)
-        _write_report(mode, results, out_path, total_cases=len(cases))
+        _write_report(mode, results, out_path, total_cases=total_cases)
+        print_case_progress(result, len(results), total_cases, out_path, stream=sys.stderr)
 
-    _write_report(mode, results, out_path, total_cases=len(cases))
+    _write_report(mode, results, out_path, total_cases=total_cases)
+    print(f"Judge evaluation complete: {len(results)}/{total_cases} cases -> {out_path}", file=sys.stderr)
     return 0
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="evals.judge.run_judge")
-    parser.add_argument("--cases", default="evals/judge/cases")
+    parser.add_argument("--cases", default="evals/judge/example_cases")
     parser.add_argument("--out", default="judge_out/report.json")
     parser.add_argument(
         "--generated",

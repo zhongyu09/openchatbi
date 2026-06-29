@@ -1,0 +1,9 @@
+id: ex31_show_orders_schema
+category: text2sql
+description: "Schema inspection for the Orders table."
+input:
+  prompt: "Explain the Orders table schema."
+gold:
+  expected_sql: ""
+  expected_tool_trajectory: ["show_schema"]
+  expected_result_contains: ["Orders", "date_order_placed"]

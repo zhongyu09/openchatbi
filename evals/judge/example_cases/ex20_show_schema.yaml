@@ -1,0 +1,9 @@
+id: ex20_show_schema
+category: text2sql
+description: "Schema inspection for the Shipments table."
+input:
+  prompt: "Explain the Shipments table schema."
+gold:
+  expected_sql: ""
+  expected_tool_trajectory: ["show_schema"]
+  expected_result_contains: ["Shipments", "shipment"]

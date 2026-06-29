@@ -72,7 +72,7 @@ def test_trajectories_prompt_keys_are_unique():
 
 
 _CASES_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "evals", "runledger", "cases")
-_JUDGE_CASES_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "evals", "judge", "cases")
+_JUDGE_CASES_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "evals", "judge", "example_cases")
 
 
 def test_corpus_has_at_least_20_cases():

@@ -1,0 +1,9 @@
+id: ex27_shipments_between_dates
+category: timerange
+description: "Shipment count over an explicit date range."
+input:
+  prompt: "How many shipments were sent between 2024-01-01 and 2024-03-31?"
+gold:
+  expected_sql: "SELECT COUNT(*) AS shipment_count FROM Shipments WHERE shipment_date >= '2024-01-01' AND shipment_date <= '2024-03-31'"
+  expected_tool_trajectory: ["text2sql"]
+  expected_result_contains: ["shipment", "count"]

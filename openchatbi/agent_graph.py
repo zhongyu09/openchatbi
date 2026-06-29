@@ -158,7 +158,7 @@ def get_sql_tools(sql_graph: CompiledStateGraph[Any, None, Any, Any], sync_mode:
     def call_sql_graph_sync(
         reasoning: str,
         context: str | dict[str, Any] | list[dict[str, Any]] | list[str],
-        config: RunnableConfig | None = None,
+        config: RunnableConfig,
     ) -> str:
         """Sync node function for Text2SQL tool"""
         normalized_context = _normalize_text2sql_context(context)
@@ -177,7 +177,7 @@ def get_sql_tools(sql_graph: CompiledStateGraph[Any, None, Any, Any], sync_mode:
     async def call_sql_graph_async(
         reasoning: str,
         context: str | dict[str, Any] | list[dict[str, Any]] | list[str],
-        config: RunnableConfig | None = None,
+        config: RunnableConfig,
     ) -> str:
         """Async node function for Text2SQL tool"""
         normalized_context = _normalize_text2sql_context(context)

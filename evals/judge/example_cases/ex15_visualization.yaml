@@ -1,0 +1,9 @@
+id: ex15_visualization
+category: visualization
+description: "Shipment trend chart via SQL then Python plotting."
+input:
+  prompt: "Plot the monthly shipment trend."
+gold:
+  expected_sql: "SELECT strftime('%Y-%m', shipment_date) AS month, COUNT(*) AS shipment_count FROM Shipments GROUP BY month ORDER BY month"
+  expected_tool_trajectory: ["text2sql", "run_python_code"]
+  expected_result_contains: ["shipment", "trend"]

@@ -1,0 +1,9 @@
+id: ex18_report_with_knowledge
+category: report
+description: "Knowledge-assisted fulfillment report grouped by order status."
+input:
+  prompt: "Generate a fulfillment report with shipment counts by order status and save it."
+gold:
+  expected_sql: "SELECT o.order_status, COUNT(DISTINCT s.shipment_id) AS shipment_count FROM Orders o JOIN Shipments s ON o.order_id = s.order_id GROUP BY o.order_status ORDER BY shipment_count DESC"
+  expected_tool_trajectory: ["search_knowledge", "text2sql", "save_report"]
+  expected_result_contains: ["report", "shipment"]

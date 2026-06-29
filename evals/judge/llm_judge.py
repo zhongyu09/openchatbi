@@ -31,16 +31,13 @@ class LLMAsJudgeEvaluator:
         schema: dict | None = None,
         table_schema: str = "",
     ) -> JudgeVerdict:
-        # Fold the gold SQL into the data_sample context so the rubric can compare.
-        data_sample = None
-        if expected_sql:
-            data_sample = f"Reference (gold) SQL for comparison:\n{expected_sql}"
         result = self._evaluator.evaluate(
             question=question,
             sql=generated_sql,
             schema_info=schema or {},
-            data_sample=data_sample,
+            data_sample=None,
             table_schema=table_schema,
+            reference_sql=expected_sql,
         )
         return JudgeVerdict(
             score=result.score,

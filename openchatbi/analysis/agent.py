@@ -206,7 +206,7 @@ def get_data_analysis_tool(
         memory_store=memory_store,
     )
 
-    def call_data_analysis_sync(reasoning: str, task: str, config: RunnableConfig | None = None) -> str:
+    def call_data_analysis_sync(reasoning: str, task: str, config: RunnableConfig) -> str:
         """Sync function for data analysis tool."""
         logger.info(f"Delegating to data analysis agent (sync). Reasoning: {reasoning}, Task: {task}")
         import traceback
@@ -226,7 +226,7 @@ def get_data_analysis_tool(
             traceback.print_exc()
             return f"Error occurred during data analysis: {str(e)}"
 
-    async def call_data_analysis_async(reasoning: str, task: str, config: RunnableConfig | None = None) -> str:
+    async def call_data_analysis_async(reasoning: str, task: str, config: RunnableConfig) -> str:
         """Async function for data analysis tool."""
         logger.info(f"Delegating to data analysis agent (async). Reasoning: {reasoning}, Task: {task}")
         import traceback

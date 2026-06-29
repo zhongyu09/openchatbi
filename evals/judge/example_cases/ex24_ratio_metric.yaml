@@ -1,0 +1,9 @@
+id: ex24_ratio_metric
+category: aggregation
+description: "Compute a ratio metric from conditional aggregation."
+input:
+  prompt: "What share of all orders are Shipped?"
+gold:
+  expected_sql: "SELECT SUM(CASE WHEN order_status = 'Shipped' THEN 1 ELSE 0 END) * 1.0 / COUNT(*) AS shipped_order_share FROM Orders"
+  expected_tool_trajectory: ["text2sql"]
+  expected_result_contains: ["share", "Shipped"]

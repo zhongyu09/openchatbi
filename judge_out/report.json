@@ -1,0 +1,308 @@
+{
+  "mode": "generated",
+  "progress": {
+    "processed": 21,
+    "total": 21,
+    "complete": true
+  },
+  "overall": {
+    "total": 21,
+    "evaluated": 13,
+    "skipped": 8,
+    "passed": 12,
+    "pass_rate": 0.9230769230769231,
+    "mean_score": 0.8961538461538462
+  },
+  "by_category": {
+    "simple_select": {
+      "passed": 1,
+      "skipped": 0,
+      "total": 1,
+      "evaluated": 1,
+      "mean_score": 1.0,
+      "pass_rate": 1.0
+    },
+    "filter": {
+      "passed": 1,
+      "skipped": 0,
+      "total": 1,
+      "evaluated": 1,
+      "mean_score": 1.0,
+      "pass_rate": 1.0
+    },
+    "aggregation": {
+      "passed": 1,
+      "skipped": 3,
+      "total": 4,
+      "evaluated": 1,
+      "mean_score": 1.0,
+      "pass_rate": 1.0
+    },
+    "group_by": {
+      "passed": 1,
+      "skipped": 0,
+      "total": 1,
+      "evaluated": 1,
+      "mean_score": 1.0,
+      "pass_rate": 1.0
+    },
+    "join": {
+      "passed": 2,
+      "skipped": 0,
+      "total": 2,
+      "evaluated": 2,
+      "mean_score": 1.0,
+      "pass_rate": 1.0
+    },
+    "multi_join": {
+      "passed": 1,
+      "skipped": 0,
+      "total": 1,
+      "evaluated": 1,
+      "mean_score": 0.83,
+      "pass_rate": 1.0
+    },
+    "subquery": {
+      "passed": 1,
+      "skipped": 0,
+      "total": 1,
+      "evaluated": 1,
+      "mean_score": 0.83,
+      "pass_rate": 1.0
+    },
+    "order_limit": {
+      "passed": 1,
+      "skipped": 0,
+      "total": 1,
+      "evaluated": 1,
+      "mean_score": 0.83,
+      "pass_rate": 1.0
+    },
+    "distinct": {
+      "passed": 1,
+      "skipped": 0,
+      "total": 1,
+      "evaluated": 1,
+      "mean_score": 1.0,
+      "pass_rate": 1.0
+    },
+    "having": {
+      "passed": 1,
+      "skipped": 0,
+      "total": 1,
+      "evaluated": 1,
+      "mean_score": 1.0,
+      "pass_rate": 1.0
+    },
+    "timerange": {
+      "passed": 1,
+      "skipped": 0,
+      "total": 2,
+      "evaluated": 2,
+      "mean_score": 0.58,
+      "pass_rate": 0.5
+    },
+    "anomaly": {
+      "passed": 0,
+      "skipped": 1,
+      "total": 1,
+      "evaluated": 0,
+      "mean_score": 0.0,
+      "pass_rate": 0.0
+    },
+    "visualization": {
+      "passed": 0,
+      "skipped": 2,
+      "total": 2,
+      "evaluated": 0,
+      "mean_score": 0.0,
+      "pass_rate": 0.0
+    },
+    "report": {
+      "passed": 0,
+      "skipped": 2,
+      "total": 2,
+      "evaluated": 0,
+      "mean_score": 0.0,
+      "pass_rate": 0.0
+    }
+  },
+  "cases": [
+    {
+      "id": "ex01_simple_select",
+      "category": "simple_select",
+      "score": 1.0,
+      "passed": true,
+      "skipped": false,
+      "reasoning": ""
+    },
+    {
+      "id": "ex02_filter",
+      "category": "filter",
+      "score": 1.0,
+      "passed": true,
+      "skipped": false,
+      "reasoning": ""
+    },
+    {
+      "id": "ex03_aggregation",
+      "category": "aggregation",
+      "score": 1.0,
+      "passed": true,
+      "skipped": false,
+      "reasoning": ""
+    },
+    {
+      "id": "ex04_group_by",
+      "category": "group_by",
+      "score": 1.0,
+      "passed": true,
+      "skipped": false,
+      "reasoning": ""
+    },
+    {
+      "id": "ex05_join",
+      "category": "join",
+      "score": 1.0,
+      "passed": true,
+      "skipped": false,
+      "reasoning": ""
+    },
+    {
+      "id": "ex06_multi_join",
+      "category": "multi_join",
+      "score": 0.83,
+      "passed": true,
+      "skipped": false,
+      "reasoning": "SELECT columns omit shipment_id, which is required by the question and present in the reference SQL.; All other aspects are correct."
+    },
+    {
+      "id": "ex07_subquery",
+      "category": "subquery",
+      "score": 0.83,
+      "passed": true,
+      "skipped": false,
+      "reasoning": "SELECT only returns customer_name, but question and reference SQL expect both customer_id and customer_name.; WHERE clause is correct.; No aggregation or calculation needed; correct.; Subquery logic is replaced by JOIN, which is valid and equivalent.; JOIN is on correct key: customer_id.; No result-set schema or sample to check execution result."
+    },
+    {
+      "id": "ex08_order_limit",
+      "category": "order_limit",
+      "score": 0.83,
+      "passed": true,
+      "skipped": false,
+      "reasoning": "SELECT columns include customer_name and order count, which matches the question.; customer_id is not included in SELECT or GROUP BY, but the question only asks for name and count.; WHERE clause is not needed for this question.; Aggregation (COUNT) is correct.; JOIN is correct on customer_id.; Result is plausible."
+    },
+    {
+      "id": "ex09_distinct",
+      "category": "distinct",
+      "score": 1.0,
+      "passed": true,
+      "skipped": false,
+      "reasoning": ""
+    },
+    {
+      "id": "ex10_having",
+      "category": "having",
+      "score": 1.0,
+      "passed": true,
+      "skipped": false,
+      "reasoning": ""
+    },
+    {
+      "id": "ex11_timerange",
+      "category": "timerange",
+      "score": 0.83,
+      "passed": true,
+      "skipped": false,
+      "reasoning": "WHERE clause uses <= '2024-03-31' instead of < '2024-04-01', which may include extra rows if date_order_placed has a time component.; SELECT columns, aggregation, subquery logic, and joins are otherwise correct."
+    },
+    {
+      "id": "ex12_timerange_month_compare",
+      "category": "timerange",
+      "score": 0.33,
+      "passed": false,
+      "skipped": false,
+      "reasoning": "SELECT only returns this month's order volume, not a comparison to last month.; WHERE clause only filters for May 2026, not both months.; No aggregation or grouping by month for comparison.; No subquery or logic to compare two months."
+    },
+    {
+      "id": "ex13_anti_join",
+      "category": "join",
+      "score": 1.0,
+      "passed": true,
+      "skipped": false,
+      "reasoning": ""
+    },
+    {
+      "id": "ex14_anomaly",
+      "category": "anomaly",
+      "score": null,
+      "passed": false,
+      "skipped": true,
+      "skip_reason": "no_generated_sql",
+      "reasoning": "skipped: no generated SQL found for this case"
+    },
+    {
+      "id": "ex15_visualization",
+      "category": "visualization",
+      "score": null,
+      "passed": false,
+      "skipped": true,
+      "skip_reason": "no_generated_sql",
+      "reasoning": "skipped: no generated SQL found for this case"
+    },
+    {
+      "id": "ex16_visualization_forecast",
+      "category": "visualization",
+      "score": null,
+      "passed": false,
+      "skipped": true,
+      "skip_reason": "no_generated_sql",
+      "reasoning": "skipped: no generated SQL found for this case"
+    },
+    {
+      "id": "ex17_report",
+      "category": "report",
+      "score": null,
+      "passed": false,
+      "skipped": true,
+      "skip_reason": "no_generated_sql",
+      "reasoning": "skipped: no generated SQL found for this case"
+    },
+    {
+      "id": "ex18_report_with_knowledge",
+      "category": "report",
+      "score": null,
+      "passed": false,
+      "skipped": true,
+      "skip_reason": "no_generated_sql",
+      "reasoning": "skipped: no generated SQL found for this case"
+    },
+    {
+      "id": "ex22_count_distinct",
+      "category": "aggregation",
+      "score": null,
+      "passed": false,
+      "skipped": true,
+      "skip_reason": "no_generated_sql",
+      "reasoning": "skipped: no generated SQL found for this case"
+    },
+    {
+      "id": "ex23_category_normalization",
+      "category": "aggregation",
+      "score": null,
+      "passed": false,
+      "skipped": true,
+      "skip_reason": "no_generated_sql",
+      "reasoning": "skipped: no generated SQL found for this case"
+    },
+    {
+      "id": "ex24_ratio_metric",
+      "category": "aggregation",
+      "score": null,
+      "passed": false,
+      "skipped": true,
+      "skip_reason": "no_generated_sql",
+      "reasoning": "skipped: no generated SQL found for this case"
+    }
+  ]
+}

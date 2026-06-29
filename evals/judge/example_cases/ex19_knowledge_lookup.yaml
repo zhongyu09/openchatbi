@@ -1,0 +1,9 @@
+id: ex19_knowledge_lookup
+category: text2sql
+description: "Knowledge lookup for the product category business meaning."
+input:
+  prompt: "What does product_name represent in this example schema?"
+gold:
+  expected_sql: ""
+  expected_tool_trajectory: ["search_knowledge"]
+  expected_result_contains: ["product", "category"]

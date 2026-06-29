@@ -67,6 +67,7 @@ class SimpleSQLEvaluator:
         schema_info: dict,
         data_sample: str | None,
         table_schema: str = "",
+        reference_sql: str | None = None,
     ) -> ConfidenceResult:
         """Score the SQL against the 6-step rubric.
 
@@ -79,10 +80,13 @@ class SimpleSQLEvaluator:
             table_schema: Source-table schema the SQL was written against —
                 the reference for the structural checks 1-5 (select_columns,
                 where, calc, subquery, joins).
+            reference_sql: Optional known-good SQL for comparison. It is one
+                valid solution, not a required syntactic template.
         """
         prompt = (
             _get_rubric_prompt_template()
             .replace("[table_schema]", table_schema or "(not provided)")
+            .replace("[reference_sql]", reference_sql or "(not provided)")
             .replace("[result_schema]", json.dumps(schema_info, default=str))
             .replace("[data_sample]", data_sample or "")
             .replace("[sql]", sql)

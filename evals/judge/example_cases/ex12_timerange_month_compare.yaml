@@ -1,0 +1,9 @@
+id: ex12_timerange_month_compare
+category: timerange
+description: "Compare order volume for this month and last month."
+input:
+  prompt: "Compare this month's order volume to last month."
+gold:
+  expected_sql: "SELECT strftime('%Y-%m', date_order_placed) AS month, COUNT(*) AS order_count FROM Orders WHERE date_order_placed >= date('now', 'start of month', '-1 month') GROUP BY month ORDER BY month"
+  expected_tool_trajectory: ["text2sql"]
+  expected_result_contains: ["month", "order"]

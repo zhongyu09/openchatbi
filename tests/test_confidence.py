@@ -103,14 +103,19 @@ def test_evaluate_prompts_with_source_schema_separated_from_result_schema():
         schema_info={"columns": ["cnt"]},
         data_sample="cnt\n42",
         table_schema="## Table Orders\norder_id, customer_id, order_status",
+        reference_sql="SELECT COUNT(*) FROM Orders",
     )
     assert result.score == 0.9
     prompt = mock_llm.invoke.call_args[0][0][1].content  # HumanMessage body
     assert "## Table Orders" in prompt
+    assert "SELECT COUNT(*) FROM Orders" in prompt
+    assert "not a required syntactic template" in prompt
+    assert "JOIN vs IN subquery vs EXISTS" in prompt
     assert '"columns": ["cnt"]' in prompt
     # Source schema section comes first and is labeled for checks 1-5;
     # result-set schema is explicitly scoped to check 6.
     assert prompt.index("Database schema") < prompt.index("Result-set schema")
+    assert prompt.index("Reference SQL") < prompt.index("Result-set schema")
     assert "ONLY for check 6" in prompt
 
 

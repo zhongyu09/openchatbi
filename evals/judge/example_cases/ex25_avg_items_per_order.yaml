@@ -1,0 +1,9 @@
+id: ex25_avg_items_per_order
+category: aggregation
+description: "Average item count per order by customer."
+input:
+  prompt: "What is the average number of items per order for each customer?"
+gold:
+  expected_sql: "SELECT o.customer_id, c.customer_name, AVG(order_item_counts.item_count) AS avg_items_per_order FROM Orders o JOIN Customers c ON o.customer_id = c.customer_id JOIN (SELECT order_id, COUNT(*) AS item_count FROM Order_Items GROUP BY order_id) order_item_counts ON o.order_id = order_item_counts.order_id GROUP BY o.customer_id, c.customer_name ORDER BY avg_items_per_order DESC LIMIT 20"
+  expected_tool_trajectory: ["text2sql"]
+  expected_result_contains: ["average", "customer"]

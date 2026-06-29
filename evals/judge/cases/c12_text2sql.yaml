@@ -1,9 +1,0 @@
-id: c12_text2sql
-category: text2sql
-description: "knowledge lookup for columns describing customer churn"
-input:
-  prompt: "What columns describe customer churn?"
-gold:
-  expected_sql: ""
-  expected_tool_trajectory: ["search_knowledge"]
-  expected_result_contains: ["churn"]

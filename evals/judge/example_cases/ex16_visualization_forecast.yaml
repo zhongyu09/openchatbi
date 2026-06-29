@@ -1,0 +1,9 @@
+id: ex16_visualization_forecast
+category: visualization
+description: "Forecast order volume from historical monthly counts."
+input:
+  prompt: "Forecast next quarter order volume from historical monthly orders."
+gold:
+  expected_sql: "SELECT strftime('%Y-%m', date_order_placed) AS month, COUNT(*) AS order_count FROM Orders GROUP BY month ORDER BY month"
+  expected_tool_trajectory: ["text2sql", "run_python_code"]
+  expected_result_contains: ["forecast", "order"]

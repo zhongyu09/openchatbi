@@ -1,8 +1,8 @@
 id: ex05_join
 category: join
-description: "Join Orders to Customers to show customer name per delivered order."
+description: "Join Orders to Customers to show customer name per shipped order."
 input:
-  prompt: "For delivered orders, show the order id, status and the customer name."
+  prompt: "For shipped orders, show the order id, status and the customer name."
 gold:
-  expected_sql: "SELECT o.order_id, o.order_status, c.customer_name FROM Orders o JOIN Customers c ON o.customer_id = c.customer_id WHERE o.order_status = 'Delivered' LIMIT 20"
+  expected_sql: "SELECT o.order_id, o.order_status, c.customer_name FROM Orders o JOIN Customers c ON o.customer_id = c.customer_id WHERE o.order_status = 'Shipped' LIMIT 20"
   expected_tool_trajectory: ["text2sql"]

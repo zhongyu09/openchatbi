@@ -1,0 +1,9 @@
+id: ex28_order_trend_2024
+category: visualization
+description: "Monthly order trend chart for 2024."
+input:
+  prompt: "Plot the monthly order trend for 2024."
+gold:
+  expected_sql: "SELECT strftime('%Y-%m', date_order_placed) AS month, COUNT(*) AS order_count FROM Orders WHERE date_order_placed >= '2024-01-01' AND date_order_placed < '2025-01-01' GROUP BY month ORDER BY month"
+  expected_tool_trajectory: ["text2sql", "run_python_code"]
+  expected_result_contains: ["order", "trend"]

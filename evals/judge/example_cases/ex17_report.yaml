@@ -1,0 +1,9 @@
+id: ex17_report
+category: report
+description: "Generate and save a Q1 order status report."
+input:
+  prompt: "Generate a Q1 2024 order status report and save it."
+gold:
+  expected_sql: "SELECT order_status, COUNT(*) AS order_count FROM Orders WHERE date_order_placed >= '2024-01-01' AND date_order_placed < '2024-04-01' GROUP BY order_status ORDER BY order_count DESC"
+  expected_tool_trajectory: ["text2sql", "save_report"]
+  expected_result_contains: ["report", "order"]

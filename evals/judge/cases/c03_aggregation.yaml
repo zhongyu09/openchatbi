@@ -1,9 +1,0 @@
-id: c03_aggregation
-category: aggregation
-description: "sum aggregation grouped by region dimension"
-input:
-  prompt: "What is the total revenue by region?"
-gold:
-  expected_sql: "SELECT region, SUM(revenue) AS total_revenue FROM orders GROUP BY region"
-  expected_tool_trajectory: ["text2sql"]
-  expected_result_contains: ["revenue", "region"]

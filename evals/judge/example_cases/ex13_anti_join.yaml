@@ -1,0 +1,9 @@
+id: ex13_anti_join
+category: join
+description: "Anti-join to find products ordered but not linked to shipments."
+input:
+  prompt: "Which products appear in orders but have no shipment item?"
+gold:
+  expected_sql: "SELECT DISTINCT p.product_id, p.product_name FROM Products p JOIN Order_Items oi ON p.product_id = oi.product_id LEFT JOIN Shipment_Items si ON oi.order_item_id = si.order_item_id WHERE si.order_item_id IS NULL ORDER BY p.product_id"
+  expected_tool_trajectory: ["text2sql"]
+  expected_result_contains: ["product", "shipment"]

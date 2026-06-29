@@ -1,9 +1,0 @@
-id: c15_text2sql
-category: text2sql
-description: "schema inspection for the customers table"
-input:
-  prompt: "List the schema of the customers table"
-gold:
-  expected_sql: ""
-  expected_tool_trajectory: ["show_schema"]
-  expected_result_contains: ["customers"]

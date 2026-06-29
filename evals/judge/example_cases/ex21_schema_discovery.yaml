@@ -1,0 +1,9 @@
+id: ex21_schema_discovery
+category: text2sql
+description: "Schema discovery for shipment tracking fields."
+input:
+  prompt: "Find tables related to shipment tracking numbers and shipment dates."
+gold:
+  expected_sql: ""
+  expected_tool_trajectory: ["search_schema"]
+  expected_result_contains: ["Shipments", "shipment_tracking_number"]

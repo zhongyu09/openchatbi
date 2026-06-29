@@ -1,0 +1,9 @@
+id: ex30_daily_order_volume_report
+category: report
+description: "Summarize daily order volume and save it as a report."
+input:
+  prompt: "Summarize daily order volume and save it as a report."
+gold:
+  expected_sql: "SELECT date(date_order_placed) AS day, COUNT(*) AS order_count FROM Orders GROUP BY date(date_order_placed) ORDER BY day"
+  expected_tool_trajectory: ["text2sql", "save_report"]
+  expected_result_contains: ["report", "order"]

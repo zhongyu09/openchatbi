@@ -12,6 +12,17 @@ RunLedger replay cases are intentionally separate under `evals/runledger/cases/`
 Those files use the strict RunLedger schema and do not contain Judge-only
 metadata such as `category` or `gold`.
 
+## Prerequisites
+
+From the repo root, with dependencies installed (`pip install -e ".[eval]"` or
+equivalent):
+
+- `example/config.yaml` — default config for the example corpus.
+- `example/tracking_orders.sqlite` — database the gold SQL is written against.
+- An LLM API key matching `default_llm` in your config. Set it in the config
+  under `default_llm.params.api_key`, or in a project-level `.env` file loaded
+  by the scripts (for example `ANTHROPIC_API_KEY` or `OPENAI_API_KEY`).
+
 ## Workflow
 
 The full evaluation has two steps: collect generated SQL from the real agent,
@@ -37,14 +48,7 @@ runtime configuration. If `run_judge` is called without `--config`, it falls
 back to `$CONFIG_FILE` or the default project config; passing `--config`
 explicitly is safer.
 
-Both steps require real LLM credentials. You can set credentials in the config
-under `default_llm.params.api_key`, or place them in a project-level `.env` file
-loaded by the scripts.
-
-```bash
-# .env, do not commit
-ANTHROPIC_API_KEY=your_key
-```
+Both steps require real LLM credentials (see Prerequisites).
 
 `collect_generated --out` defaults to `generated.json` and `--format json`,
 which writes an id-to-SQL map. The file is refreshed after each processed case,
@@ -68,14 +72,25 @@ Progress is written beside the generated output as
 ```
 
 `run_judge --generated` accepts both formats. It matches generated SQL by case
-id first, then falls back to prompt. Missing generated SQL is marked as
-`skipped` and is excluded from scored aggregates.
+id first, then falls back to prompt.
 
-Generated SQL is read from the graph checkpoint state
-(`graph.get_state(config).values["sql"]`), matching `run_cli` behavior. The
-compiled agent graph uses `output_schema=OutputState`, so `invoke()` results do
-not directly include SQL. If the agent stops at a human-in-the-loop interrupt,
-the case is recorded with empty generated SQL.
+`collect_generated` runs every case YAML (including those with empty gold SQL).
+`run_judge` only scores cases with a non-empty `gold.expected_sql`. A case is
+marked `skipped` in the report when it has no generated SQL for lookup, or when
+it was never loaded for judging because its gold SQL is empty. Skipped cases are
+excluded from pass-rate and mean-score aggregates.
+
+`collect_generated --limit N` runs only the first N cases (useful for a quick
+trial). Re-running with the same `--out` skips case ids already present in the
+output file; cases recorded with empty SQL count as done and are not retried
+unless you remove them from the output first.
+
+Generated SQL is read from subgraph stream updates on the `generate_sql` and
+`regenerate_sql` nodes (the last non-empty `sql` wins), matching `run_cli`
+behavior. The main graph uses `output_schema=OutputState`, so
+`graph.get_state().values["sql"]` stays empty and `invoke()` results do not
+directly include SQL. If the agent stops at a human-in-the-loop interrupt, the
+case is recorded with empty generated SQL.
 
 The report at `judge_out/report.json` is refreshed after each processed case,
 so interrupted long runs keep the completed results. It contains progress,
@@ -88,15 +103,14 @@ Each case is a YAML file in a Judge case directory, usually
 `evals/judge/example_cases/`.
 
 ```yaml
-id: c02_aggregation
-category: aggregation
-description: "One-line description"
+id: ex01_simple_select
+category: simple_select
+description: "List customers (id and name)."
 input:
-  prompt: "Natural language user question"
+  prompt: "List ten customers with their id and name."
 gold:
-  expected_sql: "SELECT ..."
+  expected_sql: "SELECT customer_id, customer_name FROM Customers LIMIT 10"
   expected_tool_trajectory: ["text2sql"]
-  expected_result_contains: ["..."]
 ```
 
 Fields:

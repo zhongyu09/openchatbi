@@ -234,9 +234,12 @@ def load_existing_output(out_path: str, fmt: str) -> dict[str, str]:
 
     existing: dict[str, str] = {}
     if fmt == "json":
-        obj = json.loads(raw)
-        if isinstance(obj, dict):
-            return {str(case_id): str(sql or "") for case_id, sql in obj.items()}
+        try:
+            obj = json.loads(raw)
+            if isinstance(obj, dict):
+                return {str(case_id): str(sql or "") for case_id, sql in obj.items()}
+        except json.JSONDecodeError as exc:
+            print(f"[collect_generated] Warning: Failed to parse existing JSON map: {exc}", file=sys.stderr)
         return {}
 
     if fmt == "jsonl":
@@ -244,7 +247,11 @@ def load_existing_output(out_path: str, fmt: str) -> dict[str, str]:
             line = line.strip()
             if not line:
                 continue
-            record = json.loads(line)
+            try:
+                record = json.loads(line)
+            except json.JSONDecodeError as exc:
+                print(f"[collect_generated] Warning: Skipping malformed JSON line in existing output: {exc}", file=sys.stderr)
+                continue
             if isinstance(record, dict) and record.get("id"):
                 existing[str(record["id"])] = str(record.get("generated_sql") or "")
         return existing

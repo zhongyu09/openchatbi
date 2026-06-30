@@ -203,7 +203,12 @@ async def get_user_memories(user_id: str):
             for item in search_results:
                 # Parse the memory data
                 try:
-                    content = json.loads(item.value.decode("utf-8")) if isinstance(item.value, bytes) else item.value
+                    if isinstance(item.value, bytes):
+                        content = json.loads(item.value.decode("utf-8"))
+                    elif isinstance(item.value, str):
+                        content = json.loads(item.value)
+                    else:
+                        content = item.value
                 except (json.JSONDecodeError, AttributeError):
                     content = str(item.value)
 

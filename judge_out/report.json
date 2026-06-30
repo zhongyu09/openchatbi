@@ -1,17 +1,17 @@
 {
   "mode": "generated",
   "progress": {
-    "processed": 21,
-    "total": 21,
+    "processed": 27,
+    "total": 27,
     "complete": true
   },
   "overall": {
-    "total": 21,
-    "evaluated": 13,
-    "skipped": 8,
-    "passed": 12,
-    "pass_rate": 0.9230769230769231,
-    "mean_score": 0.8961538461538462
+    "total": 27,
+    "evaluated": 26,
+    "skipped": 1,
+    "passed": 18,
+    "pass_rate": 0.6923076923076923,
+    "mean_score": 0.705
   },
   "by_category": {
     "simple_select": {
@@ -31,12 +31,12 @@
       "pass_rate": 1.0
     },
     "aggregation": {
-      "passed": 1,
-      "skipped": 3,
-      "total": 4,
-      "evaluated": 1,
-      "mean_score": 1.0,
-      "pass_rate": 1.0
+      "passed": 3,
+      "skipped": 0,
+      "total": 6,
+      "evaluated": 6,
+      "mean_score": 0.5833333333333334,
+      "pass_rate": 0.5
     },
     "group_by": {
       "passed": 1,
@@ -67,24 +67,24 @@
       "skipped": 0,
       "total": 1,
       "evaluated": 1,
-      "mean_score": 0.83,
+      "mean_score": 1.0,
       "pass_rate": 1.0
     },
     "order_limit": {
-      "passed": 1,
+      "passed": 0,
       "skipped": 0,
       "total": 1,
       "evaluated": 1,
-      "mean_score": 0.83,
-      "pass_rate": 1.0
+      "mean_score": 0.0,
+      "pass_rate": 0.0
     },
     "distinct": {
-      "passed": 1,
-      "skipped": 0,
+      "passed": 0,
+      "skipped": 1,
       "total": 1,
-      "evaluated": 1,
-      "mean_score": 1.0,
-      "pass_rate": 1.0
+      "evaluated": 0,
+      "mean_score": 0.0,
+      "pass_rate": 0.0
     },
     "having": {
       "passed": 1,
@@ -95,36 +95,36 @@
       "pass_rate": 1.0
     },
     "timerange": {
-      "passed": 1,
+      "passed": 3,
       "skipped": 0,
-      "total": 2,
-      "evaluated": 2,
-      "mean_score": 0.58,
-      "pass_rate": 0.5
+      "total": 3,
+      "evaluated": 3,
+      "mean_score": 1.0,
+      "pass_rate": 1.0
     },
     "anomaly": {
       "passed": 0,
-      "skipped": 1,
+      "skipped": 0,
       "total": 1,
-      "evaluated": 0,
+      "evaluated": 1,
       "mean_score": 0.0,
       "pass_rate": 0.0
     },
     "visualization": {
-      "passed": 0,
-      "skipped": 2,
-      "total": 2,
-      "evaluated": 0,
-      "mean_score": 0.0,
-      "pass_rate": 0.0
+      "passed": 2,
+      "skipped": 0,
+      "total": 3,
+      "evaluated": 3,
+      "mean_score": 0.6666666666666666,
+      "pass_rate": 0.6666666666666666
     },
     "report": {
-      "passed": 0,
-      "skipped": 2,
-      "total": 2,
-      "evaluated": 0,
-      "mean_score": 0.0,
-      "pass_rate": 0.0
+      "passed": 2,
+      "skipped": 0,
+      "total": 4,
+      "evaluated": 4,
+      "mean_score": 0.5,
+      "pass_rate": 0.5
     }
   },
   "cases": [
@@ -134,7 +134,7 @@
       "score": 1.0,
       "passed": true,
       "skipped": false,
-      "reasoning": ""
+      "reasoning": "The SQL correctly selects the requested columns (customer_id and customer_name).; The SQL correctly limits the output to ten rows as requested.; No filtering, aggregation, subqueries, or joins are required by the question, so those checks are trivially satisfied.; The query structure is valid and directly answers the prompt."
     },
     {
       "id": "ex02_filter",
@@ -142,7 +142,7 @@
       "score": 1.0,
       "passed": true,
       "skipped": false,
-      "reasoning": ""
+      "reasoning": "The SQL correctly selects the required columns: order_id, customer_name, order_status, and date_order_placed.; The WHERE clause correctly filters for orders with status 'Shipped'.; The JOIN between Orders and Customers tables uses the correct foreign key relationship (customer_id).; No aggregation or complex calculations are required, so calc and subquery checks are N/A but effectively passed.; The result set matches the question's requirements exactly."
     },
     {
       "id": "ex03_aggregation",
@@ -150,7 +150,7 @@
       "score": 1.0,
       "passed": true,
       "skipped": false,
-      "reasoning": ""
+      "reasoning": "The SQL correctly selects a count of orders, satisfying the question's request for 'How many orders'.; The WHERE clause correctly filters for orders with status 'Shipped'.; The aggregation function COUNT(*) is appropriate for counting rows.; No subqueries or joins are required for this simple query, and none are present.; The result set schema and data sample are empty, so no execution result check can be performed, but the logic is sound."
     },
     {
       "id": "ex04_group_by",
@@ -158,7 +158,7 @@
       "score": 1.0,
       "passed": true,
       "skipped": false,
-      "reasoning": ""
+      "reasoning": "The SQL correctly selects the order_status and counts the orders per status.; The GROUP BY clause correctly groups by order_status.; The ORDER BY clause correctly sorts the results by count in descending order.; No WHERE conditions are needed as the question asks for all orders.; No subqueries or joins are required for this query.; The result set schema matches the expected output."
     },
     {
       "id": "ex05_join",
@@ -166,7 +166,7 @@
       "score": 1.0,
       "passed": true,
       "skipped": false,
-      "reasoning": ""
+      "reasoning": "The SQL correctly selects the order_id, order_status, and customer_name as requested.; The WHERE clause correctly filters for 'Shipped' orders.; The JOIN between Orders and Customers on customer_id is correct.; The alias 'status' for order_status is acceptable and does not affect correctness.; No aggregation or subquery logic is required for this question, and none is present.; The result set schema and data sample are empty, so exec_result cannot be verified but no errors are indicated."
     },
     {
       "id": "ex06_multi_join",
@@ -174,31 +174,32 @@
       "score": 0.83,
       "passed": true,
       "skipped": false,
-      "reasoning": "SELECT columns omit shipment_id, which is required by the question and present in the reference SQL.; All other aspects are correct."
+      "reasoning": "The SQL correctly joins the Shipments, Orders, and Customers tables to retrieve the required data.; The WHERE, CALC, SUBQUERY, and JOIN checks pass as the logic is sound and keys match.; The SELECT columns are mostly correct but miss the 'shipment_id' which is typically expected when 'listing shipments' to uniquely identify them, even though the question explicitly lists 'tracking number, order id, and customer name'. The reference SQL includes 'shipment_id', suggesting it is a standard part of the 'list shipments' output.; The ORDER BY clause is acceptable but not required by the question."
     },
     {
       "id": "ex07_subquery",
       "category": "subquery",
-      "score": 0.83,
+      "score": 1.0,
       "passed": true,
       "skipped": false,
-      "reasoning": "SELECT only returns customer_name, but question and reference SQL expect both customer_id and customer_name.; WHERE clause is correct.; No aggregation or calculation needed; correct.; Subquery logic is replaced by JOIN, which is valid and equivalent.; JOIN is on correct key: customer_id.; No result-set schema or sample to check execution result."
+      "reasoning": "The SQL correctly selects customer_id and customer_name as requested.; The WHERE clause correctly filters for orders with status 'On Road'.; The JOIN correctly links Customers and Orders on customer_id.; The use of DISTINCT ensures unique customers are returned, which is semantically equivalent to the reference SQL's IN subquery approach for this question.; No aggregation or complex calculation is required, so calc check is trivially passed.; No subquery logic is needed as the JOIN formulation is equivalent and correct."
     },
     {
       "id": "ex08_order_limit",
       "category": "order_limit",
-      "score": 0.83,
-      "passed": true,
+      "score": 0.0,
+      "passed": false,
       "skipped": false,
-      "reasoning": "SELECT columns include customer_name and order count, which matches the question.; customer_id is not included in SELECT or GROUP BY, but the question only asks for name and count.; WHERE clause is not needed for this question.; Aggregation (COUNT) is correct.; JOIN is correct on customer_id.; Result is plausible."
+      "reasoning": "unparseable evaluator output: missing JSON brackets"
     },
     {
       "id": "ex09_distinct",
       "category": "distinct",
-      "score": 1.0,
-      "passed": true,
-      "skipped": false,
-      "reasoning": ""
+      "score": null,
+      "passed": false,
+      "skipped": true,
+      "skip_reason": "no_generated_sql",
+      "reasoning": "skipped: no generated SQL found for this case"
     },
     {
       "id": "ex10_having",
@@ -206,23 +207,23 @@
       "score": 1.0,
       "passed": true,
       "skipped": false,
-      "reasoning": ""
+      "reasoning": "The SQL correctly selects customer_id and the count of orders as requested.; The WHERE condition is implicitly handled via GROUP BY and HAVING COUNT(*) > 10, which correctly filters for customers with more than 10 orders.; The aggregation (COUNT) and arithmetic logic are correct.; No subqueries are needed; the logic is correctly implemented using GROUP BY and HAVING.; No JOINs are required as the query operates on a single table (Orders).; The result set schema matches the expected output (customer_id and order_count)."
     },
     {
       "id": "ex11_timerange",
       "category": "timerange",
-      "score": 0.83,
+      "score": 1.0,
       "passed": true,
       "skipped": false,
-      "reasoning": "WHERE clause uses <= '2024-03-31' instead of < '2024-04-01', which may include extra rows if date_order_placed has a time component.; SELECT columns, aggregation, subquery logic, and joins are otherwise correct."
+      "reasoning": "The SQL correctly selects the count of orders as requested.; The WHERE clause accurately filters for Q1 2024 (January 1 to March 31) using explicit datetime boundaries.; The aggregation (COUNT) is correctly applied.; No subqueries or joins are required for this query, so those checks are trivially passed.; The logic is equivalent to the reference solution, just using inclusive end-time instead of exclusive start-of-next-month."
     },
     {
       "id": "ex12_timerange_month_compare",
       "category": "timerange",
-      "score": 0.33,
-      "passed": false,
+      "score": 1.0,
+      "passed": true,
       "skipped": false,
-      "reasoning": "SELECT only returns this month's order volume, not a comparison to last month.; WHERE clause only filters for May 2026, not both months.; No aggregation or grouping by month for comparison.; No subquery or logic to compare two months."
+      "reasoning": "The SQL correctly identifies the current month (June 2026) and last month (May 2026) based on the provided system date.; The SELECT columns correctly map to the requested comparison of order volumes for the two months.; The WHERE conditions are effectively implemented using CASE statements within the aggregation, correctly filtering for the specific date ranges of June and May 2026.; The aggregation logic (SUM of CASE) correctly calculates the order counts for each month.; No subqueries or joins are required for this specific aggregation, so those checks are trivially passed or N/A.; The use of hardcoded dates is appropriate and preferred as per the instructions."
     },
     {
       "id": "ex13_anti_join",
@@ -230,79 +231,119 @@
       "score": 1.0,
       "passed": true,
       "skipped": false,
-      "reasoning": ""
+      "reasoning": "The SQL correctly identifies products that appear in orders (via Order_Items) but have no corresponding shipment item (via NOT IN subquery on Shipment_Items).; SELECT columns (product_id, product_name) match the question's request.; The WHERE condition using NOT IN correctly filters out products with any shipment item.; The JOIN between Order_Items and Products is correct.; The subquery logic is semantically equivalent to the reference SQL's LEFT JOIN ... IS NULL approach.; No aggregation or arithmetic is required, so calc check is N/A (true).; No execution result provided, so exec_result check is N/A (true)."
     },
     {
       "id": "ex14_anomaly",
       "category": "anomaly",
-      "score": null,
+      "score": 0.0,
       "passed": false,
-      "skipped": true,
-      "skip_reason": "no_generated_sql",
-      "reasoning": "skipped: no generated SQL found for this case"
+      "skipped": false,
+      "reasoning": "The question asks to 'Detect anomalies in daily order counts', which implies a comparison against a baseline (e.g., mean, median, or historical average) to identify outliers. The provided SQL only calculates the daily order counts without any logic to detect anomalies (e.g., no standard deviation calculation, no threshold comparison, or no outlier detection logic).; The SQL fails to address the core requirement of 'detecting anomalies' as it merely aggregates data.; While the date filtering and grouping logic is syntactically correct for generating daily counts, the absence of anomaly detection logic renders the query incorrect for the specific question asked."
     },
     {
       "id": "ex15_visualization",
       "category": "visualization",
-      "score": null,
-      "passed": false,
-      "skipped": true,
-      "skip_reason": "no_generated_sql",
-      "reasoning": "skipped: no generated SQL found for this case"
+      "score": 1.0,
+      "passed": true,
+      "skipped": false,
+      "reasoning": "The SQL correctly selects the month and shipment count as requested for a trend plot.; The WHERE clause correctly filters for the 12-month period ending on the current system date (2026-06-30), starting from 2025-07-01.; The aggregation (COUNT) and grouping logic are correct.; No subqueries or joins are required for this query, so those checks are trivially passed.; The result set schema and data sample are empty, so the execution result check is considered passed by default as there is no contradiction."
     },
     {
       "id": "ex16_visualization_forecast",
       "category": "visualization",
-      "score": null,
+      "score": 0.0,
       "passed": false,
-      "skipped": true,
-      "skip_reason": "no_generated_sql",
-      "reasoning": "skipped: no generated SQL found for this case"
+      "skipped": false,
+      "reasoning": "The question asks to 'Forecast next quarter order volume', which implies predicting future values (e.g., Q3 2026) based on historical data. The provided SQL only calculates historical order counts for a specific past range (Nov 2025 to May 2026) without performing any forecasting logic (e.g., trend analysis, regression, or projection).; The WHERE clause filters for dates strictly before the current system date (2026-06-30), failing to address the 'next quarter' aspect of the question which requires projecting into the future.; The SQL returns historical aggregates rather than a forecast."
     },
     {
       "id": "ex17_report",
       "category": "report",
-      "score": null,
+      "score": 0.0,
       "passed": false,
-      "skipped": true,
-      "skip_reason": "no_generated_sql",
-      "reasoning": "skipped: no generated SQL found for this case"
+      "skipped": false,
+      "reasoning": "The SQL fails to filter for Q1 2024 as required by the question, instead grouping all years and all data.; The WHERE clause is missing entirely, violating the requirement to generate a report specifically for the first quarter of 2024.; The GROUP BY clause groups by year only, whereas the question implies a need for status breakdown (order status report) or at least a specific time filter.; The output will include data from years other than 2024, making the result incorrect for the specific request."
     },
     {
       "id": "ex18_report_with_knowledge",
       "category": "report",
-      "score": null,
-      "passed": false,
-      "skipped": true,
-      "skip_reason": "no_generated_sql",
-      "reasoning": "skipped: no generated SQL found for this case"
+      "score": 1.0,
+      "passed": true,
+      "skipped": false,
+      "reasoning": "The SQL correctly selects the order status and counts shipments, matching the request for a fulfillment report by order status.; The JOIN between Shipments and Orders on order_id is correct.; The GROUP BY clause correctly groups by order_status to provide counts per status.; The use of COUNT(s.shipment_id) is appropriate for counting shipments per order status.; The ORDER BY clause, while different from the reference (sorting by status instead of count), is valid for a report and does not violate the question's requirements.; No WHERE clause is needed as the question does not specify filters.; No subqueries are required for this aggregation task."
     },
     {
       "id": "ex22_count_distinct",
       "category": "aggregation",
-      "score": null,
+      "score": 0.0,
       "passed": false,
-      "skipped": true,
-      "skip_reason": "no_generated_sql",
-      "reasoning": "skipped: no generated SQL found for this case"
+      "skipped": false,
+      "reasoning": "The SQL query fails to filter orders by the last 7 days as required by the question.; The query returns the total count of all orders and distinct customers in the entire table, not just those from the last 7 days.; The WHERE clause is missing entirely, which is a critical failure for the 'where' check."
     },
     {
       "id": "ex23_category_normalization",
       "category": "aggregation",
-      "score": null,
-      "passed": false,
-      "skipped": true,
-      "skip_reason": "no_generated_sql",
-      "reasoning": "skipped: no generated SQL found for this case"
+      "score": 1.0,
+      "passed": true,
+      "skipped": false,
+      "reasoning": "The SQL correctly extracts the product category by taking the prefix before the first dash in product_name using INSTR and SUBSTR.; The SELECT columns (category, order_count) match the question's request to count orders by product category.; The aggregation COUNT(DISTINCT oi.order_id) correctly counts unique orders per category.; The JOIN between Order_Items and Products on product_id is correct.; The GROUP BY clause correctly groups by the derived category alias.; No WHERE clause is needed as the question implies counting all orders, and the logic handles names without dashes by using the full name.; The ORDER BY order_count DESC is a reasonable presentation choice for the result.; All six checks pass: select_columns, where, calc, subquery, joins, and exec_result are logically sound."
     },
     {
       "id": "ex24_ratio_metric",
       "category": "aggregation",
-      "score": null,
+      "score": 0.0,
       "passed": false,
-      "skipped": true,
-      "skip_reason": "no_generated_sql",
-      "reasoning": "skipped: no generated SQL found for this case"
+      "skipped": false,
+      "reasoning": "The question asks for a single share value (a ratio), but the SQL returns a list of order statuses and their counts.; The SQL lacks the aggregation logic (SUM/CASE / COUNT) required to calculate the share of 'Shipped' orders.; The SQL does not filter for 'Shipped' status to compute the specific share requested.; The output format (grouped rows) does not match the expected single scalar value for a 'share' question."
+    },
+    {
+      "id": "ex25_avg_items_per_order",
+      "category": "aggregation",
+      "score": 1.0,
+      "passed": true,
+      "skipped": false,
+      "reasoning": "The SQL correctly selects customer_id, customer_name, and the calculated average items per order as requested.; The WHERE clause is not needed as there are no specific filters in the question.; The calculation uses AVG on a subquery that correctly counts items per order, then averages those counts per customer.; The subquery logic correctly groups Order_Items by order_id to get items per order before joining.; The JOIN keys correctly link Customers to Orders via customer_id and Orders to Order_Items via order_id.; The result set schema and logic are consistent with the question requirements."
+    },
+    {
+      "id": "ex26_daily_orders_last_30_days",
+      "category": "aggregation",
+      "score": 0.5,
+      "passed": false,
+      "skipped": false,
+      "reasoning": "The SQL fails to filter for the 'last 30 days' as required by the question. It returns all historical orders instead of restricting the date range.; The SELECT columns and aggregation logic are correct for the intended output, but the missing WHERE clause makes the result set incorrect for the specific time constraint."
+    },
+    {
+      "id": "ex27_shipments_between_dates",
+      "category": "timerange",
+      "score": 1.0,
+      "passed": true,
+      "skipped": false,
+      "reasoning": "The SQL correctly selects the count of shipments as requested.; The WHERE clause accurately filters for the date range between 2024-01-01 and 2024-03-31, including time components to ensure full day coverage.; The aggregation function COUNT(*) is appropriate for counting rows.; No subqueries or joins are required for this query, so those checks are trivially satisfied.; The result set schema and data sample are not provided, but the logic is sound."
+    },
+    {
+      "id": "ex28_order_trend_2024",
+      "category": "visualization",
+      "score": 1.0,
+      "passed": true,
+      "skipped": false,
+      "reasoning": "The SQL correctly selects the month and order count as requested.; The WHERE clause accurately filters for the year 2024 using date boundaries.; The aggregation (COUNT) and grouping logic are correct for a monthly trend.; No subqueries or joins are required for this query, and none are present.; The ORDER BY clause ensures the trend is plotted chronologically."
+    },
+    {
+      "id": "ex29_q1_category_report_with_knowledge",
+      "category": "report",
+      "score": 0.0,
+      "passed": false,
+      "skipped": false,
+      "reasoning": "The WHERE clause filters for Q1 2026 ('2026-01-01' to '2026-04-01') instead of Q1 2024 as requested in the question.; The question explicitly asks for a 'Q1 2024' report, but the SQL uses the current system date (2026) to define the period, resulting in incorrect data retrieval."
+    },
+    {
+      "id": "ex30_daily_order_volume_report",
+      "category": "report",
+      "score": 1.0,
+      "passed": true,
+      "skipped": false,
+      "reasoning": "The SQL correctly selects the date of order placement and counts the number of orders per day, matching the request to summarize daily order volume.; The GROUP BY clause correctly groups by the date to produce daily aggregates.; The ORDER BY clause ensures the report is sorted chronologically.; No WHERE conditions are required as the question asks for a general summary of all orders.; No subqueries or joins are needed for this aggregation task.; The column aliases are descriptive and appropriate for a report."
     }
   ]
 }

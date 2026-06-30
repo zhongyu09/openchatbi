@@ -72,10 +72,13 @@ def extract_json_from_answer(answer: str) -> dict[str, Any]:
     pattern = regex.compile(r"\{(?:[^{}]+|(?R))*\}")
     matches = pattern.findall(answer)
     json_result = matches[0] if matches else "{}"
-    parsed = json.loads(json_result)
-    if isinstance(parsed, dict):
-        return parsed
-    log(f"Expected JSON object from answer, got {type(parsed).__name__}: {parsed!r}")
+    try:
+        parsed = json.loads(json_result)
+        if isinstance(parsed, dict):
+            return parsed
+        log(f"Expected JSON object from answer, got {type(parsed).__name__}: {parsed!r}")
+    except json.JSONDecodeError as e:
+        log(f"JSON decode error in extract_json_from_answer: {e} on text: {json_result}")
     return {}
 
 

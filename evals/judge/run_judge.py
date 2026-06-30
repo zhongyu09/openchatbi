@@ -70,7 +70,12 @@ def _load_generated_map(generated_path: str) -> dict[str, str]:
         line = line.strip()
         if not line:
             continue
-        record = json.loads(line)
+        try:
+            record = json.loads(line)
+        except json.JSONDecodeError as exc:
+            print(f"[run_judge] Warning: Skipping malformed JSON line in generated file: {exc}", file=sys.stderr)
+            continue
+            
         sql = record.get("generated_sql", "")
         if record.get("id"):
             result[record["id"]] = sql

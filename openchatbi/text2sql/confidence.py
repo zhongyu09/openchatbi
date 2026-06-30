@@ -7,6 +7,7 @@ computes a score when explicitly invoked.
 
 from __future__ import annotations
 
+import datetime
 import importlib.resources
 import json
 from dataclasses import dataclass, field
@@ -16,7 +17,7 @@ from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from openchatbi.llm.llm import get_default_llm
-from openchatbi.utils import log
+from openchatbi.utils import extract_json_from_answer, log
 
 # Ordered rubric check keys (Dataherald 6-step rubric).
 RUBRIC_CHECKS: tuple[str, ...] = (
@@ -85,6 +86,7 @@ class SimpleSQLEvaluator:
         """
         prompt = (
             _get_rubric_prompt_template()
+            .replace("[current_date]", datetime.date.today().isoformat())
             .replace("[table_schema]", table_schema or "(not provided)")
             .replace("[reference_sql]", reference_sql or "(not provided)")
             .replace("[result_schema]", json.dumps(schema_info, default=str))
@@ -105,18 +107,35 @@ class SimpleSQLEvaluator:
 
     @staticmethod
     def _parse(content: str) -> ConfidenceResult:
-        text = content.strip()
-        # Tolerate fenced code blocks around the JSON payload.
-        if text.startswith("```"):
-            text = text.strip("`")
-            if "\n" in text:
-                text = text.split("\n", 1)[1]
-        start, end = text.find("{"), text.rfind("}")
-        if start == -1 or end == -1:
+        # Shared extractor tolerates markdown fences, surrounding prose and nested
+        # objects; it returns {} on any parse failure.
+        data = extract_json_from_answer(content)
+        if not data:
             return ConfidenceResult(score=0.0, reasons=["unparseable evaluator output"], checks={})
-        data = json.loads(text[start : end + 1])
-        checks = {k: bool(data.get("checks", {}).get(k, False)) for k in RUBRIC_CHECKS}
-        score = float(data.get("score", 0.0))
+
+        checks = {}
+        for k in RUBRIC_CHECKS:
+            # Handle cases where checks might be a string like "true"/"false" instead of boolean
+            val = data.get("checks", {}).get(k, False)
+            if isinstance(val, str):
+                checks[k] = val.lower() == "true"
+            else:
+                checks[k] = bool(val)
+
+        try:
+            score = float(data.get("score", 0.0))
+        except (ValueError, TypeError):
+            score = 0.0
+
         score = max(0.0, min(1.0, score))
-        reasons = [str(r) for r in data.get("reasons", [])]
+
+        # Ensure reasons is a list of strings
+        raw_reasons = data.get("reasons", [])
+        if isinstance(raw_reasons, list):
+            reasons = [str(r) for r in raw_reasons]
+        elif isinstance(raw_reasons, str):
+            reasons = [raw_reasons]
+        else:
+            reasons = []
+
         return ConfidenceResult(score=score, reasons=reasons, checks=checks)

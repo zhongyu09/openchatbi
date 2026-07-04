@@ -272,9 +272,7 @@ python -m openchatbi.catalog.migrate \
     --dest-connection-string sqlite:///./catalog.db
 ```
 
-Options: `--dry-run` previews without writing; `--no-update-existing` skips
-overwriting rows that already exist in the destination; `--echo` enables
-SQLAlchemy engine logging.
+See [migrate.py](openchatbi/catalog/migrate.py) for more details.
 
 ### Data Warehouse Configuration
 

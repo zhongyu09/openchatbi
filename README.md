@@ -285,7 +285,7 @@ See [migrate.py](openchatbi/catalog/migrate.py) for more details.
 ### LLM Configuration
 
 Various LLMs are supported based on LangChain, see LangChain API
-Document(https://python.langchain.com/api_reference/reference.html#integrations) for full list that support
+Document(https://reference.langchain.com/python/integrations/overview) for full list that support
 `chat_models`. You can configure different LLMs for different tasks:
 
 - `default_llm`: Primary language model for general tasks
@@ -300,14 +300,14 @@ Multiple providers (optional):
 
 Commonly used LLM providers and their corresponding classes and installation commands:
 
-- **Anthropic**: `langchain_anthropic.ChatAnthropic`, `pip install langchain-anthropic`
-- **OpenAI**: `langchain_openai.ChatOpenAI`, `pip install langchain-openai`
-- **Azure OpenAI**: `langchain_openai.AzureChatOpenAI`, `pip install langchain-openai`
-- **Google Vertex AI**: `langchain_google_vertexai.ChatVertexAI`, `pip install langchain-google-vertexai`
-- **Bedrock**: `langchain_aws.ChatBedrock`, `pip install langchain-aws`
-- **Huggingface**: `langchain_huggingface.ChatHuggingFace`, `pip install langchain-huggingface`
-- **Deepseek**: `langchain_deepseek.ChatDeepSeek`, `pip install langchain-deepseek`
-- **Ollama**: `langchain_ollama.ChatOllama`, `pip install langchain-ollama`
+- **Anthropic**: `langchain_anthropic.ChatAnthropic`, included by default
+- **OpenAI**: `langchain_openai.ChatOpenAI`, included by default
+- **Azure OpenAI**: `langchain_openai.AzureChatOpenAI`, `pip install openchatbi[azure-openai]`
+- **Google Vertex AI**: `langchain_google_vertexai.ChatVertexAI`, `pip install openchatbi[google-vertex-ai]`
+- **Bedrock**: `langchain_aws.ChatBedrock`, `pip install openchatbi[bedrock]`
+- **Huggingface**: `langchain_huggingface.ChatHuggingFace`, `pip install openchatbi[huggingface]`
+- **Deepseek**: `langchain_deepseek.ChatDeepSeek`, `pip install openchatbi[deepseek]`
+- **Ollama**: `langchain_ollama.ChatOllama`, `pip install openchatbi[ollama]`
 
 ### Advanced Configuration
 

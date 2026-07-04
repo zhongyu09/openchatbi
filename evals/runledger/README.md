@@ -66,5 +66,5 @@ Install the eval extra: `pip install -e ".[eval]"`, then:
 ```bash
 runledger run evals/runledger --mode replay --baseline baselines/runledger-openchatbi.json
 ```
-This runs in CI with the `runledger` label gate (see `.github/workflows/`) or nightly.
+This runs in CI for PRs to `main` (see `.github/workflows/`) or by manual dispatch.
 

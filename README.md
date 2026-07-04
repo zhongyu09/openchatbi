@@ -372,7 +372,7 @@ memory_config:
 ### Evaluation
 
 - **Deterministic replay**: `evals/runledger/` replays recorded LLM cassettes in CI
-  (`.github/workflows/runledger.yml`; runs on PRs labeled `runledger` or manual dispatch).
+  (`.github/workflows/runledger.yml`; runs on PRs to `main` or manual dispatch).
 - **LLM-as-Judge**: collect generated SQL over gold cases, then judge it with the shared rubric evaluator —
   see [`evals/judge/README.md`](evals/judge/README.md) for the two-step flow:
 

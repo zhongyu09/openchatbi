@@ -2,12 +2,10 @@ name: runledger
 on:
   workflow_dispatch:
   pull_request:
-    paths:
-      - "openchatbi/**"
+    branches: [ main ]
 
 jobs:
   runledger:
-    if: github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'runledger')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

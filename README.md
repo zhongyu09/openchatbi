@@ -231,8 +231,50 @@ The configuration template is provided at `config.yaml.template`. Key configurat
 ### Catalog Store Configuration
 
 - `catalog_store`: Configuration for data catalog storage
-    - `store_type`: Storage type (e.g., "file_system")
-    - `data_path`: Path to catalog data stored by file system (e.g., "./example")
+    - `store_type`: Storage type, either `"file_system"` or `"database"`
+    - For `store_type: file_system`:
+        - `data_path`: Path to catalog data stored by file system (e.g., "./example")
+    - For `store_type: database` (SQLAlchemy-backed catalog persistence):
+        - `connection_string`: SQLAlchemy database URI for the **catalog persistence
+          database** (e.g., `sqlite:///catalog.db`,
+          `postgresql+psycopg://user:pass@host/db`, `mysql+pymysql://user:pass@host/db`).
+          For MySQL, install the `pymysql` driver (`pip install openchatbi[mysql]`);
+          for PostgreSQL, install the `psycopg` driver (`pip install openchatbi[postgresql]`).
+        - `auto_create_schema`: Whether to auto-create catalog tables on first use
+          (default `true`; set `false` for externally managed schemas)
+        - `echo`: Optional SQLAlchemy engine echo flag for debugging
+
+> **Important:** The catalog persistence database (`connection_string` under
+> `catalog_store`) is configured independently from `data_warehouse_config`. The
+> `data_warehouse_config` is only used to build the data warehouse execution engine
+> used to run generated SQL; it is never reused as the catalog persistence DB.
+
+Example enabling the DB backend:
+
+```yaml
+catalog_store:
+  store_type: database
+  connection_string: sqlite:///./catalog.db
+  auto_create_schema: true
+data_warehouse_config:
+  uri: presto://user@host:8080/hive
+  database_name: sales
+```
+
+#### Migrating a file-system catalog to the DB backend
+
+A helper script copies an existing file-system catalog (tables, columns, SQL
+examples and table-selection examples) into a database catalog store:
+
+```bash
+python -m openchatbi.catalog.migrate \
+    --source-path ./example \
+    --dest-connection-string sqlite:///./catalog.db
+```
+
+Options: `--dry-run` previews without writing; `--no-update-existing` skips
+overwriting rows that already exist in the destination; `--echo` enables
+SQLAlchemy engine logging.
 
 ### Data Warehouse Configuration
 
@@ -460,7 +502,8 @@ openchatbi/
 │   │   ├── schema_retrival.py  # Schema retrieval logic
 │   │   ├── token_service.py    # Token service integration
 │   │   └── store/              # Catalog storage implementations
-│   │       └── file_system.py  # File system-based catalog storage
+│   │       ├── file_system.py  # File system-based catalog storage
+│   │       └── database.py     # SQLAlchemy DB-based catalog storage
 │   ├── code/                   # Code execution framework
 │   │   ├── __init__.py         # Package initialization
 │   │   ├── executor_base.py    # Base executor interface

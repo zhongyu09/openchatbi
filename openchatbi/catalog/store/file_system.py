@@ -1,6 +1,8 @@
 """File system-based catalog store implementation."""
 
+import ast
 import csv
+import json
 import logging
 import os
 import re
@@ -579,7 +581,40 @@ class FileSystemCatalogStore(CatalogStore):
         return examples
 
     @staticmethod
-    def _load_table_selection_examples_from_csv(file_path: str) -> list[tuple[str, list[str]]]:
+    def _parse_selected_tables(raw: str) -> list[str]:
+        """Parse the ``selected_tables`` CSV cell into a clean list of table names.
+
+        The canonical on-disk format is a JSON array (e.g. ``["Customers", "Orders"]``).
+        For backward compatibility this also accepts a Python list literal
+        (from older, lossy serialization) and a plain space/comma/newline
+        separated string.
+        """
+        raw = raw.strip()
+        if not raw:
+            return []
+
+        # Preferred: JSON array.
+        try:
+            parsed = json.loads(raw)
+            if isinstance(parsed, list):
+                return [str(item).strip() for item in parsed if str(item).strip()]
+        except (json.JSONDecodeError, ValueError):
+            pass
+
+        # Backward-compat: Python list literal (e.g. "['Customers']").
+        if raw.startswith("[") and raw.endswith("]"):
+            try:
+                parsed = ast.literal_eval(raw)
+                if isinstance(parsed, list):
+                    return [str(item).strip() for item in parsed if str(item).strip()]
+            except (ValueError, SyntaxError):
+                pass
+
+        # Backward-compat: plain separated string.
+        return [p.strip() for p in re.split(r"[ ,\n]", raw) if p.strip()]
+
+    @classmethod
+    def _load_table_selection_examples_from_csv(cls, file_path: str) -> list[tuple[str, list[str]]]:
         examples = []
         try:
             with open(file_path, encoding="utf-8") as f:
@@ -588,8 +623,7 @@ class FileSystemCatalogStore(CatalogStore):
                     question = row.get("question", "").strip()
                     selected_tables = row.get("selected_tables", "").strip()
                     if question and selected_tables:
-                        table_list = [p.strip() for p in re.split(r"[ ,\n]", selected_tables) if p.strip()]
-                        examples.append((question, table_list))
+                        examples.append((question, cls._parse_selected_tables(selected_tables)))
         except (FileNotFoundError, PermissionError, UnicodeDecodeError) as e:
             logger.warning(f"Failed to load table selection examples from {file_path}: {e}")
         return examples
@@ -801,7 +835,8 @@ class FileSystemCatalogStore(CatalogStore):
     def save_table_selection_examples(self, examples: list[tuple[str, list[str]]]) -> bool:
         example_data = []
         for example in examples:
-            example_data.append({"question": example[0], "selected_tables": example[1]})
+            # Serialize the table list as a JSON array so it round-trips losslessly.
+            example_data.append({"question": example[0], "selected_tables": json.dumps(list(example[1]))})
         save_success = self._save_csv_file(
             self.table_selection_example_file, example_data, ["question", "selected_tables"]
         )

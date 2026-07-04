@@ -3045,12 +3045,18 @@ eval = [
     { name = "pyyaml" },
     { name = "runledger" },
 ]
+mysql = [
+    { name = "pymysql" },
+]
 observability = [
     { name = "langfuse" },
     { name = "langsmith" },
     { name = "prometheus-client" },
     { name = "python-dotenv" },
     { name = "tiktoken" },
+]
+postgresql = [
+    { name = "psycopg" },
 ]
 test = [
     { name = "aioresponses" },
@@ -3105,7 +3111,9 @@ requires-dist = [
     { name = "plotly", specifier = ">=5.17.0,<6.0.0" },
     { name = "pre-commit", marker = "extra == 'dev'", specifier = ">=4.0.1,<5.0.0" },
     { name = "prometheus-client", marker = "extra == 'observability'", specifier = ">=0.20.0,<1.0.0" },
+    { name = "psycopg", marker = "extra == 'postgresql'", specifier = ">=3.1.0,<4.0.0" },
     { name = "pyhive", extras = ["presto"], specifier = ">=0.7.0" },
+    { name = "pymysql", marker = "extra == 'mysql'", specifier = ">=1.1.0,<2.0.0" },
     { name = "pytest", marker = "extra == 'test'", specifier = ">=7.4.0,<9.0.0" },
     { name = "pytest-asyncio", marker = "extra == 'test'", specifier = ">=0.23.8,<1.0.0" },
     { name = "pytest-cov", marker = "extra == 'test'", specifier = ">=6.0.0,<7.0.0" },
@@ -3131,7 +3139,7 @@ requires-dist = [
     { name = "twine", marker = "extra == 'dev'", specifier = ">=6.0.0,<7.0.0" },
     { name = "types-setuptools", marker = "extra == 'dev'", specifier = ">=75.6.0.20241126" },
 ]
-provides-extras = ["docs", "test", "eval", "observability", "dev"]
+provides-extras = ["mysql", "postgresql", "docs", "test", "eval", "observability", "dev"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -3684,6 +3692,19 @@ wheels = [
 ]
 
 [[package]]
+name = "psycopg"
+version = "3.3.4"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "typing-extensions", marker = "python_full_version < '3.13'" },
+    { name = "tzdata", marker = "sys_platform == 'win32'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/db/2f/cb91e5502ec9de1de6f1b76cfbf69531932725361168bb06963620c77e2e/psycopg-3.3.4.tar.gz", hash = "sha256:e21207764952cff81b6b8bdacad9a3939f2793367fdac2987b3aac36a651b5bc", size = 165799, upload-time = "2026-05-01T23:31:55.179Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/5c/e0/7b3dee031daae7743609ce3c746565d4a3ed7c2c186479eb48e34e838c64/psycopg-3.3.4-py3-none-any.whl", hash = "sha256:b6bbc25ccf05c8fad3b061d9db2ef0909a555171b84b07f29458a447253d679a", size = 213001, upload-time = "2026-05-01T23:20:50.816Z" },
+]
+
+[[package]]
 name = "pyarrow"
 version = "21.0.0"
 source = { registry = "https://pypi.org/simple" }
@@ -4028,6 +4049,15 @@ sdist = { url = "https://files.pythonhosted.org/packages/f6/ec/5c658b3a4d99a6d91
 [package.optional-dependencies]
 presto = [
     { name = "requests" },
+]
+
+[[package]]
+name = "pymysql"
+version = "1.2.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/c9/bc/1c6a92f385940f727daeecf3bacaf186e03875dff57197801046c583bcf0/pymysql-1.2.0.tar.gz", hash = "sha256:6c7b17ca686988104d7426c27895b455cdeea3e9d3ceb1270f0c3704fead8c33", size = 49021, upload-time = "2026-05-19T08:26:22.302Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/c4/bd/2534e130295c8cfd4f0a2e31623baab7502278f1e97bcfe61db75656a77f/pymysql-1.2.0-py3-none-any.whl", hash = "sha256:62169ce6d5510f08e140c5e7990ee884a9764024e4a9a27b2cc11f1099322ae0", size = 45716, upload-time = "2026-05-19T08:26:20.974Z" },
 ]
 
 [[package]]

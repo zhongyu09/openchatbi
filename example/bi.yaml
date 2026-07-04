@@ -1,5 +1,6 @@
 extra_tool_use_rule: |
   - Try your best to give appropriate parameters when calling tools.
+  - Use English when calling schema related tools 
 
 table_selection_extra_rule: |
   - When users ask about orders, consider if they need customer information (join with Customers table)

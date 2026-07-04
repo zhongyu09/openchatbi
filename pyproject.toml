@@ -86,6 +86,12 @@ Documentation = "https://github.com/zhongyu09/openchatbi/tree/main"
 "Bug Tracker" = "https://github.com/zhongyu09/openchatbi/issues"
 
 [project.optional-dependencies]
+mysql = [
+    "pymysql>=1.1.0,<2.0.0",
+]
+postgresql = [
+    "psycopg>=3.1.0,<4.0.0",
+]
 docs = [
     "sphinx>=8.2.3,<9.0.0",
     "sphinx-rtd-theme>=3.0.0,<4.0.0",

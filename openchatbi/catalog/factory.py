@@ -4,6 +4,7 @@ from typing import Any
 
 from openchatbi.catalog.catalog_loader import load_catalog_from_data_warehouse
 from openchatbi.catalog.catalog_store import CatalogStore
+from openchatbi.catalog.store.database import DatabaseCatalogStore
 from openchatbi.catalog.store.file_system import FileSystemCatalogStore
 
 logger = logging.getLogger(__name__)
@@ -17,10 +18,14 @@ def create_catalog_store(
     Create a CatalogStore instance
 
     Args:
-        store_type (str): Storage type, supports 'file_system'
-        auto_load (bool): Whether to autoload from database if catalog files don't exist
-        data_warehouse_config (dict): Data warehouse configuration dictionary
-        **kwargs: Other parameters
+        store_type (str): Storage type, supports 'file_system' and 'database'
+        auto_load (bool): Whether to autoload from database if catalog data doesn't exist
+        data_warehouse_config (dict): Data warehouse configuration dictionary. This is
+            used only to build the data warehouse execution engine, and is never reused
+            as the catalog persistence database connection.
+        **kwargs: Other parameters.
+            For 'file_system': data_path.
+            For 'database': connection_string, engine, auto_create_schema, echo.
 
     Returns:
         CatalogStore: CatalogStore instance
@@ -33,9 +38,23 @@ def create_catalog_store(
         # convert relative path to absolute path
         if not data_path.startswith("/"):
             data_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), data_path)
-        catalog_store = FileSystemCatalogStore(data_path, data_warehouse_config or {})
+        catalog_store: CatalogStore = FileSystemCatalogStore(data_path, data_warehouse_config or {})
 
         # Check if autoload is enabled and if catalog files are missing
+        if auto_load:
+            _auto_load_catalog_if_needed(catalog_store)
+
+        return catalog_store
+    elif store_type == "database":
+        catalog_store = DatabaseCatalogStore(
+            connection_string=kwargs.get("connection_string"),
+            engine=kwargs.get("engine"),
+            data_warehouse_config=data_warehouse_config or {},
+            auto_create_schema=kwargs.get("auto_create_schema", True),
+            echo=kwargs.get("echo", False),
+        )
+
+        # When the catalog DB is empty, optionally load the catalog from the data warehouse.
         if auto_load:
             _auto_load_catalog_if_needed(catalog_store)
 

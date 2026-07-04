@@ -242,7 +242,6 @@ The configuration template is provided at `config.yaml.template`. Key configurat
           for PostgreSQL, install the `psycopg` driver (`pip install openchatbi[postgresql]`).
         - `auto_create_schema`: Whether to auto-create catalog tables on first use
           (default `true`; set `false` for externally managed schemas)
-        - `echo`: Optional SQLAlchemy engine echo flag for debugging
 
 > **Important:** The catalog persistence database (`connection_string` under
 > `catalog_store`) is configured independently from `data_warehouse_config`. The

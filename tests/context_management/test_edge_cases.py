@@ -86,17 +86,14 @@ class TestContextManagementEdgeCases:
     def test_circular_references_in_content(self, context_manager):
         """Test handling of complex content that might cause issues."""
         # Content with special characters and formatting
-        special_content = (
-            """
+        special_content = """
         Content with:
         - Unicode: 🚀 中文 العربية
         - Code blocks: ```python\nprint("hello")\n```
         - JSON: {"key": "value", "nested": {"array": [1,2,3]}}
         - HTML: <div class="test">content</div>
         - URLs: https://example.com/path?param=value
-        - Very long line: """
-            + "X" * 1000
-        )
+        - Very long line: """ + "X" * 1000
 
         message = HumanMessage(content=special_content)
         messages = [message]

@@ -71,42 +71,34 @@ def mock_catalog_store(temp_dir: Path) -> FileSystemCatalogStore:
 
     # Create sample table_columns.csv
     tables_info_file = test_data_dir / "table_info.yaml"
-    tables_info_file.write_text(
-        """test:
+    tables_info_file.write_text("""test:
   test_table:
     type: fact
     description: A test table for unit tests
   user_data:
     type: fact
-    description: User information table"""
-    )
+    description: User information table""")
 
     # Create sample table_columns.csv
     tables_file = test_data_dir / "table_columns.csv"
-    tables_file.write_text(
-        """db_name,table_name,column_name
+    tables_file.write_text("""db_name,table_name,column_name
 test,test_table,id
 test,test_table,name
-test,user_data,user_id"""
-    )
+test,user_data,user_id""")
 
     # Create sample table_spec_columns.csv
     columns_file = test_data_dir / "table_spec_columns.csv"
-    columns_file.write_text(
-        """db_name,table_name,column_name,type,display_name,description
+    columns_file.write_text("""db_name,table_name,column_name,type,display_name,description
 test,test_table,id,bigint,Id,Primary key
 test,test_table,name,varchar,Name,User name
-test,user_data,user_id,bigint,User Id,User identifier"""
-    )
+test,user_data,user_id,bigint,User Id,User identifier""")
 
     # Create sample common_columns.csv
     common_columns_file = test_data_dir / "common_columns.csv"
-    common_columns_file.write_text(
-        """column_name,type,display_name,description
+    common_columns_file.write_text("""column_name,type,display_name,description
 status,varchar,Status,Record status
 created_at,timestamp,Created At,Creation timestamp
-updated_at,timestamp,Updated At,Last update timestamp"""
-    )
+updated_at,timestamp,Updated At,Last update timestamp""")
 
     # Mock data warehouse config
     data_warehouse_config = {"uri": "sqlite:///:memory:", "include_tables": None, "database_name": "test_db"}

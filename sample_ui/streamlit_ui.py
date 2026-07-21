@@ -453,15 +453,13 @@ with st.sidebar:
         )
 
     st.markdown("---")
-    st.markdown(
-        """
+    st.markdown("""
     **💡 How to use:**
     - Type your business questions
     - Watch the AI thinking process in collapsible sections
     - View generated charts and analyses
     - Use different session IDs for separate conversations
-    """
-    )
+    """)
 
     if st.button("🗑️ Clear Chat History"):
         st.session_state.messages = []

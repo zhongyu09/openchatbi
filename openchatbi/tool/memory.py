@@ -191,10 +191,12 @@ class StructuredToolWithRequired(StructuredTool):
     def tool_call_schema(self) -> Any:
         tcs = super().tool_call_schema
         try:
-            if not isinstance(tcs, dict) and tcs.model_config:
-                tcs.model_config["json_schema_extra"] = fix_schema_for_openai
-            elif not isinstance(tcs, dict) and ConfigDict is not None:
-                tcs.model_config = ConfigDict(json_schema_extra=fix_schema_for_openai)
+            if not isinstance(tcs, dict):
+                model_config = getattr(tcs, "model_config", None)
+                if model_config:
+                    model_config["json_schema_extra"] = fix_schema_for_openai
+                elif ConfigDict is not None:
+                    setattr(tcs, "model_config", ConfigDict(json_schema_extra=fix_schema_for_openai))
         except Exception as e:
             logger.warning("Unable to attach OpenAI schema compatibility hook: %s", e)
         return tcs

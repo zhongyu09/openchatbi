@@ -23,7 +23,7 @@ from langgraph.types import Command
 from openchatbi.streaming import AgentStreamProcessor, StreamStep, StreamToken
 from openchatbi.utils import get_report_download_response, log
 from sample_ui.async_graph_manager import AsyncGraphManager
-from sample_ui.history_loader import load_session_history_tuples
+from sample_ui.history_loader import load_session_history
 from sample_ui.plotly_utils import create_inline_chart_markdown, visualization_dsl_to_gradio_plot
 from sample_ui.style import custom_css
 
@@ -94,14 +94,14 @@ async def _async_respond_helper(message, chat_history, user_id, session_id):
             await graph_manager.initialize()
         except Exception as e:
             log(f"Failed to initialize graph: {e}")
-            chat_history[-1] = (chat_history[-1][0], f"Error: Failed to initialize system - {str(e)}")
+            chat_history[-1]["content"] = f"Error: Failed to initialize system - {str(e)}"
             yield "", chat_history, plot_figure, chart_panel_update
             return
 
     processor = AgentStreamProcessor()
 
     def build_update():
-        chat_history[-1] = (chat_history[-1][0], full_response)
+        chat_history[-1]["content"] = full_response
         return ("", chat_history, plot_figure, chart_panel_update)
 
     # Asynchronously iterate through LangGraph stream
@@ -176,7 +176,9 @@ def respond(message, chat_history, user_id, session_id="default"):
     Returns: message_input, chat_history, plot_figure, chart_panel_visibility
     """
     # Add a placeholder in chat history
-    chat_history.append((message, ""))
+    chat_history = chat_history or []
+    chat_history.append({"role": "user", "content": message})
+    chat_history.append({"role": "assistant", "content": ""})
     plot_figure = None
     chart_panel_update = gr.update()
     yield "", chat_history, plot_figure, chart_panel_update  # Stream updates to UI
@@ -198,7 +200,7 @@ def respond(message, chat_history, user_id, session_id="default"):
         import traceback
 
         traceback.print_exc()
-        chat_history[-1] = (chat_history[-1][0], f"Error: {str(e)}")
+        chat_history[-1]["content"] = f"Error: {str(e)}"
         yield "", chat_history, plot_figure, chart_panel_update
     finally:
         try:
@@ -208,11 +210,11 @@ def respond(message, chat_history, user_id, session_id="default"):
 
 
 async def _async_load_history_helper(user_id, session_id):
-    """Initialize the graph if needed and load persisted history as chat tuples."""
+    """Initialize the graph if needed and load persisted history as chat messages."""
     if not graph_manager._initialized:
         await graph_manager.initialize()
     graph = await graph_manager.get_graph()
-    return await load_session_history_tuples(graph, user_id, session_id)
+    return await load_session_history(graph, user_id, session_id)
 
 
 def load_history_to_chatbot(user_id, session_id="default"):
@@ -304,8 +306,8 @@ def list_user_memories(user_id: str) -> str:
 
 # ---------- Gradio UI Blocks ----------
 
-# Create Gradio interface with custom CSS and theme
-with gr.Blocks(css=custom_css, theme=gr.themes.Soft()) as demo:
+# Create Gradio interface. Theme/CSS are applied when the app is mounted.
+with gr.Blocks() as demo:
     gr.Markdown("## 💬 OpenChatBI Agent Chatbot with Streaming & On-Demand Visualization")
 
     with gr.Tabs():
@@ -315,8 +317,7 @@ with gr.Blocks(css=custom_css, theme=gr.themes.Soft()) as demo:
                     chatbot = gr.Chatbot(
                         elem_id="chatbot",
                         label="Chat",
-                        type="tuples",
-                        bubble_full_width=False,
+                        layout="bubble",
                         height=500,
                         show_label=False,
                         sanitize_html=False,
@@ -361,15 +362,17 @@ with gr.Blocks(css=custom_css, theme=gr.themes.Soft()) as demo:
                 respond,
                 [msg, chatbot, user_box, session_box],
                 [msg, chatbot, plot, chart_panel],
-                show_api=False,
+                api_visibility="undocumented",
             )
-            show_chart_btn.click(show_chart_panel, outputs=[chart_panel], show_api=False)
-            hide_chart_btn.click(hide_chart_panel, outputs=[chart_panel], show_api=False)
+            show_chart_btn.click(show_chart_panel, outputs=[chart_panel], api_visibility="undocumented")
+            hide_chart_btn.click(hide_chart_panel, outputs=[chart_panel], api_visibility="undocumented")
 
             # Restore persisted chat history from the checkpointer: on page load
             # and whenever the User/Session ID changes (switching threads).
-            user_box.change(load_history_to_chatbot, [user_box, session_box], [chatbot], show_api=False)
-            session_box.change(load_history_to_chatbot, [user_box, session_box], [chatbot], show_api=False)
+            user_box.change(load_history_to_chatbot, [user_box, session_box], [chatbot], api_visibility="undocumented")
+            session_box.change(
+                load_history_to_chatbot, [user_box, session_box], [chatbot], api_visibility="undocumented"
+            )
 
         with gr.TabItem("🧠 Memory Store"):
             gr.Markdown("### Long-term Memory Viewer")
@@ -391,11 +394,11 @@ with gr.Blocks(css=custom_css, theme=gr.themes.Soft()) as demo:
                 fn=list_user_memories,
                 inputs=[memory_user_input],
                 outputs=[memory_display],
-                show_api=False,
+                api_visibility="undocumented",
             )
 
     # Restore persisted history into the chatbot when the page first loads.
-    demo.load(load_history_to_chatbot, [user_box, session_box], [chatbot], show_api=False)
+    demo.load(load_history_to_chatbot, [user_box, session_box], [chatbot], api_visibility="undocumented")
 
 
 # ---------- API Endpoints ----------
@@ -407,7 +410,7 @@ async def download_report(filename: str):
 
 # ---------- Application Startup ----------
 # Mount Gradio app to FastAPI
-app = gr.mount_gradio_app(app, demo, path="/ui")
+app = gr.mount_gradio_app(app, demo, path="/ui", css=custom_css, theme=gr.themes.Soft())
 
 if __name__ == "__main__":
     import uvicorn

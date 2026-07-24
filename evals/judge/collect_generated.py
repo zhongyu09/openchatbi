@@ -97,19 +97,24 @@ def _state_from_graph(graph: Any, case: dict[str, Any]) -> dict[str, Any]:
     case_id = str(case.get("id", ""))
     prompt = (case.get("input") or {}).get("prompt", "")
     run_id = f"eval-{case_id}" if case_id else "eval-case"
-    cfg = {
-        "configurable": {"thread_id": run_id, "user_id": run_id},
-        "metadata": {"user_id": run_id, "session_id": case_id, "request_id": run_id},
-        "run_name": f"openchatbi-eval:{run_id}",
-    }
+    from openchatbi.observability.context import current_request_id, current_user_id
+    from openchatbi.observability.tracing import build_run_config
+
     last_sql = ""
     interrupted = False
-
-    from openchatbi.observability.context import current_request_id, current_user_id
 
     user_token = current_user_id.set(run_id)
     request_token = current_request_id.set(run_id)
     try:
+        cfg = build_run_config(
+            user_id=run_id,
+            session_id=case_id,
+            request_id=run_id,
+            base={
+                "configurable": {"thread_id": run_id},
+                "run_name": f"openchatbi-eval:{run_id}",
+            },
+        )
         for _namespace, update in graph.stream(
             {"messages": [{"role": "user", "content": prompt}]},
             config=cfg,

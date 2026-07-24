@@ -115,7 +115,7 @@ eval = [
     "pyyaml>=6.0,<7.0",
 ]
 observability = [
-    "langfuse>=3,<4",
+    "langfuse>=4.7,<5",
     "langsmith>=0.4.8,<1.0.0",
     "prometheus-client>=0.20.0,<1.0.0",
     "tiktoken>=0.7.0,<1.0.0",

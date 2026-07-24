@@ -177,7 +177,9 @@ def test_state_from_graph_reads_sql_from_stream_updates():
     payload, config, stream_mode, subgraphs = graph.stream_calls[0]
     assert config["configurable"]["thread_id"] == "eval-c1"
     assert config["configurable"]["user_id"] == "eval-c1"
-    assert config["metadata"]["user_id"] == "eval-c1"
+    assert config["metadata"]["langfuse_user_id"] == "eval-c1"
+    assert config["metadata"]["langfuse_session_id"] == "c1"
+    assert config["metadata"]["langfuse_trace_name"] == "openchatbi-eval:eval-c1"
     assert config["metadata"]["request_id"] == "eval-c1"
     assert payload["messages"][0]["content"] == "q"
     assert subgraphs is True

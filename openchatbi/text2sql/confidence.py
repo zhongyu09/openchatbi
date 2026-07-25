@@ -19,6 +19,10 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from openchatbi.llm.llm import get_default_llm
 from openchatbi.utils import extract_json_from_answer, log
 
+CONFIDENCE_STATUS_OK = "ok"
+CONFIDENCE_STATUS_PARSE_ERROR = "parse_error"
+CONFIDENCE_STATUS_EVALUATOR_ERROR = "evaluator_error"
+
 # Ordered rubric check keys (Dataherald 6-step rubric).
 RUBRIC_CHECKS: tuple[str, ...] = (
     "select_columns",  # SELECT columns map to the question's requested fields
@@ -43,9 +47,10 @@ def _get_rubric_prompt_template() -> str:
 
 @dataclass
 class ConfidenceResult:
-    score: float
+    score: float | None
     reasons: list[str] = field(default_factory=list)
     checks: dict[str, bool] = field(default_factory=dict)
+    status: str = CONFIDENCE_STATUS_OK
 
 
 class SimpleSQLEvaluator:
@@ -103,7 +108,12 @@ class SimpleSQLEvaluator:
             return self._parse(getattr(response, "content", str(response)))
         except Exception as exc:  # never raise into the calling graph
             log(f"SimpleSQLEvaluator.evaluate failed: {exc}")
-            return ConfidenceResult(score=0.0, reasons=[f"evaluator error: {exc}"], checks={})
+            return ConfidenceResult(
+                score=None,
+                reasons=[f"evaluator error: {exc}"],
+                checks={},
+                status=CONFIDENCE_STATUS_EVALUATOR_ERROR,
+            )
 
     @staticmethod
     def _parse(content: str) -> ConfidenceResult:
@@ -111,7 +121,12 @@ class SimpleSQLEvaluator:
         # objects; it returns {} on any parse failure.
         data = extract_json_from_answer(content)
         if not data:
-            return ConfidenceResult(score=0.0, reasons=["unparseable evaluator output"], checks={})
+            return ConfidenceResult(
+                score=None,
+                reasons=["unparseable evaluator output"],
+                checks={},
+                status=CONFIDENCE_STATUS_PARSE_ERROR,
+            )
 
         checks = {}
         for k in RUBRIC_CHECKS:
@@ -138,4 +153,4 @@ class SimpleSQLEvaluator:
         else:
             reasons = []
 
-        return ConfidenceResult(score=score, reasons=reasons, checks=checks)
+        return ConfidenceResult(score=score, reasons=reasons, checks=checks, status=CONFIDENCE_STATUS_OK)

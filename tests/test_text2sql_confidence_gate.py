@@ -10,7 +10,11 @@ from langgraph.types import Command
 from openchatbi.config_loader import Config
 from openchatbi.constants import SQL_SUCCESS
 from openchatbi.graph_state import SQLGraphState, SQLOutputState
-from openchatbi.text2sql.confidence import ConfidenceResult
+from openchatbi.text2sql.confidence import (
+    CONFIDENCE_STATUS_OK,
+    CONFIDENCE_STATUS_PARSE_ERROR,
+    ConfidenceResult,
+)
 
 
 class TestConfidenceGateConfig:
@@ -41,18 +45,24 @@ class TestConfidenceStateFields:
             messages=[HumanMessage(content="q")],
             sql="SELECT 1",
             sql_confidence=0.42,
+            confidence_status=CONFIDENCE_STATUS_OK,
             confidence_reasons=["WHERE clause missing filter"],
+            confidence_diagnostics=[],
             human_sql_decision="approve",
         )
         assert state["sql_confidence"] == 0.42
+        assert state["confidence_status"] == CONFIDENCE_STATUS_OK
         assert state["confidence_reasons"] == ["WHERE clause missing filter"]
+        assert state["confidence_diagnostics"] == []
         assert state["human_sql_decision"] == "approve"
 
     def test_sqloutputstate_exposes_confidence_fields(self):
         # SQLOutputState is the subgraph output schema; fields absent here are
         # filtered out at the subgraph boundary and never reach the parent graph.
         assert "sql_confidence" in SQLOutputState.__annotations__
+        assert "confidence_status" in SQLOutputState.__annotations__
         assert "confidence_reasons" in SQLOutputState.__annotations__
+        assert "confidence_diagnostics" in SQLOutputState.__annotations__
         assert "human_sql_decision" in SQLOutputState.__annotations__
 
 
@@ -109,7 +119,9 @@ class TestScoreSqlNode:
             )
             out = score_sql_node(state)
         assert out["sql_confidence"] == 0.35
+        assert out["confidence_status"] == CONFIDENCE_STATUS_OK
         assert out["confidence_reasons"] == ["WHERE missing"]
+        assert out["confidence_diagnostics"] == []
 
     def test_score_sql_node_skips_on_failed_sql(self, mock_llm, mock_catalog):
         nodes = self._nodes(mock_llm, mock_catalog)
@@ -174,6 +186,39 @@ class TestScoreSqlNode:
             out = score_sql_node(state)
         MockEval.assert_called_once()
         assert out.get("sql_confidence") == 0.9
+        assert out.get("confidence_status") == CONFIDENCE_STATUS_OK
+
+    def test_score_sql_node_unavailable_confidence_has_no_low_score(self, mock_llm, mock_catalog):
+        nodes = self._nodes(mock_llm, mock_catalog)
+        score_sql_node = nodes[4]
+        fake_result = ConfidenceResult(
+            score=None,
+            reasons=["unparseable evaluator output"],
+            checks={},
+            status=CONFIDENCE_STATUS_PARSE_ERROR,
+        )
+        cfg = Config(
+            default_llm=MagicMock(),
+            data_warehouse_config={"uri": "sqlite:///:memory:"},
+            enable_confidence_gate=True,
+        )
+        state = SQLGraphState(
+            messages=[],
+            rewrite_question="q",
+            sql="SELECT 1",
+            schema_info={},
+            data="",
+            sql_execution_result=SQL_SUCCESS,
+        )
+        with (
+            patch("openchatbi.text2sql.generate_sql.config.get", return_value=cfg),
+            patch("openchatbi.text2sql.generate_sql.SimpleSQLEvaluator") as MockEval,
+        ):
+            MockEval.return_value.evaluate.return_value = fake_result
+            out = score_sql_node(state)
+        assert "sql_confidence" not in out
+        assert out["confidence_status"] == CONFIDENCE_STATUS_PARSE_ERROR
+        assert out["confidence_diagnostics"] == ["unparseable evaluator output"]
 
 
 class TestRouteAfterConfidence:
@@ -217,6 +262,7 @@ class TestConfidenceGateEditFallback:
             rewrite_question="q",
             sql="SELECT 1",
             sql_confidence=0.3,
+            confidence_status=CONFIDENCE_STATUS_OK,
             confidence_reasons=["WHERE missing"],
         )
 
@@ -259,6 +305,23 @@ class TestConfidenceGateEditFallback:
         assert out["human_sql_decision"] == "reject"
         assert "sql" not in out
 
+    def test_unavailable_confidence_approves_without_low_confidence_interrupt(self, gate_node):
+        state = SQLGraphState(
+            messages=[],
+            rewrite_question="q",
+            sql="SELECT 1",
+            confidence_status=CONFIDENCE_STATUS_PARSE_ERROR,
+            confidence_reasons=["unparseable evaluator output"],
+            confidence_diagnostics=["unparseable evaluator output"],
+        )
+        with (
+            patch("openchatbi.text2sql.generate_sql.config.get", return_value=self._gated_cfg()),
+            patch("openchatbi.text2sql.generate_sql.interrupt") as mock_interrupt,
+        ):
+            out = gate_node(state)
+        assert out["human_sql_decision"] == "approve"
+        mock_interrupt.assert_not_called()
+
 
 class TestInterruptThroughToolBoundary:
     """Verify the confidence_gate interrupt survives the get_sql_tools
@@ -293,7 +356,11 @@ class TestInterruptThroughToolBoundary:
             return {"sql_execution_result": SQL_SUCCESS, "data": "id\n1\n", "schema_info": {}}
 
         def score_stub(state):
-            return {"sql_confidence": 0.30, "confidence_reasons": ["WHERE missing"]}
+            return {
+                "sql_confidence": 0.30,
+                "confidence_status": CONFIDENCE_STATUS_OK,
+                "confidence_reasons": ["WHERE missing"],
+            }
 
         def viz_stub(state):
             return {"visualization_dsl": {"chart_type": "bar"}}
@@ -385,12 +452,40 @@ class TestConfidenceStreaming:
         events = proc.process(
             namespace=(),
             event_type="updates",
-            event_value={"score_sql": {"sql_confidence": 0.42, "confidence_reasons": ["WHERE missing"]}},
+            event_value={
+                "score_sql": {
+                    "sql_confidence": 0.42,
+                    "confidence_status": CONFIDENCE_STATUS_OK,
+                    "confidence_reasons": ["WHERE missing"],
+                }
+            },
         )
         conf = [e for e in events if isinstance(e, StreamStep) and e.kind == "confidence"]
         assert len(conf) == 1
         assert conf[0].data["sql_confidence"] == 0.42
+        assert conf[0].data["confidence_status"] == CONFIDENCE_STATUS_OK
         assert "0.42" in conf[0].text
+
+    def test_score_sql_emits_unavailable_confidence_step(self):
+        from openchatbi.streaming import AgentStreamProcessor, StreamStep
+
+        proc = AgentStreamProcessor()
+        events = proc.process(
+            namespace=(),
+            event_type="updates",
+            event_value={
+                "score_sql": {
+                    "confidence_status": CONFIDENCE_STATUS_PARSE_ERROR,
+                    "confidence_reasons": ["unparseable evaluator output"],
+                    "confidence_diagnostics": ["unparseable evaluator output"],
+                }
+            },
+        )
+        conf = [e for e in events if isinstance(e, StreamStep) and e.kind == "confidence"]
+        assert len(conf) == 1
+        assert "unavailable" in conf[0].text
+        assert "0.00" not in conf[0].text
+        assert conf[0].data["confidence_status"] == CONFIDENCE_STATUS_PARSE_ERROR
 
     def test_score_sql_node_in_subgraph_nodes(self):
         from openchatbi.streaming import SQL_SUBGRAPH_NODES

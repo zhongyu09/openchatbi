@@ -3,6 +3,7 @@
 from unittest.mock import MagicMock, Mock, patch
 
 from openchatbi.config_loader import Config
+from openchatbi.text2sql.confidence import CONFIDENCE_STATUS_PARSE_ERROR
 
 
 class TestGoldenSqlConfig:
@@ -120,6 +121,43 @@ class TestGoldenCaptureOnApprove:
         ):
             gate(state)
         learned_store.add_golden_sql.assert_not_called()
+
+    def test_confidence_unavailable_skips_golden_capture(self, mock_catalog_store):
+        from openchatbi.config_loader import Config
+        from openchatbi.constants import SQL_SUCCESS
+        from openchatbi.graph_state import SQLGraphState
+
+        cfg = Config(
+            default_llm=MagicMock(),
+            data_warehouse_config={"uri": "sqlite:///:memory:"},
+            catalog_store=mock_catalog_store,
+            enable_confidence_gate=True,
+            sql_confidence_threshold=0.7,
+            enable_golden_sql=True,
+        )
+        learned_store = Mock()
+        gate = self._gate_node(mock_catalog_store)
+        state = SQLGraphState(
+            messages=[],
+            rewrite_question="q unavailable",
+            sql="SELECT 1 FROM test_table",
+            tables=[{"table": "test.test_table"}],
+            confidence_status=CONFIDENCE_STATUS_PARSE_ERROR,
+            confidence_reasons=["unparseable evaluator output"],
+            confidence_diagnostics=["unparseable evaluator output"],
+            sql_execution_result=SQL_SUCCESS,
+        )
+        with (
+            patch("openchatbi.text2sql.generate_sql.config.get", return_value=cfg),
+            patch("openchatbi.text2sql.generate_sql.get_learned_sql_store", return_value=learned_store),
+            patch("openchatbi.text2sql.generate_sql.interrupt") as mock_interrupt,
+        ):
+            out = gate(state)
+        assert out["human_sql_decision"] == "approve"
+        mock_interrupt.assert_not_called()
+        learned_store.add_golden_sql.assert_not_called()
+        examples = mock_catalog_store.get_sql_examples()
+        assert not any(q == "q unavailable" for q, _sql, _t in examples)
 
 
 class TestSearchKnowledgeSqlExamples:

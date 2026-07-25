@@ -196,7 +196,7 @@ class StructuredToolWithRequired(StructuredTool):
                 if model_config:
                     model_config["json_schema_extra"] = fix_schema_for_openai
                 elif ConfigDict is not None:
-                    setattr(tcs, "model_config", ConfigDict(json_schema_extra=fix_schema_for_openai))
+                    tcs.model_config = ConfigDict(json_schema_extra=fix_schema_for_openai)
         except Exception as e:
             logger.warning("Unable to attach OpenAI schema compatibility hook: %s", e)
         return tcs

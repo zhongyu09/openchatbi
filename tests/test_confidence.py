@@ -6,7 +6,13 @@ from unittest.mock import Mock
 from langchain_core.language_models import FakeListChatModel
 from langchain_core.messages import AIMessage
 
-from openchatbi.text2sql.confidence import ConfidenceResult, SimpleSQLEvaluator
+from openchatbi.text2sql.confidence import (
+    CONFIDENCE_STATUS_EVALUATOR_ERROR,
+    CONFIDENCE_STATUS_OK,
+    CONFIDENCE_STATUS_PARSE_ERROR,
+    ConfidenceResult,
+    SimpleSQLEvaluator,
+)
 
 
 def test_confidence_result_fields():
@@ -23,6 +29,7 @@ def test_confidence_result_fields():
         },
     )
     assert result.score == 0.83
+    assert result.status == CONFIDENCE_STATUS_OK
     assert result.reasons == ["WHERE clause matches the date filter"]
     assert result.checks["select_columns"] is True
     assert set(result.checks) == {
@@ -63,6 +70,7 @@ def test_evaluate_parses_structured_verdict():
     )
     assert isinstance(result, ConfidenceResult)
     assert result.score == 0.92
+    assert result.status == CONFIDENCE_STATUS_OK
     assert result.checks["joins"] is True
     assert all(result.checks[k] for k in result.checks)
     assert "columns match" in result.reasons
@@ -76,12 +84,26 @@ def test_evaluate_clamps_score_and_handles_false_checks():
     assert result.checks["where"] is False
 
 
-def test_evaluate_never_raises_on_bad_output():
+def test_evaluate_never_raises_on_bad_output_and_marks_parse_error():
     mock_llm = FakeListChatModel(responses=["not json at all"])
     evaluator = SimpleSQLEvaluator(llm=mock_llm)
     result = evaluator.evaluate("q", "SELECT 1", {}, None)
-    assert result.score == 0.0
+    assert result.score is None
+    assert result.status == CONFIDENCE_STATUS_PARSE_ERROR
+    assert result.reasons == ["unparseable evaluator output"]
     assert result.checks == {}
+
+
+def test_evaluate_never_raises_on_invocation_error_and_marks_evaluator_error():
+    mock_llm = Mock()
+    mock_llm.bind.side_effect = TypeError("no bind")
+    mock_llm.invoke.side_effect = RuntimeError("boom")
+    evaluator = SimpleSQLEvaluator(llm=mock_llm)
+    result = evaluator.evaluate("q", "SELECT 1", {}, None)
+    assert result.score is None
+    assert result.status == CONFIDENCE_STATUS_EVALUATOR_ERROR
+    assert result.checks == {}
+    assert "evaluator error: boom" in result.reasons
 
 
 def _recording_llm() -> Mock:

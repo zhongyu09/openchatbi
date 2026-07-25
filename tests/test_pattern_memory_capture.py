@@ -16,7 +16,7 @@ from langchain_core.messages import AIMessage
 
 from openchatbi.constants import SQL_SUCCESS
 from openchatbi.graph_state import SQLGraphState
-from openchatbi.text2sql.confidence import ConfidenceResult
+from openchatbi.text2sql.confidence import CONFIDENCE_STATUS_OK, CONFIDENCE_STATUS_PARSE_ERROR, ConfidenceResult
 from openchatbi.text2sql.generate_sql import create_sql_nodes
 
 
@@ -106,6 +106,7 @@ class TestAutoCaptureGate:
         state["sql_execution_result"] = SQL_SUCCESS
         if score is not None:
             state["sql_confidence"] = score
+            state["confidence_status"] = CONFIDENCE_STATUS_OK
         return state
 
     def test_capture_disabled_by_default(self, mock_llm, mock_catalog):
@@ -166,16 +167,37 @@ class TestAutoCaptureGate:
         """No sql_confidence in state (evaluator failed) -> skip capture, never re-evaluate."""
         store = MagicMock()
         gate = self._gate(mock_llm, mock_catalog, store)
+        state = self._scored_state(None)
+        state["confidence_status"] = CONFIDENCE_STATUS_PARSE_ERROR
+        state["confidence_diagnostics"] = ["unparseable evaluator output"]
         with (
             patch("openchatbi.text2sql.generate_sql.get_memory_config", return_value=_mem_cfg()),
             patch("openchatbi.text2sql.generate_sql.config.get", return_value=_main_cfg()),
             patch("openchatbi.text2sql.generate_sql.SimpleSQLEvaluator") as MockEval,
         ):
-            out = gate(self._scored_state(None))
+            out = gate(state)
 
         assert out["human_sql_decision"] == "approve"
         store.add.assert_not_called()
         MockEval.assert_not_called()
+
+    def test_capture_skipped_when_confidence_unavailable_even_with_gate_on(self, mock_llm, mock_catalog):
+        store = MagicMock()
+        gate = self._gate(mock_llm, mock_catalog, store)
+        state = self._scored_state(None)
+        state["confidence_status"] = CONFIDENCE_STATUS_PARSE_ERROR
+        state["confidence_reasons"] = ["unparseable evaluator output"]
+        state["confidence_diagnostics"] = ["unparseable evaluator output"]
+        with (
+            patch("openchatbi.text2sql.generate_sql.get_memory_config", return_value=_mem_cfg()),
+            patch("openchatbi.text2sql.generate_sql.config.get", return_value=_main_cfg(gate_on=True)),
+            patch("openchatbi.text2sql.generate_sql.interrupt") as mock_interrupt,
+        ):
+            out = gate(state)
+
+        assert out["human_sql_decision"] == "approve"
+        store.add.assert_not_called()
+        mock_interrupt.assert_not_called()
 
     def test_human_approve_overrides_threshold(self, mock_llm, mock_catalog):
         """Manual approval captures even below the score threshold (human > S2)."""

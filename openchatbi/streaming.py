@@ -345,12 +345,28 @@ class AgentStreamProcessor:
 
             elif node_name == "score_sql":
                 score = node_output.get("sql_confidence")
+                status = node_output.get("confidence_status")
                 if score is not None:
                     reasons = node_output.get("confidence_reasons", [])
                     reason_txt = f" — {'; '.join(reasons)}" if reasons else ""
                     desc = f"🎯 SQL confidence: {score:.2f}{reason_txt}"
                     kind = "confidence"
-                    data = {"sql_confidence": score, "confidence_reasons": reasons}
+                    data = {
+                        "sql_confidence": score,
+                        "confidence_status": status or "ok",
+                        "confidence_reasons": reasons,
+                        "confidence_diagnostics": node_output.get("confidence_diagnostics", []),
+                    }
+                elif status:
+                    diagnostics = node_output.get("confidence_diagnostics") or node_output.get("confidence_reasons", [])
+                    detail_txt = f" — {'; '.join(diagnostics)}" if diagnostics else ""
+                    desc = f"🎯 SQL confidence unavailable ({status}){detail_txt}"
+                    kind = "confidence"
+                    data = {
+                        "confidence_status": status,
+                        "confidence_reasons": node_output.get("confidence_reasons", []),
+                        "confidence_diagnostics": diagnostics,
+                    }
             elif node_name == "use_tool":
                 for message in _message_list(node_output.get("messages")):
                     if not isinstance(message, ToolMessage):

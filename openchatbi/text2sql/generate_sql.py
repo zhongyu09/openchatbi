@@ -27,7 +27,7 @@ from openchatbi.memory_scoring import composite_score
 from openchatbi.observability.audit import AuditLogger
 from openchatbi.observability.context import get_run_context
 from openchatbi.prompts.system_prompt import get_text2sql_dialect_prompt_template
-from openchatbi.text2sql.confidence import SimpleSQLEvaluator
+from openchatbi.text2sql.confidence import CONFIDENCE_STATUS_EVALUATOR_ERROR, CONFIDENCE_STATUS_OK, SimpleSQLEvaluator
 from openchatbi.text2sql.data import get_learned_sql_store, sql_example_dicts, sql_example_retriever
 from openchatbi.text2sql.errors import (
     EmptyResultError,
@@ -378,10 +378,10 @@ def create_sql_nodes(
             # S2 gate (success != correct): only promote SQL scored above the
             # threshold, unless a human explicitly approved it.
             if not human_approved:
-                score = state.get("sql_confidence")
-                if score is None:
-                    log("Pattern capture skipped: no confidence score available")
+                if not _has_valid_confidence_score(state):
+                    log("Pattern capture skipped: confidence status is not valid")
                     return
+                score = state.get("sql_confidence")
                 try:
                     threshold = float(getattr(config.get(), "sql_confidence_threshold", 0.7))
                 except ValueError:
@@ -401,6 +401,20 @@ def create_sql_nodes(
             )
         except Exception as e:  # never let capture break the response
             log(f"Pattern capture error (ignored): {e}")
+
+    def _has_valid_confidence_score(state: SQLGraphState) -> bool:
+        """Return True only when sql_confidence is a trusted evaluator score."""
+        if state.get("sql_confidence") is None:
+            return False
+        return state.get("confidence_status", CONFIDENCE_STATUS_OK) == CONFIDENCE_STATUS_OK
+
+    def _confidence_score_meets_threshold(state: SQLGraphState, threshold: float) -> bool:
+        if not _has_valid_confidence_score(state):
+            return False
+        try:
+            return float(state["sql_confidence"]) >= threshold
+        except (TypeError, ValueError):
+            return False
 
     def generate_sql_node(state: SQLGraphState) -> dict:
         """First node: Generates initial SQL query based on the state.
@@ -704,11 +718,24 @@ def create_sql_nodes(
             result = evaluator.evaluate(question, sql_query, schema_info, data_sample, table_schema=table_schema)
         except Exception as e:  # never block the answer on evaluator failure
             log(f"Confidence evaluation failed: {str(e)}")
-            return {}
-        log(f"SQL confidence={result.score:.2f} reasons={result.reasons}")
-        return {"sql_confidence": result.score, "confidence_reasons": list(result.reasons)}
+            return {
+                "confidence_status": CONFIDENCE_STATUS_EVALUATOR_ERROR,
+                "confidence_reasons": [f"evaluator error: {e}"],
+                "confidence_diagnostics": [f"evaluator error: {e}"],
+            }
+        update = {
+            "confidence_status": result.status,
+            "confidence_reasons": list(result.reasons),
+            "confidence_diagnostics": [] if result.status == CONFIDENCE_STATUS_OK else list(result.reasons),
+        }
+        if result.status == CONFIDENCE_STATUS_OK and result.score is not None:
+            log(f"SQL confidence={result.score:.2f} reasons={result.reasons}")
+            update["sql_confidence"] = result.score
+        else:
+            log(f"SQL confidence unavailable ({result.status}): {result.reasons}")
+        return update
 
-    def _capture_golden_sql(state: SQLGraphState) -> None:
+    def _capture_golden_sql(state: SQLGraphState, human_approved: bool = False) -> None:
         """Dual-write an approved SQL: S3 vector store + durable YAML (mandatory)."""
         try:
             cfg = config.get()
@@ -721,6 +748,14 @@ def create_sql_nodes(
         tables = [d["table"] for d in state.get("tables", []) if isinstance(d, dict) and d.get("table")]
         if not question or not sql_query:
             return
+        if not human_approved:
+            try:
+                threshold = float(getattr(cfg, "sql_confidence_threshold", 0.7))
+            except (TypeError, ValueError):
+                threshold = 0.7
+            if not _confidence_score_meets_threshold(state, threshold):
+                log("Golden SQL capture skipped: confidence is unavailable or below threshold")
+                return
         # 1) runtime vector store (S3) — under the store's own lock.
         try:
             store = get_learned_sql_store()
@@ -747,9 +782,11 @@ def create_sql_nodes(
         except ValueError:
             enabled, threshold = False, 0.7
         score = state.get("sql_confidence", 1.0)
-        if not enabled or score is None or score >= threshold:
-            _capture_golden_sql(state)
-            _maybe_capture_pattern(state)
+        valid_score = _has_valid_confidence_score(state)
+        if not enabled or not valid_score or score is None or score >= threshold:
+            if _confidence_score_meets_threshold(state, threshold):
+                _capture_golden_sql(state)
+                _maybe_capture_pattern(state)
             return {"human_sql_decision": "approve"}
         reasons = state.get("confidence_reasons", [])
         feedback = interrupt(
@@ -770,7 +807,7 @@ def create_sql_nodes(
             log("Confidence gate: 'edit' without SQL payload, degrading to reject")
             decision = "reject"
         if decision == "approve":
-            _capture_golden_sql(state)
+            _capture_golden_sql(state, human_approved=True)
             # Human approval overrides the score threshold for pattern capture.
             _maybe_capture_pattern(state, human_approved=True)
         return {"human_sql_decision": decision}

@@ -214,7 +214,7 @@ async def process_user_message_stream(
     # Final update to response container - only show plot if available (text response is in thinking container)
     with response_container:
         if plot_figure:
-            st.plotly_chart(plot_figure, use_container_width=True, key=str(uuid.uuid4()))
+            st.plotly_chart(plot_figure, width="stretch", key=str(uuid.uuid4()))
 
     # Extract final answer for separate storage
     final_answer_text = ""
@@ -423,7 +423,7 @@ def display_message_with_thinking(
 
         # Display plot if available (outside thinking container)
         if plot_figure:
-            st.plotly_chart(plot_figure, use_container_width=True, key=str(uuid.uuid4()))
+            st.plotly_chart(plot_figure, width="stretch", key=str(uuid.uuid4()))
 
 
 # Main UI
@@ -508,7 +508,7 @@ for msg in st.session_state.messages:
 
             # Display plot if available (outside thinking container)
             if msg.get("plot_figure"):
-                st.plotly_chart(msg["plot_figure"], use_container_width=True, key=str(uuid.uuid4()))
+                st.plotly_chart(msg["plot_figure"], width="stretch", key=str(uuid.uuid4()))
 
     elif msg["type"] == "thinking_message":
         display_message_with_thinking(
@@ -519,7 +519,7 @@ for msg in st.session_state.messages:
             if msg["type"] == "text":
                 render_content_with_downloads(msg["content"])
             elif msg["type"] == "plot" and msg.get("plot_figure"):
-                st.plotly_chart(msg["plot_figure"], use_container_width=True, key=str(uuid.uuid4()))
+                st.plotly_chart(msg["plot_figure"], width="stretch", key=str(uuid.uuid4()))
 
 # Chat input
 if prompt := st.chat_input("Ask me anything about your data..."):

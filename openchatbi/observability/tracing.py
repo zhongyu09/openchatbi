@@ -1,4 +1,4 @@
-"""Tracing provider integration (Langfuse v3 self-hosted, LangSmith fallback).
+"""Tracing provider integration (Langfuse v4 self-hosted/cloud, LangSmith fallback).
 
 Credentials are read from environment / .env only (never from config files /
 git). When tracing is disabled or the provider lib is missing, returns ``[]``
@@ -39,7 +39,7 @@ def get_tracing_callbacks(enabled: bool | None = None, provider: str | None = No
 
     if provider == "langfuse":
         try:
-            from langfuse.langchain import CallbackHandler  # Langfuse v3 path
+            from langfuse.langchain import CallbackHandler
 
             # Reads LANGFUSE_PUBLIC_KEY / LANGFUSE_SECRET_KEY / LANGFUSE_HOST from env.
             return [CallbackHandler()]
@@ -83,9 +83,17 @@ def build_run_config(
     callbacks.extend(get_tracing_callbacks())
     cfg["callbacks"] = callbacks
 
-    metadata = dict(cfg.get("metadata") or {})
-    metadata.update({"user_id": user_id, "session_id": session_id, "request_id": request_id})
-    cfg["metadata"] = metadata
-
     cfg.setdefault("run_name", f"openchatbi:{user_id}:{session_id}")
+    trace_name = str(cfg["run_name"])
+
+    metadata = dict(cfg.get("metadata") or {})
+    metadata.update(
+        {
+            "langfuse_user_id": user_id,
+            "langfuse_session_id": session_id,
+            "langfuse_trace_name": trace_name,
+            "request_id": request_id,
+        }
+    )
+    cfg["metadata"] = metadata
     return cfg

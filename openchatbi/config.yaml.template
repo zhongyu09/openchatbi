@@ -7,6 +7,11 @@ bi_config_file: example/bi.yaml
 # enable_sql_result_limit: true
 # sql_result_limit: 10000
 
+# Text2SQL fail-closed SQL guard (opt-in; disabled by default for backward compatibility).
+# When enabled, only SELECT and WITH ... SELECT queries pass application-layer validation.
+# Use this as defense in depth together with read-only data warehouse credentials.
+# enable_fail_closed_sql_guard: false
+
 # Python Code Execution Configuration
 # Options: "local", "restricted_local", "docker"
 # - local: Run code in the current Python process (fastest, least secure)

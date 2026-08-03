@@ -26,6 +26,7 @@ class TestConfigLoader:
         assert config.embedding_model == mock_embedding
         assert config.enable_sql_result_limit is True
         assert config.sql_result_limit == SQL_RESULT_LIMIT
+        assert config.enable_fail_closed_sql_guard is False
 
     def test_config_from_dict(self):
         """Test creating Config from dictionary."""
@@ -38,6 +39,7 @@ class TestConfigLoader:
             "dialect": "mysql",
             "default_llm": mock_llm,
             "embedding_model": mock_embedding,
+            "enable_fail_closed_sql_guard": True,
         }
 
         config = Config.from_dict(config_dict)
@@ -45,6 +47,7 @@ class TestConfigLoader:
         assert config.dialect == "mysql"
         assert config.default_llm == mock_llm
         assert config.embedding_model == mock_embedding
+        assert config.enable_fail_closed_sql_guard is True
 
     def test_config_loader_initialization(self):
         """Test ConfigLoader initialization."""

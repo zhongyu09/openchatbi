@@ -21,6 +21,7 @@ jobs:
         run: |
           runledger run evals/runledger --mode replay --baseline baselines/runledger-openchatbi.json
       - name: Upload artifacts
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: runledger-artifacts

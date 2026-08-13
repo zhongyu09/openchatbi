@@ -6,6 +6,9 @@ bi_config_file: example/bi.yaml
 enable_sql_result_limit: true
 sql_result_limit: 10000
 
+# Opt-in application-layer read-only guard; keep using read-only warehouse credentials.
+enable_fail_closed_sql_guard: false
+
 python_executor: docker
 
 # Visualization configuration

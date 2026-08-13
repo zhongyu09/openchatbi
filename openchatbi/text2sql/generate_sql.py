@@ -56,8 +56,108 @@ def _limit_sql_query(sql: str, limit: int = SQL_RESULT_LIMIT) -> str:
     return f"SELECT * FROM (\n{normalized_sql}\n) AS openchatbi_limited_result LIMIT {limit}"  # nosec
 
 
-def _validate_sql_safety(sql: str) -> tuple[bool, str]:
-    """Validate generated SQL before execution."""
+def _get_fail_closed_sql_guard_config() -> bool:
+    """Return whether opt-in fail-closed Text2SQL validation is enabled."""
+    try:
+        cfg = config.get()
+    except ValueError:
+        return False
+    return bool(getattr(cfg, "enable_fail_closed_sql_guard", False))
+
+
+def _dialect_uses_backslash_escape(dialect: str | None) -> bool:
+    """Return whether the dialect treats backslash as a quote escape character.
+
+    MySQL/MariaDB enable backslash escaping by default. ANSI SQL and the
+    project's default dialects (sqlite, postgres, presto, trino, clickhouse)
+    escape quotes by doubling them and do not treat backslash specially inside
+    string literals. Matching the engine's quoting semantics keeps the safety
+    normalizer's string boundaries aligned with how the warehouse will parse
+    the query, preventing comment markers hidden by a backslash-escaped quote
+    from bypassing the denylist.
+    """
+    return (dialect or "").strip().lower() in {"mysql", "mariadb"}
+
+
+def _normalize_sql_for_safety(sql: str, dialect: str | None = None) -> str:
+    """Normalize comments and a trailing semicolon for safety classification.
+
+    Quoted strings and identifiers are preserved so comment markers inside them
+    are not interpreted as SQL comments. The returned value is used only for
+    validation; generated markdown fences are removed earlier in the pipeline.
+
+    Backslash escape handling follows the dialect: enabled for MySQL/MariaDB,
+    disabled otherwise so ANSI-style dialects (sqlite, postgres, presto, ...)
+    close string literals at the first unescaped quote, matching engine
+    behavior.
+    """
+    backslash_escape = _dialect_uses_backslash_escape(dialect)
+    normalized: list[str] = []
+    quote_end: str | None = None
+    index = 0
+
+    while index < len(sql):
+        char = sql[index]
+        next_char = sql[index + 1] if index + 1 < len(sql) else ""
+
+        if quote_end is not None:
+            normalized.append(char)
+            if char == quote_end:
+                if next_char == quote_end and quote_end in {"'", '"', "`"}:
+                    normalized.append(next_char)
+                    index += 2
+                    continue
+                quote_end = None
+            elif backslash_escape and char == "\\" and next_char:
+                normalized.append(next_char)
+                index += 2
+                continue
+            index += 1
+            continue
+
+        if char in {"'", '"', "`"}:
+            quote_end = char
+            normalized.append(char)
+            index += 1
+            continue
+        if char == "[":
+            quote_end = "]"
+            normalized.append(char)
+            index += 1
+            continue
+
+        if char == "-" and next_char == "-":
+            normalized.extend((" ", " "))
+            index += 2
+            while index < len(sql) and sql[index] not in {"\r", "\n"}:
+                normalized.append(" ")
+                index += 1
+            continue
+
+        if char == "/" and next_char == "*":
+            normalized.extend((" ", " "))
+            index += 2
+            while index < len(sql):
+                if index + 1 < len(sql) and sql[index] == "*" and sql[index + 1] == "/":
+                    normalized.extend((" ", " "))
+                    index += 2
+                    break
+                normalized.append("\n" if sql[index] == "\n" else " ")
+                index += 1
+            continue
+
+        normalized.append(char)
+        index += 1
+
+    return "".join(normalized).strip().rstrip(";").strip()
+
+
+def _validate_sql_safety(sql: str, dialect: str | None = None) -> tuple[bool, str]:
+    """Validate generated SQL before execution.
+
+    The dialect is forwarded to the normalizer so backslash escape handling
+    matches the target warehouse (see ``_dialect_uses_backslash_escape``).
+    """
     disallowed_patterns = [
         r"(?:^|\s)INSERT\s+(?:INTO\s+|OVERWRITE\s+)(?:TABLE\s+)?",
         r"(?:^|\s)UPDATE\s+[`\"\[\w]",
@@ -76,7 +176,23 @@ def _validate_sql_safety(sql: str) -> tuple[bool, str]:
         if re.search(pattern, sql, flags=re.IGNORECASE):
             return False, f"Operation not allowed: {pattern}"
 
-    return True, ""
+    if not _get_fail_closed_sql_guard_config():
+        return True, ""
+
+    normalized_sql = _normalize_sql_for_safety(sql, dialect)
+    for pattern in disallowed_patterns:
+        if re.search(pattern, normalized_sql, flags=re.IGNORECASE):
+            return False, f"Operation not allowed: {pattern}"
+
+    if re.match(r"^SELECT\b", normalized_sql, flags=re.IGNORECASE):
+        return True, ""
+
+    if re.match(r"^WITH\b", normalized_sql, flags=re.IGNORECASE) and re.search(
+        r"\bSELECT\b", normalized_sql, flags=re.IGNORECASE
+    ):
+        return True, ""
+
+    return False, "Operation not supported. Only SELECT queries are allowed"
 
 
 def _get_sql_result_limit_config() -> tuple[bool, int]:
@@ -324,7 +440,7 @@ def create_sql_nodes(
             Tuple[dict, str]: A tuple containing (schema_info, CSV string).
         """
         limit_enabled, result_limit = _get_sql_result_limit_config()
-        is_safe, reason = _validate_sql_safety(sql)
+        is_safe, reason = _validate_sql_safety(sql, dialect)
         if not is_safe:
             raise SQLSecurityError(reason)
 
@@ -386,8 +502,8 @@ def create_sql_nodes(
                     threshold = float(getattr(config.get(), "sql_confidence_threshold", 0.7))
                 except ValueError:
                     threshold = 0.7
-                if score < threshold:
-                    log(f"Pattern capture skipped: confidence {score:.2f} < {threshold:.2f}")
+                if score is None or score < threshold:
+                    log(f"Pattern capture skipped: confidence {score!s} < {threshold:.2f}")
                     return
             retry_count = int(state.get("sql_retry_count", 0) or 0)
             importance = 1.0 / (1.0 + retry_count)  # first-try success weighted highest
@@ -723,7 +839,7 @@ def create_sql_nodes(
                 "confidence_reasons": [f"evaluator error: {e}"],
                 "confidence_diagnostics": [f"evaluator error: {e}"],
             }
-        update = {
+        update: dict[str, Any] = {
             "confidence_status": result.status,
             "confidence_reasons": list(result.reasons),
             "confidence_diagnostics": [] if result.status == CONFIDENCE_STATUS_OK else list(result.reasons),

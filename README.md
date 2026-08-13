@@ -174,6 +174,16 @@ enable_sql_result_limit: true
 sql_result_limit: 10000
 ```
 
+5. **Optionally enable the fail-closed Text2SQL SQL guard:**
+
+The application-layer SQL guard keeps its backward-compatible fail-open behavior by default after known dangerous patterns are rejected. Deployments that prefer stricter enforcement can opt in to the read-only allowlist:
+
+```yaml
+enable_fail_closed_sql_guard: true
+```
+
+When enabled, only `SELECT` and `WITH ... SELECT` query shapes are allowed to reach the data warehouse. This regex-based guard is an interim defense-in-depth control and can reject valid dialect-specific read-only SQL. Always connect OpenChatBI with a read-only, non-superuser warehouse account; the guard does not replace database permissions. Parser-based validation of a single read-only statement is the planned hardening direction.
+
 ### Running the Application
 
 1. **Invoking LangGraph:**

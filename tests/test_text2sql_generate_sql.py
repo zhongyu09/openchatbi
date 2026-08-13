@@ -254,6 +254,171 @@ class TestText2SQLGenerateSQL:
         assert result["sql_execution_result"] == "SQL_SUCCESS"
         assert "WITH active_users AS" in executed_sql
 
+    def test_execute_sql_node_default_mode_allows_non_denylisted_statement(self, mock_llm, mock_catalog):
+        """Default mode preserves fail-open behavior after denylist checks."""
+        _, execute_node, _, _, _, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
+        state = SQLGraphState(messages=[], sql="REPLACE INTO users VALUES (1)")
+
+        with patch("openchatbi.text2sql.generate_sql.config") as mock_config:
+            mock_config.get.return_value = SimpleNamespace(
+                enable_fail_closed_sql_guard=False,
+                enable_sql_result_limit=False,
+                sql_result_limit=5,
+            )
+            result = execute_node(state)
+
+        mock_engine = mock_catalog.get_sql_engine.return_value
+        mock_connection = mock_engine.connect.return_value.__enter__.return_value
+
+        assert result["sql_execution_result"] == SQL_SUCCESS
+        mock_connection.execute.assert_called_once()
+
+    @pytest.mark.parametrize(
+        "sql",
+        [
+            "SELECT * FROM users;",
+            "WITH active_users AS (SELECT * FROM users) SELECT * FROM active_users",
+            "/* generated query */ SELECT * FROM users;",
+        ],
+    )
+    def test_execute_sql_node_fail_closed_allows_supported_read_only_queries(self, mock_llm, mock_catalog, sql):
+        """Opt-in fail-closed mode allows normalized SELECT query shapes."""
+        _, execute_node, _, _, _, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
+        state = SQLGraphState(messages=[], sql=sql)
+
+        with patch("openchatbi.text2sql.generate_sql.config") as mock_config:
+            mock_config.get.return_value = SimpleNamespace(
+                enable_fail_closed_sql_guard=True,
+                enable_sql_result_limit=False,
+                sql_result_limit=5,
+            )
+            result = execute_node(state)
+
+        mock_engine = mock_catalog.get_sql_engine.return_value
+        mock_connection = mock_engine.connect.return_value.__enter__.return_value
+
+        assert result["sql_execution_result"] == SQL_SUCCESS
+        mock_connection.execute.assert_called_once()
+
+    @pytest.mark.parametrize(
+        "sql",
+        [
+            "REPLACE INTO users VALUES (1)",
+            "CALL refresh_users()",
+            "DO $$ BEGIN PERFORM 1; END $$",
+            "COPY (SELECT 1) TO PROGRAM 'echo marker'",
+            "DELETE/**/FROM users",
+            "INSERT/**/INTO users VALUES (1)",
+        ],
+    )
+    def test_execute_sql_node_fail_closed_rejects_unsafe_statement_families(self, mock_llm, mock_catalog, sql):
+        """Opt-in fail-closed mode rejects omitted verbs and comment-split writes."""
+        _, execute_node, _, _, _, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
+        state = SQLGraphState(messages=[], sql=sql)
+
+        with patch("openchatbi.text2sql.generate_sql.config") as mock_config:
+            mock_config.get.return_value = SimpleNamespace(
+                enable_fail_closed_sql_guard=True,
+                enable_sql_result_limit=False,
+                sql_result_limit=5,
+            )
+            result = execute_node(state)
+
+        from openchatbi.constants import SQL_SECURITY_ERROR
+
+        mock_engine = mock_catalog.get_sql_engine.return_value
+        mock_connection = mock_engine.connect.return_value.__enter__.return_value
+
+        assert result["sql_execution_result"] == SQL_SECURITY_ERROR
+        assert result["previous_sql_errors"][-1]["error_type"] == "SQL security error"
+        mock_connection.execute.assert_not_called()
+
+    @pytest.mark.parametrize("fail_closed", [False, True])
+    def test_execute_sql_node_denylist_applies_in_both_guard_modes(self, mock_llm, mock_catalog, fail_closed):
+        """Denylisted operations remain blocked regardless of fail-closed mode."""
+        _, execute_node, _, _, _, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
+        state = SQLGraphState(messages=[], sql="DROP TABLE users")
+
+        with patch("openchatbi.text2sql.generate_sql.config") as mock_config:
+            mock_config.get.return_value = SimpleNamespace(
+                enable_fail_closed_sql_guard=fail_closed,
+                enable_sql_result_limit=False,
+                sql_result_limit=5,
+            )
+            result = execute_node(state)
+
+        from openchatbi.constants import SQL_SECURITY_ERROR
+
+        mock_engine = mock_catalog.get_sql_engine.return_value
+        mock_connection = mock_engine.connect.return_value.__enter__.return_value
+
+        assert result["sql_execution_result"] == SQL_SECURITY_ERROR
+        mock_connection.execute.assert_not_called()
+
+    @pytest.mark.parametrize(
+        "dialect, expected_escape",
+        [
+            ("sqlite", False),
+            ("presto", False),
+            ("postgres", False),
+            ("trino", False),
+            ("clickhouse", False),
+            ("mysql", True),
+            ("mariadb", True),
+            ("MySQL", True),
+            (None, False),
+        ],
+    )
+    def test_dialect_backslash_escape_mapping(self, dialect, expected_escape):
+        """Backslash escape follows the configured dialect, not a global default."""
+        from openchatbi.text2sql.generate_sql import _dialect_uses_backslash_escape
+
+        assert _dialect_uses_backslash_escape(dialect) is expected_escape
+
+    def test_normalize_ansi_dialect_closes_string_at_unescaped_quote(self):
+        """ANSI dialects do not treat backslash as an escape, so a quote ends the
+        literal and a following comment-split write must be exposed for denylist
+        inspection instead of being hidden inside the string."""
+        from openchatbi.text2sql.generate_sql import _normalize_sql_for_safety
+
+        # 'a\' closes the string in ANSI; /* */ becomes a real comment to strip.
+        sql = r"SELECT 1 WHERE x='a\';DELETE/**/FROM users;--'"
+        normalized = _normalize_sql_for_safety(sql, "presto")
+        assert "DELETE    FROM users" in normalized
+        # MySQL keeps the string open via backslash escape, so the comment stays.
+        mysql_normalized = _normalize_sql_for_safety(sql, "mysql")
+        assert "DELETE/**/FROM users" in mysql_normalized
+
+    def test_execute_sql_node_presto_rejects_backslash_hidden_write(self, mock_llm, mock_catalog):
+        """On ANSI dialects, a backslash-escaped quote must not hide a write
+        statement from the fail-closed guard.
+
+        With ANSI quoting the string closes at the first unescaped quote, so
+        a following comment-split write is exposed after normalization. The
+        space-separated variant is rejected because the denylist anchor
+        ``(?:^|\\s)DELETE`` matches; semicolon-separated multi-statement
+        bypass (``;DELETE``) is a separate allowlist gap tracked independently.
+        """
+        _, execute_node, _, _, _, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")
+        # Real Presto closes the string at the first ', then runs DELETE FROM users.
+        state = SQLGraphState(messages=[], sql=r"SELECT 1 WHERE x='a\' DELETE/**/FROM users")
+
+        with patch("openchatbi.text2sql.generate_sql.config") as mock_config:
+            mock_config.get.return_value = SimpleNamespace(
+                enable_fail_closed_sql_guard=True,
+                enable_sql_result_limit=False,
+                sql_result_limit=5,
+            )
+            result = execute_node(state)
+
+        from openchatbi.constants import SQL_SECURITY_ERROR
+
+        mock_engine = mock_catalog.get_sql_engine.return_value
+        mock_connection = mock_engine.connect.return_value.__enter__.return_value
+
+        assert result["sql_execution_result"] == SQL_SECURITY_ERROR
+        mock_connection.execute.assert_not_called()
+
     def test_execute_sql_node_rejects_disallowed_operation_after_select(self, mock_llm, mock_catalog):
         """Test SQL execution rejects disallowed operations after a SELECT."""
         _, execute_node, _, _, _, _ = create_sql_nodes(mock_llm, mock_catalog, "presto")

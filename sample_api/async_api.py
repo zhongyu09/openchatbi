@@ -198,7 +198,7 @@ async def get_user_memories(user_id: str):
 
         try:
             # Search for all memories for this user
-            search_results = memory_store.search(namespace)
+            search_results = await memory_store.asearch(namespace)
 
             for item in search_results:
                 # Parse the memory data

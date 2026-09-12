@@ -8,8 +8,8 @@ jobs:
   runledger:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.11"
       - name: Install dependencies
@@ -22,7 +22,7 @@ jobs:
           runledger run evals/runledger --mode replay --baseline baselines/runledger-openchatbi.json
       - name: Upload artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: runledger-artifacts
           path: runledger_out/**
@@ -34,8 +34,8 @@ jobs:
     runs-on: ubuntu-latest
     continue-on-error: true
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.11"
       - name: Install dependencies
@@ -48,7 +48,7 @@ jobs:
         run: |
           python -m evals.judge.run_judge --cases evals/judge/example_cases --out judge_out/report.json
       - name: Upload judge report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: judge-report
           path: judge_out/**

@@ -4,7 +4,10 @@ import json
 from datetime import date
 from unittest.mock import Mock, patch
 
+import pytest
 from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.outputs import ChatGeneration, ChatResult
+from langchain_openai import ChatOpenAI
 
 from openchatbi.graph_state import SQLGraphState
 from openchatbi.text2sql.extraction import (
@@ -13,6 +16,8 @@ from openchatbi.text2sql.extraction import (
     information_extraction,
     information_extraction_conditional_edges,
 )
+from openchatbi.tool.ask_human import AskHuman
+from openchatbi.tool.search_knowledge import search_knowledge
 
 
 class TestText2SQLExtraction:
@@ -210,6 +215,26 @@ class TestText2SQLExtraction:
 
         assert "info_entities" in result
         assert result["info_entities"]["keywords"] == ["test"]
+
+    @pytest.mark.parametrize(
+        ("tool_name", "expected_route"), [("search_knowledge", "search_knowledge"), ("AskHuman", "ask_human")]
+    )
+    def test_information_extraction_accepts_tool_calls_with_openai_bound_tools(self, tool_name, expected_route):
+        """Test that tool calls are accepted when the bound tools nest their names under "function" (OpenAI format)."""
+        llm = (
+            ChatOpenAI(model="test-model", api_key="test-key")
+            .bind_tools([search_knowledge, AskHuman], strict=True)
+            .bind(response_format={"type": "json_object"})
+        )
+        ai_message = AIMessage(content="", tool_calls=[{"name": tool_name, "args": {}, "id": "call_1"}])
+        result_message = ChatResult(generations=[ChatGeneration(message=ai_message)])
+
+        with patch.object(ChatOpenAI, "_generate", return_value=result_message) as generate:
+            result = information_extraction(llm)(SQLGraphState(messages=[HumanMessage(content="Show GMV by region")]))
+
+        assert generate.call_count == 1
+        assert result["messages"][0].tool_calls[0]["name"] == tool_name
+        assert information_extraction_conditional_edges(result) == expected_route
 
     def test_information_extraction_time_period_detection(self):
         """Test time period detection in queries."""

@@ -72,7 +72,9 @@ def information_extraction(llm: BaseChatModel) -> Callable:
         system_prompt = _generate_extraction_prompt()
         prompt = "Please extract the information according to the context."
         response = call_llm_chat_model_with_retry(
-            llm, ([SystemMessage(system_prompt)] + messages + [HumanMessage(prompt)]), ["search_knowledge", "AskHuman"]
+            llm,
+            ([SystemMessage(system_prompt)] + messages + [HumanMessage(prompt)]),
+            bound_tools=["search_knowledge", "AskHuman"],
         )
         if response:
             log(response)

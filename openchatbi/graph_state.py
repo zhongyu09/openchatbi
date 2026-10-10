@@ -40,6 +40,7 @@ class SQLGraphState(MessagesState):
     info_entities: dict[str, Any]
     sql: str
     sql_retry_count: int
+    extraction_tool_rounds: int  # Tool rounds information extraction has requested for the current question
     sql_execution_result: str
     schema_info: dict[str, Any]  # Data schema analysis results
     data: str  # CSV data for display

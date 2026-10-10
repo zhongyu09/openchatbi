@@ -13,6 +13,9 @@ from openchatbi.llm.llm import call_llm_chat_model_with_retry
 from openchatbi.prompts.system_prompt import get_basic_knowledge, get_extraction_prompt_template
 from openchatbi.utils import extract_json_from_answer, get_text_from_content, log
 
+# Tool rounds (search_knowledge or AskHuman) information extraction may take for one question.
+MAX_EXTRACTION_TOOL_ROUNDS = 5
+
 
 def _generate_extraction_prompt() -> str:
     """Generate extraction prompt.
@@ -79,7 +82,9 @@ def information_extraction(llm: BaseChatModel) -> Callable:
         if response:
             log(response)
             if response.tool_calls:
-                return {"messages": [response]}
+                # A new question enters as a HumanMessage; tool results come back as ToolMessages.
+                rounds = 0 if isinstance(last_message, HumanMessage) else state.get("extraction_tool_rounds", 0)
+                return {"messages": [response], "extraction_tool_rounds": rounds + 1}
             else:
                 llm_answer_content = response.content
                 parsed_result = _parse_extracted_info_json(llm_answer_content)
@@ -110,6 +115,9 @@ def information_extraction_conditional_edges(state: SQLGraphState):
         tool_calls = last_message.tool_calls
         log(f"tool_calls: {tool_calls}")
     if tool_calls:
+        if state.get("extraction_tool_rounds", 0) > MAX_EXTRACTION_TOOL_ROUNDS:
+            log(f"information_extraction: tool round limit ({MAX_EXTRACTION_TOOL_ROUNDS}) reached")
+            return "end"
         if tool_calls[0]["name"] == "AskHuman":
             return "ask_human"
         elif tool_calls[0]["name"] == "search_knowledge":

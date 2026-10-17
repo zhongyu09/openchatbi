@@ -8,10 +8,24 @@ from typing import Any
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
+from openchatbi import config
+from openchatbi.constants import EXTRACTION_MAX_TOOL_ROUNDS
 from openchatbi.graph_state import SQLGraphState
 from openchatbi.llm.llm import call_llm_chat_model_with_retry
 from openchatbi.prompts.system_prompt import get_basic_knowledge, get_extraction_prompt_template
 from openchatbi.utils import extract_json_from_answer, get_text_from_content, log
+
+
+def _get_max_extraction_tool_rounds() -> int:
+    """Read the extraction tool-round limit from Config, defaulting to EXTRACTION_MAX_TOOL_ROUNDS."""
+    try:
+        cfg = config.get()
+    except ValueError:
+        return EXTRACTION_MAX_TOOL_ROUNDS
+    max_rounds = getattr(cfg, "extraction_max_tool_rounds", EXTRACTION_MAX_TOOL_ROUNDS)
+    if not isinstance(max_rounds, int) or max_rounds < 0:
+        return EXTRACTION_MAX_TOOL_ROUNDS
+    return max_rounds
 
 
 def _generate_extraction_prompt() -> str:
@@ -79,7 +93,9 @@ def information_extraction(llm: BaseChatModel) -> Callable:
         if response:
             log(response)
             if response.tool_calls:
-                return {"messages": [response]}
+                # A new question enters as a HumanMessage; tool results come back as ToolMessages.
+                rounds = 0 if isinstance(last_message, HumanMessage) else state.get("extraction_tool_rounds", 0)
+                return {"messages": [response], "extraction_tool_rounds": rounds + 1}
             else:
                 llm_answer_content = response.content
                 parsed_result = _parse_extracted_info_json(llm_answer_content)
@@ -110,6 +126,10 @@ def information_extraction_conditional_edges(state: SQLGraphState):
         tool_calls = last_message.tool_calls
         log(f"tool_calls: {tool_calls}")
     if tool_calls:
+        max_rounds = _get_max_extraction_tool_rounds()
+        if state.get("extraction_tool_rounds", 0) > max_rounds:
+            log(f"information_extraction: tool round limit ({max_rounds}) reached")
+            return "end"
         if tool_calls[0]["name"] == "AskHuman":
             return "ask_human"
         elif tool_calls[0]["name"] == "search_knowledge":

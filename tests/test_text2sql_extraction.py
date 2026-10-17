@@ -2,10 +2,11 @@
 
 import json
 from datetime import date
+from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 import pytest
-from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langchain_core.outputs import ChatGeneration, ChatResult
 from langchain_openai import ChatOpenAI
 
@@ -235,6 +236,45 @@ class TestText2SQLExtraction:
         assert generate.call_count == 1
         assert result["messages"][0].tool_calls[0]["name"] == tool_name
         assert information_extraction_conditional_edges(result) == expected_route
+
+    def test_information_extraction_counts_tool_rounds(self):
+        """Test that each tool call adds a round and a new question starts the count again."""
+        ai_message = AIMessage(content="", tool_calls=[{"name": "search_knowledge", "args": {}, "id": "call_1"}])
+        tool_result = ToolMessage(content="No relevant knowledge found.", tool_call_id="call_0")
+
+        with patch("openchatbi.text2sql.extraction.call_llm_chat_model_with_retry", return_value=ai_message):
+            extraction_func = information_extraction(Mock())
+            continued = extraction_func(
+                SQLGraphState(messages=[HumanMessage(content="q"), tool_result], extraction_tool_rounds=2)
+            )
+            new_question = extraction_func(
+                SQLGraphState(messages=[HumanMessage(content="next q")], extraction_tool_rounds=4)
+            )
+
+        assert continued["extraction_tool_rounds"] == 3
+        assert new_question["extraction_tool_rounds"] == 1
+
+    def test_information_extraction_conditional_edges_tool_round_limit(self):
+        """Test that a tool call past the default round limit (10) ends extraction instead of running the tool."""
+        ai_message = AIMessage(content="", tool_calls=[{"name": "search_knowledge", "args": {}, "id": "call_1"}])
+
+        at_limit = SQLGraphState(messages=[ai_message], extraction_tool_rounds=10)
+        past_limit = SQLGraphState(messages=[ai_message], extraction_tool_rounds=11)
+
+        assert information_extraction_conditional_edges(at_limit) == "search_knowledge"
+        assert information_extraction_conditional_edges(past_limit) == "end"
+
+    def test_information_extraction_conditional_edges_tool_round_limit_from_config(self):
+        """Test that extraction_max_tool_rounds comes from Config, not a hardcoded limit."""
+        ai_message = AIMessage(content="", tool_calls=[{"name": "search_knowledge", "args": {}, "id": "call_1"}])
+
+        with patch("openchatbi.text2sql.extraction.config") as mock_cfg:
+            mock_cfg.get.return_value = SimpleNamespace(extraction_max_tool_rounds=2)
+            at_limit = SQLGraphState(messages=[ai_message], extraction_tool_rounds=2)
+            past_limit = SQLGraphState(messages=[ai_message], extraction_tool_rounds=3)
+
+            assert information_extraction_conditional_edges(at_limit) == "search_knowledge"
+            assert information_extraction_conditional_edges(past_limit) == "end"
 
     def test_information_extraction_time_period_detection(self):
         """Test time period detection in queries."""

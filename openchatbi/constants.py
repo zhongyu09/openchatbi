@@ -15,5 +15,7 @@ SQL_SECURITY_ERROR = "SQL_SECURITY_ERROR"
 SQL_UNKNOWN_ERROR = "SQL_UNKNOWN_ERROR"
 SQL_RESULT_LIMIT = 10000
 
+# Default tool rounds (search_knowledge or AskHuman) information extraction may take for one question
+EXTRACTION_MAX_TOOL_ROUNDS = 10
 
 MCP_TOOL_DEFAULT_TIMEOUT_SECONDS = 60

@@ -8,7 +8,7 @@ from langchain_core.language_models import BaseChatModel
 from pydantic import BaseModel
 
 from openchatbi.catalog.factory import create_catalog_store
-from openchatbi.constants import SQL_RESULT_LIMIT
+from openchatbi.constants import EXTRACTION_MAX_TOOL_ROUNDS, SQL_RESULT_LIMIT
 from openchatbi.utils import log
 
 
@@ -120,6 +120,9 @@ class Config(BaseModel):
     # HITL Golden-SQL Capture Configuration (default OFF for zero-regression)
     enable_golden_sql: bool = False
     golden_sql_namespace: str = "global"
+
+    # Information extraction: tool rounds (search_knowledge or AskHuman) allowed per question
+    extraction_max_tool_rounds: int = EXTRACTION_MAX_TOOL_ROUNDS
 
     # SQL Retry / Recovery Configuration
     sql_max_retries: int = 3

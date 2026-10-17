@@ -365,6 +365,13 @@ sql_max_retries: 3        # regeneration retry budget
 retry_on_timeout: false   # opt-in: also retry timed-out queries
 ```
 
+Information extraction may call `search_knowledge` or `AskHuman` before writing SQL; a question past this many
+tool rounds ends extraction:
+
+```yaml
+extraction_max_tool_rounds: 10   # tool rounds per question
+```
+
 ### Learned SQL Memory
 
 - **Pattern memory**: approved, high-confidence (question → SQL) pairs are auto-captured into the runtime

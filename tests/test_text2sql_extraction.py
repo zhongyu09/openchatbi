@@ -2,6 +2,7 @@
 
 import json
 from datetime import date
+from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 import pytest
@@ -254,14 +255,26 @@ class TestText2SQLExtraction:
         assert new_question["extraction_tool_rounds"] == 1
 
     def test_information_extraction_conditional_edges_tool_round_limit(self):
-        """Test that a tool call past the round limit (5) ends extraction instead of running the tool."""
+        """Test that a tool call past the default round limit (10) ends extraction instead of running the tool."""
         ai_message = AIMessage(content="", tool_calls=[{"name": "search_knowledge", "args": {}, "id": "call_1"}])
 
-        at_limit = SQLGraphState(messages=[ai_message], extraction_tool_rounds=5)
-        past_limit = SQLGraphState(messages=[ai_message], extraction_tool_rounds=6)
+        at_limit = SQLGraphState(messages=[ai_message], extraction_tool_rounds=10)
+        past_limit = SQLGraphState(messages=[ai_message], extraction_tool_rounds=11)
 
         assert information_extraction_conditional_edges(at_limit) == "search_knowledge"
         assert information_extraction_conditional_edges(past_limit) == "end"
+
+    def test_information_extraction_conditional_edges_tool_round_limit_from_config(self):
+        """Test that extraction_max_tool_rounds comes from Config, not a hardcoded limit."""
+        ai_message = AIMessage(content="", tool_calls=[{"name": "search_knowledge", "args": {}, "id": "call_1"}])
+
+        with patch("openchatbi.text2sql.extraction.config") as mock_cfg:
+            mock_cfg.get.return_value = SimpleNamespace(extraction_max_tool_rounds=2)
+            at_limit = SQLGraphState(messages=[ai_message], extraction_tool_rounds=2)
+            past_limit = SQLGraphState(messages=[ai_message], extraction_tool_rounds=3)
+
+            assert information_extraction_conditional_edges(at_limit) == "search_knowledge"
+            assert information_extraction_conditional_edges(past_limit) == "end"
 
     def test_information_extraction_time_period_detection(self):
         """Test time period detection in queries."""

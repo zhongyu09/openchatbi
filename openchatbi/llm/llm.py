@@ -81,6 +81,22 @@ def _invalid_tool_names(valid_tools, tool_calls) -> str:
     return ",".join(invalid_tools)
 
 
+def _bound_tool_names(tools) -> list[str]:
+    """Get the names of the tools in a model's bound `tools` list.
+
+    OpenAI-format tools keep the name under "function"; Anthropic-format tools keep it at the top level.
+    """
+    names = []
+    for tool in tools:
+        if not isinstance(tool, dict):
+            continue
+        function = tool.get("function")
+        name = function.get("name") if isinstance(function, dict) else tool.get("name")
+        if name:
+            names.append(name)
+    return names
+
+
 def call_llm_chat_model_with_retry(
     chat_model: BaseChatModel,
     messages,
@@ -114,7 +130,7 @@ def call_llm_chat_model_with_retry(
             elif tool == AskHuman:
                 valid_tools.append("AskHuman")
     elif isinstance(chat_model, RunnableBinding) and "tools" in chat_model.kwargs:
-        valid_tools += [tool["name"] for tool in chat_model.kwargs["tools"] if "name" in tool]
+        valid_tools += _bound_tool_names(chat_model.kwargs["tools"])
     extra_prompt = (
         " Please select the `AskHuman` tool if you need to confirm with user." if "AskHuman" in valid_tools else ""
     )

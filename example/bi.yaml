@@ -27,9 +27,9 @@ basic_knowledge_glossary: |
   
   **Order Processing:**
   - Order: A request from a customer to purchase products
-  - Order Status: Current state - Valid values: "Shipped", "Packing", "On Road"
+  - Order Status: Current state - Valid values: "Pending", "Processed", "Shipped", "Delivered", "Returned", "Canceled"
   - Order Item: Individual product within an order (orders can contain multiple items)
-  - Order Item Status: Status of specific items - Valid values: "Finish", "Payed", "Cancel"
+  - Order Item Status: Status of specific items - Valid values: "Pending", "Packed", "Shipped", "Finish", "Canceled"
   
   **Product Catalog:**
   - Product: Items available for purchase

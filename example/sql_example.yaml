@@ -22,7 +22,7 @@
     A: SELECT o.order_id, c.customer_name, o.order_status, o.date_order_placed 
     FROM Orders o 
     JOIN Customers c ON o.customer_id = c.customer_id 
-    WHERE o.order_status = ''pending'' 
+    WHERE o.order_status = ''Pending'' 
     ORDER BY o.date_order_placed
   Products: |
     Q: Search for products containing ''laptop'' in the name

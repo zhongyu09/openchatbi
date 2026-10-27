@@ -3705,7 +3705,7 @@ requires-dist = [
     { name = "responses", marker = "extra == 'test'", specifier = ">=0.25.3,<1.0.0" },
     { name = "restrictedpython", specifier = ">=8.0,<9.0" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.8.0,<1.0.0" },
-    { name = "runledger", marker = "extra == 'eval'", specifier = ">=0.1.1,<0.2.0" },
+    { name = "runledger", marker = "extra == 'eval'", specifier = "==0.2.4" },
     { name = "seaborn", specifier = ">=0.13.0,<1.0.0" },
     { name = "sphinx", marker = "extra == 'docs'", specifier = ">=8.2.3,<9.0.0" },
     { name = "sphinx-autodoc-typehints", marker = "extra == 'docs'", specifier = ">=2.5.0,<3.0.0" },
@@ -5523,7 +5523,7 @@ wheels = [
 
 [[package]]
 name = "runledger"
-version = "0.1.1"
+version = "0.2.4"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "jinja2" },
@@ -5535,9 +5535,9 @@ dependencies = [
     { name = "rich", version = "14.1.0", source = { registry = "https://pypi.org/simple" }, marker = "platform_python_implementation != 'PyPy'" },
     { name = "typer" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/4e/00/42e40c32bf01ab2ee0ebdd25eed9d0c735f82a21034b0650cedf384bcf31/runledger-0.1.1.tar.gz", hash = "sha256:342d41cbdd951a717c09ff438a1a0b6a058747c7809edecec0763140b16eb345", size = 36754, upload-time = "2025-12-26T23:47:11.611Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/06/7f/8b8aff8d414e75cc7d8d47f8d998ee758cbf62da4a1a1c4affe7e089701c/runledger-0.2.4.tar.gz", hash = "sha256:d1b8fe1f0a25166d3c5ac4aeb71a70194a595d1f0013c5cb5f1337083e4f865b", size = 49515, upload-time = "2026-10-27T20:48:39.95Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/76/2a/c7d38e7b871d56ae06ced141583576c5fa9b61d51631a7385bdeaf1074fb/runledger-0.1.1-py3-none-any.whl", hash = "sha256:07e67aa91dbcaa4c195a104a559dd23d4b009e8d02428620fe493c461d98af21", size = 42908, upload-time = "2025-12-26T23:47:10.407Z" },
+    { url = "https://files.pythonhosted.org/packages/8d/90/89f16af4d2197642cf24ce08191ccd378c26c40105a7a578153fc476adc8/runledger-0.2.4-py3-none-any.whl", hash = "sha256:7383d69e04e92b24cf4466799525590ca6e6cc16b13d3d16bafeb7f1b17dd617", size = 56772, upload-time = "2026-10-27T20:48:38.696Z" },
 ]
 
 [[package]]

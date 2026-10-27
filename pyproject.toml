@@ -112,7 +112,7 @@ test = [
     "openevals>=0.1.0,<1.0.0",
 ]
 eval = [
-    "runledger>=0.1.1,<0.2.0",
+    "runledger==0.2.4",
     "pyyaml>=6.0,<7.0",
 ]
 observability = [

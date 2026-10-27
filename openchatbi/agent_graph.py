@@ -24,7 +24,7 @@ from pydantic import BaseModel, Field
 
 from openchatbi import config
 from openchatbi.catalog import CatalogStore
-from openchatbi.constants import datetime_format
+from openchatbi.constants import SQL_EXECUTE_TIMEOUT, SQL_SECURITY_ERROR, datetime_format
 from openchatbi.context_config import get_context_config
 from openchatbi.context_manager import ContextManager
 from openchatbi.graph_state import AgentState, InputState, OutputState
@@ -132,13 +132,34 @@ def _format_sql_response(sql_graph_response: dict[str, Any]) -> str:
     """
     sql = sql_graph_response.get("sql", "")
     data = sql_graph_response.get("data", "")
+    schema_info = sql_graph_response.get("schema_info") or {}
     visualization_dsl = sql_graph_response.get("visualization_dsl", {})
+    sql_execution_result = sql_graph_response.get("sql_execution_result", "")
 
     response_parts: list[str] = []
     if sql:
         response_parts.append(f"SQL Query:\n```sql\n{sql}\n```")
     if data:
         response_parts.append(f"\nQuery Results (CSV format):\n```csv\n{data}\n```")
+
+    # Forward the SQL sub-graph's truncation notice. When the result limit is
+    # reached, the CSV only contains the first N rows but the main agent needs
+    # to know the data set may be larger.
+    result_limit = schema_info.get("result_limit")
+    row_count = schema_info.get("row_count")
+    if result_limit and isinstance(row_count, int) and row_count >= result_limit:
+        response_parts.append(
+            f"\nNote: SQL Result is limited to first {result_limit} rows. "
+            "The actual result set may contain more rows."
+        )
+
+    # Forward surfaced error messages (timeout/security) that the SQL sub-graph
+    # already formatted for the user but that were previously dropped here.
+    if sql_execution_result in (SQL_EXECUTE_TIMEOUT, SQL_SECURITY_ERROR):
+        for msg in reversed(sql_graph_response.get("messages", [])):
+            if isinstance(msg, AIMessage) and msg.content:
+                response_parts.append(f"\n{msg.content}")
+                break
 
     # Include visualization status
     if visualization_dsl and "error" not in visualization_dsl:

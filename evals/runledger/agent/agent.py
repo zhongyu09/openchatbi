@@ -251,7 +251,7 @@ _TRAJECTORIES: dict[str, list[str | None]] = {
     "How many orders are there for each order status? Sort by the count, highest first.": ["text2sql", None],
     "For shipped orders, show the order id, status and the customer name.": ["text2sql", None],
     "List shipments with their tracking number, the related order id and the customer name.": ["text2sql", None],
-    "Which customers have placed an order that is On Road?": ["text2sql", None],
+    "Which customers have placed an order that is Shipped?": ["text2sql", None],
     "Who are the top 5 customers by number of orders? Show their name and order count.": ["text2sql", None],
     "What are the distinct order item statuses used in the system?": ["text2sql", None],
     "Which customers have placed more than 10 orders? Show the customer id and their order count.": ["text2sql", None],

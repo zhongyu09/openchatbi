@@ -173,7 +173,7 @@ def make_data_analysis_failure_response(llm: BaseChatModel):
             "Offer concrete next steps, such as simplifying the request or exploring the data with SQL."
         )
 
-        response = llm.invoke([SystemMessage(content=system_prompt)] + state["messages"])
+        response = llm.invoke([SystemMessage(content=system_prompt)] + list(state["messages"]))
         return {
             "messages": [response],
             "data_analysis_retries": state.get("data_analysis_retries", 0) + 1,

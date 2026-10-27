@@ -2,7 +2,6 @@
 
 from unittest.mock import MagicMock
 
-import pytest
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 
 from openchatbi.agent_graph import (

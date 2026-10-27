@@ -27,7 +27,9 @@ class AgentState(MessagesState):
     sql: str
     final_answer: str
     # Counter for retryable data_analysis failures to prevent infinite silent redo.
-    data_analysis_retries: int = 0
+    # No default: like the other fields above, LangGraph manages initialization and
+    # callers use ``state.get("data_analysis_retries", 0)`` for safe access.
+    data_analysis_retries: int
 
 
 class SQLGraphState(MessagesState):

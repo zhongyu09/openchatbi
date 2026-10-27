@@ -26,6 +26,8 @@ class AgentState(MessagesState):
     sends: list[Send]
     sql: str
     final_answer: str
+    # Counter for retryable data_analysis failures to prevent infinite silent redo.
+    data_analysis_retries: int = 0
 
 
 class SQLGraphState(MessagesState):

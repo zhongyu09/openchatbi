@@ -59,6 +59,10 @@ Use the instructions below and the tools available to you to assist the user.
       last 24 hours) and that enough preceding history should be fetched.
     - Spell out the metric, dimensions, granularity, and any filters explicitly.
     - Never pass vague relative phrases like "today" or "yesterday" to the `data_analysis` tool.
+- When the `data_analysis` tool returns a result starting with `[DATA_ANALYSIS_FAILED]`:
+  - If the marker is `[PERMANENT]`, you MUST NOT retry with `text2sql`, `run_python_code`, or another `data_analysis` call. Report the failure and its details to the user.
+  - If the marker is `[RETRYABLE]`, you MAY call `data_analysis` ONE more time with a clearly simplified task (e.g., smaller time range, fewer dimensions, single metric). If the retry still fails, report the failure to the user and stop.
+  - Never silently redo the analysis yourself when the specialized sub-agent has already failed.
 - Do NOT delegate to `data_analysis` for straightforward SQL aggregation/retrieval requests
   that can be answered directly with SQL results, including totals, counts, simple trends
   (GROUP BY time), rankings/top-N, or basic breakdowns. For these, use `text2sql` directly

@@ -7,10 +7,12 @@ from deepagents import create_deep_agent
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import StructuredTool
 from langgraph.checkpoint.base import BaseCheckpointSaver
+from langgraph.errors import GraphInterrupt, GraphRecursionError
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.store.base import BaseStore
 from pydantic import BaseModel, Field
 
+from openchatbi.constants import DEFAULT_ANALYSIS_RECURSION_LIMIT
 from openchatbi.llm.llm import get_analysis_llm
 from openchatbi.tool.adtributor_tool import adtributor_drilldown
 from openchatbi.tool.anomaly_detection import anomaly_detection
@@ -19,6 +21,60 @@ from openchatbi.tool.search_knowledge import search_schema, show_schema
 from openchatbi.tool.timeseries_forecast import check_forecast_service_health, timeseries_forecast
 
 logger = logging.getLogger(__name__)
+
+# Markers used to surface data_analysis sub-agent failures to the parent agent.
+DATA_ANALYSIS_ERROR_PREFIX = "Error occurred during data analysis:"
+DATA_ANALYSIS_FAILED_MARKER = "[DATA_ANALYSIS_FAILED]"
+
+
+def _is_transient_error(error: Exception) -> bool:
+    """Heuristic: classify network/rate-limit/timeout errors as transient."""
+    name = type(error).__name__.lower()
+    transient_keywords = {
+        "rate",
+        "limit",
+        "timeout",
+        "connection",
+        "connect",
+        "network",
+        "serviceunavailable",
+        "internalserver",
+        "temporarily",
+    }
+    return any(kw in name for kw in transient_keywords)
+
+
+def _classify_data_analysis_error(error: Exception) -> tuple[str, str]:
+    """Classify a sub-agent failure as retryable or permanent.
+
+    Returns:
+        A tuple of (tag, user_message). ``tag`` is ``[RETRYABLE]`` or ``[PERMANENT]``.
+    """
+    # HITL must bubble up to the parent graph; never swallow it.
+    if isinstance(error, GraphInterrupt):
+        raise error
+
+    if isinstance(error, GraphRecursionError):
+        return "[RETRYABLE]", (
+            "The analysis required more steps than allowed. "
+            "Try narrowing the time range, reducing dimensions, or splitting into smaller sub-tasks."
+        )
+
+    if _is_transient_error(error):
+        return "[RETRYABLE]", (
+            "A transient error occurred while running the analysis. "
+            "You may retry once; if it still fails, report the issue to the user."
+        )
+
+    # Everything else is treated as permanent (implementation bug, bad args,
+    # auth failure, unrecoverable service error, etc.).
+    return "[PERMANENT]", str(error)
+
+
+def _format_data_analysis_error(error: Exception) -> str:
+    """Format a sub-agent error into a structured string the parent can parse."""
+    tag, message = _classify_data_analysis_error(error)
+    return f"{DATA_ANALYSIS_FAILED_MARKER}{tag} {DATA_ANALYSIS_ERROR_PREFIX} {message}"
 
 
 def _build_sub_agent_config(config: RunnableConfig | None) -> RunnableConfig:
@@ -36,13 +92,23 @@ def _build_sub_agent_config(config: RunnableConfig | None) -> RunnableConfig:
     from the main agent's in a streaming UI), whereas a fixed single-level
     namespace surfaces the sub-agent as a proper nested subgraph (depth >= 1).
     Checkpoint isolation is provided by the derived ``thread_id`` plus the
-    ``checkpoint_id`` reset below, not by ``checkpoint_ns``. Other config keys
-    (callbacks, tags, metadata) are propagated as-is.
+    ``checkpoint_id`` reset below, not by ``checkpoint_ns``. ``callbacks`` and
+    ``tags`` are propagated as-is. ``recursion_limit`` and ``metadata`` are
+    intentionally *not* propagated: tools see ``recursion_limit=25`` from
+    LangChain's default config, which would override the sub-agent's intended
+    limit, and parent metadata belongs to the main trace. Instead,
+    ``recursion_limit`` is set explicitly from OpenChatBI configuration.
     """
     sub_config: RunnableConfig = cast(RunnableConfig, {})
     configurable: dict = {}
     if config:
-        sub_config = cast(RunnableConfig, {k: v for k, v in config.items() if k != "configurable"})
+        # Drop ``configurable`` (handled separately), ``recursion_limit`` and
+        # ``metadata`` so the sub-agent uses its own bound/explicit limits and
+        # does not inherit the parent LangGraph/LangChain defaults.
+        sub_config = cast(
+            RunnableConfig,
+            {k: v for k, v in config.items() if k not in ("configurable", "metadata", "recursion_limit")},
+        )
         configurable = dict(config.get("configurable") or {})
 
     parent_thread_id = configurable.get("thread_id")
@@ -56,6 +122,9 @@ def _build_sub_agent_config(config: RunnableConfig | None) -> RunnableConfig:
     configurable.pop("checkpoint_id", None)
 
     sub_config["configurable"] = configurable
+    # Always set an explicit recursion limit so the sub-agent never accidentally
+    # inherits the parent/tool-node default of 25.
+    sub_config["recursion_limit"] = _resolve_analysis_recursion_limit()
     return sub_config
 
 
@@ -76,6 +145,19 @@ def _extract_final_content(response: dict) -> str:
             return "\n".join(p for p in parts if p)
         return str(content)
     return str(response)
+
+
+def _resolve_analysis_recursion_limit() -> int:
+    """Resolve the data analysis sub-agent recursion limit from application config.
+
+    Falls back to the package default when config is unavailable (e.g. in tests).
+    """
+    from openchatbi.config_loader import ConfigLoader
+
+    try:
+        return ConfigLoader().get().analysis_recursion_limit
+    except ValueError:
+        return DEFAULT_ANALYSIS_RECURSION_LIMIT
 
 
 def _resolve_min_input_length() -> int:
@@ -211,8 +293,6 @@ def get_data_analysis_tool(
         logger.info(f"Delegating to data analysis agent (sync). Reasoning: {reasoning}, Task: {task}")
         import traceback
 
-        from langgraph.errors import GraphInterrupt
-
         sub_config = _build_sub_agent_config(config)
         try:
             # The agent accepts a string under "messages", which is coerced to a HumanMessage.
@@ -224,14 +304,12 @@ def get_data_analysis_tool(
         except Exception as e:
             logger.error(f"Run data analysis agent error:\n{repr(e)}")
             traceback.print_exc()
-            return f"Error occurred during data analysis: {str(e)}"
+            return _format_data_analysis_error(e)
 
     async def call_data_analysis_async(reasoning: str, task: str, config: RunnableConfig) -> str:
         """Async function for data analysis tool."""
         logger.info(f"Delegating to data analysis agent (async). Reasoning: {reasoning}, Task: {task}")
         import traceback
-
-        from langgraph.errors import GraphInterrupt
 
         sub_config = _build_sub_agent_config(config)
         try:
@@ -243,7 +321,7 @@ def get_data_analysis_tool(
         except Exception as e:
             logger.error(f"Run data analysis agent error:\n{repr(e)}")
             traceback.print_exc()
-            return f"Error occurred during data analysis: {str(e)}"
+            return _format_data_analysis_error(e)
 
     description = """Delegate complex data analysis tasks to a specialized sub-agent.
 Use this tool for:

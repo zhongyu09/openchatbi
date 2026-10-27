@@ -6,9 +6,13 @@ from langgraph.graph.state import CompiledStateGraph
 
 from openchatbi.analysis import agent as analysis_agent
 from openchatbi.analysis.agent import (
+    DATA_ANALYSIS_ERROR_PREFIX,
+    DATA_ANALYSIS_FAILED_MARKER,
     DataAnalysisInput,
     _build_sub_agent_config,
+    _classify_data_analysis_error,
     _extract_final_content,
+    _format_data_analysis_error,
     _load_data_analysis_prompt,
     build_data_analysis_agent,
     get_data_analysis_tool,
@@ -163,15 +167,17 @@ async def test_async_tool_propagates_graph_interrupt(mock_build_agent, mock_sql_
 
 
 @patch("openchatbi.analysis.agent.build_data_analysis_agent")
-def test_sync_tool_returns_error_string_on_generic_exception(mock_build_agent, mock_sql_graph):
-    """Non-interrupt exceptions are caught and returned as an error string."""
+def test_sync_tool_returns_structured_error_string_on_generic_exception(mock_build_agent, mock_sql_graph):
+    """Non-interrupt exceptions are caught and returned as a structured, parent-parsable error string."""
     mock_agent = MagicMock()
     mock_agent.invoke.side_effect = RuntimeError("boom")
     mock_build_agent.return_value = mock_agent
 
     tool = get_data_analysis_tool(sql_graph=mock_sql_graph, sync_mode=True)
     result = tool.invoke({"reasoning": "test", "task": "analyze this"})
-    assert "Error occurred during data analysis" in result
+    assert result.startswith(DATA_ANALYSIS_FAILED_MARKER)
+    assert "[PERMANENT]" in result
+    assert DATA_ANALYSIS_ERROR_PREFIX in result
     assert "boom" in result
 
 
@@ -201,6 +207,97 @@ def test_build_sub_agent_config_handles_none():
     """No parent config should still yield a valid (empty) configurable."""
     sub = _build_sub_agent_config(None)
     assert sub["configurable"] == {}
+
+
+def test_build_sub_agent_config_drops_recursion_limit_and_metadata():
+    """Parent/tool-node ``recursion_limit`` and ``metadata`` must not leak into
+    the sub-agent; an explicit OpenChatBI recursion limit is applied instead."""
+    from openchatbi.constants import DEFAULT_ANALYSIS_RECURSION_LIMIT
+
+    parent = {
+        "configurable": {"thread_id": "abc"},
+        "recursion_limit": 25,
+        "metadata": {"langfuse_trace_name": "parent"},
+        "tags": ["x"],
+    }
+    sub = _build_sub_agent_config(parent)
+
+    # The dangerous parent defaults are dropped.
+    assert "metadata" not in sub
+    assert sub["recursion_limit"] != 25
+    # callbacks/tags still flow through.
+    assert sub["tags"] == ["x"]
+    # Defaults to the OpenChatBI package default when no custom config is loaded.
+    assert sub["recursion_limit"] == DEFAULT_ANALYSIS_RECURSION_LIMIT
+
+
+def test_build_sub_agent_config_uses_openchatbi_recursion_limit():
+    """A custom ``analysis_recursion_limit`` in OpenChatBI config is honored."""
+    from unittest.mock import MagicMock
+
+    from openchatbi.config_loader import ConfigLoader
+
+    ConfigLoader().set(
+        {
+            "default_llm": MagicMock(),
+            "data_warehouse_config": {
+                "uri": "sqlite:///:memory:",
+                "include_tables": None,
+                "database_name": "test_db",
+            },
+            "analysis_recursion_limit": 1234,
+        }
+    )
+
+    sub = _build_sub_agent_config({"configurable": {"thread_id": "abc"}})
+    assert sub["recursion_limit"] == 1234
+
+
+def test_classify_data_analysis_error_marks_graph_recursion_as_retryable():
+    """GraphRecursionError is retryable because simplifying the task often helps."""
+    from langgraph.errors import GraphRecursionError
+
+    tag, message = _classify_data_analysis_error(GraphRecursionError("limit hit"))
+    assert tag == "[RETRYABLE]"
+    assert "more steps than allowed" in message
+
+
+def test_classify_data_analysis_error_marks_transient_errors_as_retryable():
+    """Network/timeout/rate-limit style errors are retryable."""
+
+    class FakeAPITimeoutError(Exception):
+        pass
+
+    tag, message = _classify_data_analysis_error(FakeAPITimeoutError("too slow"))
+    assert tag == "[RETRYABLE]"
+    assert "transient error" in message
+
+
+def test_classify_data_analysis_error_marks_generic_errors_as_permanent():
+    """Generic runtime errors are permanent (do not silently retry forever)."""
+    tag, message = _classify_data_analysis_error(RuntimeError("boom"))
+    assert tag == "[PERMANENT]"
+    assert "boom" in message
+
+
+def test_format_data_analysis_error_includes_marker_and_tag():
+    """The formatted error can be parsed by the parent graph routing logic."""
+    formatted = _format_data_analysis_error(RuntimeError("boom"))
+    assert formatted.startswith(f"{DATA_ANALYSIS_FAILED_MARKER}[PERMANENT]")
+    assert DATA_ANALYSIS_ERROR_PREFIX in formatted
+    assert "boom" in formatted
+
+
+def test_agent_prompt_includes_data_analysis_failure_policy():
+    """The main agent prompt must instruct the model to surface data_analysis failures."""
+    from openchatbi.prompts.system_prompt import get_agent_prompt_template, reset_cache
+
+    reset_cache()
+    prompt = get_agent_prompt_template()
+    assert DATA_ANALYSIS_FAILED_MARKER in prompt
+    assert "[PERMANENT]" in prompt
+    assert "[RETRYABLE]" in prompt
+    assert "Never silently redo the analysis" in prompt
 
 
 def test_extract_final_content_string_and_blocks():

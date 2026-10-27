@@ -85,7 +85,10 @@ config (`_build_sub_agent_config`):
   and never clobbers the main agent's checkpoint thread;
 - inherited `checkpoint_ns` / `checkpoint_id` are cleared so the sub-agent starts
   from a clean namespace;
-- other config (callbacks, tags, metadata) is propagated unchanged.
+- ``callbacks`` and ``tags`` are propagated unchanged;
+- ``recursion_limit`` and ``metadata`` are intentionally *not* propagated, and
+  ``recursion_limit`` is set explicitly from OpenChatBI configuration so the
+  sub-agent does not inherit the tool-node default of 25.
 
 `GraphInterrupt` raised inside the sub-agent is re-raised (not swallowed) so
 human-in-the-loop interrupts can bubble up to the main graph. Final output is

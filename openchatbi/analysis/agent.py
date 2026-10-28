@@ -1,6 +1,7 @@
 """Data Analysis Agent implementation."""
 
 import logging
+import re
 from typing import cast
 
 from deepagents import create_deep_agent
@@ -26,42 +27,68 @@ logger = logging.getLogger(__name__)
 DATA_ANALYSIS_ERROR_PREFIX = "Error occurred during data analysis:"
 DATA_ANALYSIS_FAILED_MARKER = "[DATA_ANALYSIS_FAILED]"
 
+# Exception class-name substrings that indicate a transient failure.
+# Note: bare "rate" and "limit" are intentionally excluded because they match
+# unrelated class names such as ``GenerateError``, ``MigrateError``, or
+# ``TokenLimitError``.
+_TRANSIENT_CLASS_KEYWORDS = (
+    "ratelimit",
+    "rate_limit",
+    "timeout",
+    "connection",
+    "connect",
+    "network",
+    "serviceunavailable",
+    "internalserver",
+    "temporarily",
+)
+
+# Message-text fallback for generic carrier exceptions that only surface HTTP
+# 408/429/5xx codes or standard transient error phrases in their string message
+# (without a dedicated exception class or ``status_code`` attribute). Bare
+# numbers like "500" without HTTP/status context are intentionally not matched
+# to avoid false positives on domain messages (e.g. "expected 500 rows").
+_TRANSIENT_MESSAGE_RE = re.compile(
+    r"\b(?:"
+    r"(?:http(?:/\d(?:\.\d)?)?\s+|status(?:\s+code)?[:\s]+|error(?:\s+code)?[:\s]+)(?:408|429|50\d)\b"
+    r"|(?:408\s+request\s+timeout|429\s+too\s+many\s+requests|500\s+internal\s+server\s+error"
+    r"|502\s+bad\s+gateway|503\s+service\s+unavailable|504\s+gateway\s+timeout)"
+    r"|too\s+many\s+requests|rate[\s_-]?limit(?:ed|\s+exceeded)?"
+    r"|service\s+unavailable|bad\s+gateway|gateway\s+timeout"
+    r"|request\s+timed?\s*out|read\s+timed?\s*out|connect(?:ion)?\s+(?:timed?\s*out|reset|refused)"
+    r")\b",
+    re.IGNORECASE,
+)
+
 
 def _is_transient_error(error: Exception) -> bool:
     """Heuristic: classify network/rate-limit/timeout errors as transient.
 
-    Walks the exception chain (``__cause__`` / ``__context__``) so that a
-    low-level transient error wrapped in a generic carrier exception (e.g. an
-    ``httpx.HTTPStatusError`` wrapping a ``ReadTimeout``, or an
-    ``openai.APIStatusError`` carrying a 429/503) is still detected.
+    Walks the exception chain (``__cause__`` / ``__context__``) and checks:
+    1. Exception class name against ``_TRANSIENT_CLASS_KEYWORDS``.
+    2. HTTP status code on ``error.status_code`` or ``error.response.status_code``
+       for 408 (Request Timeout), 429 (Too Many Requests), and 5xx (Server Error).
+    3. Exception message text against ``_TRANSIENT_MESSAGE_RE`` as a fallback
+       for plain wrapper exceptions (e.g. ``RuntimeError("503 Service Unavailable")``).
     """
-    transient_keywords = {
-        "rate",
-        "ratelimit",
-        "timeout",
-        "connection",
-        "connect",
-        "network",
-        "serviceunavailable",
-        "internalserver",
-        "temporarily",
-    }
     seen: set[int] = set()
     current: BaseException | None = error
     while current is not None and id(current) not in seen:
         seen.add(id(current))
         name = type(current).__name__.lower()
-        if any(kw in name for kw in transient_keywords):
+        if any(kw in name for kw in _TRANSIENT_CLASS_KEYWORDS):
             return True
         # Some HTTP client exceptions expose the status code directly
         # (e.g. openai.APIStatusError.status_code) or on ``error.response``
-        # (e.g. httpx.HTTPStatusError.response.status_code); 429 (rate limit)
-        # and 5xx (server errors) are conventionally retryable.
+        # (e.g. httpx.HTTPStatusError.response.status_code); 408 (timeout),
+        # 429 (rate limit), and 5xx (server errors) are conventionally retryable.
         status = getattr(current, "status_code", None)
         if not isinstance(status, int):
             response = getattr(current, "response", None)
             status = getattr(response, "status_code", None)
-        if isinstance(status, int) and (status == 429 or 500 <= status < 600):
+        if isinstance(status, int) and (status in (408, 429) or 500 <= status < 600):
+            return True
+        if _TRANSIENT_MESSAGE_RE.search(str(current)):
             return True
         current = current.__cause__ or current.__context__
     return False

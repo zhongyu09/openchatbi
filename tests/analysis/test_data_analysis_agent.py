@@ -294,7 +294,7 @@ def test_is_transient_error_walks_exception_chain():
 
 
 def test_is_transient_error_detects_retryable_status_codes():
-    """HTTP 429 / 5xx status codes on the exception or error.response are treated as transient."""
+    """HTTP 408 / 429 / 5xx status codes on the exception or error.response are treated as transient."""
 
     class HTTPStatusError(Exception):
         def __init__(self, message: str, status_code: int) -> None:
@@ -306,21 +306,44 @@ def test_is_transient_error_detects_retryable_status_codes():
             super().__init__(message)
             self.response = MagicMock(status_code=status_code)
 
+    assert _is_transient_error(HTTPStatusError("timeout", 408)) is True
     assert _is_transient_error(HTTPStatusError("rate", 429)) is True
     assert _is_transient_error(HTTPStatusError("server", 503)) is True
     assert _is_transient_error(HTTPStatusError("client", 404)) is False
+    assert _is_transient_error(ResponseWrappedHTTPError("timeout", 408)) is True
     assert _is_transient_error(ResponseWrappedHTTPError("rate", 429)) is True
     assert _is_transient_error(ResponseWrappedHTTPError("server", 502)) is True
     assert _is_transient_error(ResponseWrappedHTTPError("client", 400)) is False
 
 
+def test_is_transient_error_detects_message_text_fallback():
+    """Generic carrier exceptions with 408/429/5xx or transient phrases in message text are detected."""
+    assert _is_transient_error(RuntimeError("503 Service Unavailable")) is True
+    assert _is_transient_error(RuntimeError("HTTP 429 Too Many Requests")) is True
+    assert _is_transient_error(RuntimeError("Request failed with status code 502")) is True
+    assert _is_transient_error(RuntimeError("408 Request Timeout")) is True
+    assert _is_transient_error(RuntimeError(" upstream connection reset by peer")) is True
+
+
 def test_is_transient_error_generic_returns_false():
+    """Unrelated exceptions (including class names containing 'rate' like GenerateError/MigrateError
+    or bare numbers like '500 rows') must not be misclassified as transient."""
+
     class TokenLimitError(Exception):
+        pass
+
+    class GenerateError(Exception):
+        pass
+
+    class MigrateError(Exception):
         pass
 
     assert _is_transient_error(ValueError("bad arg")) is False
     assert _is_transient_error(KeyError("missing")) is False
     assert _is_transient_error(TokenLimitError("context too long")) is False
+    assert _is_transient_error(GenerateError("failed to generate SQL")) is False
+    assert _is_transient_error(MigrateError("schema migration failed")) is False
+    assert _is_transient_error(RuntimeError("expected 500 rows but got 429 rows")) is False
 
 
 def test_classify_data_analysis_error_marks_generic_errors_as_permanent():

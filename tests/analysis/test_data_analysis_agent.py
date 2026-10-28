@@ -264,7 +264,7 @@ def test_classify_data_analysis_error_marks_graph_recursion_as_retryable():
 
 
 def test_classify_data_analysis_error_marks_transient_errors_as_retryable():
-    """Network/timeout/rate-limit style errors are retryable."""
+    """Network/timeout/rate-limit style errors are retryable and preserve error details."""
 
     class FakeAPITimeoutError(Exception):
         pass
@@ -272,6 +272,7 @@ def test_classify_data_analysis_error_marks_transient_errors_as_retryable():
     tag, message = _classify_data_analysis_error(FakeAPITimeoutError("too slow"))
     assert tag == "[RETRYABLE]"
     assert "transient error" in message
+    assert "too slow" in message
 
 
 def test_is_transient_error_walks_exception_chain():
@@ -289,21 +290,33 @@ def test_is_transient_error_walks_exception_chain():
 
 
 def test_is_transient_error_detects_retryable_status_codes():
-    """HTTP 429 / 5xx status codes on the exception are treated as transient."""
+    """HTTP 429 / 5xx status codes on the exception or error.response are treated as transient."""
 
     class HTTPStatusError(Exception):
         def __init__(self, message: str, status_code: int) -> None:
             super().__init__(message)
             self.status_code = status_code
 
+    class ResponseWrappedHTTPError(Exception):
+        def __init__(self, message: str, status_code: int) -> None:
+            super().__init__(message)
+            self.response = MagicMock(status_code=status_code)
+
     assert _is_transient_error(HTTPStatusError("rate", 429)) is True
     assert _is_transient_error(HTTPStatusError("server", 503)) is True
     assert _is_transient_error(HTTPStatusError("client", 404)) is False
+    assert _is_transient_error(ResponseWrappedHTTPError("rate", 429)) is True
+    assert _is_transient_error(ResponseWrappedHTTPError("server", 502)) is True
+    assert _is_transient_error(ResponseWrappedHTTPError("client", 400)) is False
 
 
 def test_is_transient_error_generic_returns_false():
+    class TokenLimitError(Exception):
+        pass
+
     assert _is_transient_error(ValueError("bad arg")) is False
     assert _is_transient_error(KeyError("missing")) is False
+    assert _is_transient_error(TokenLimitError("context too long")) is False
 
 
 def test_classify_data_analysis_error_marks_generic_errors_as_permanent():

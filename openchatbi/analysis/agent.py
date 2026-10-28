@@ -37,7 +37,7 @@ def _is_transient_error(error: Exception) -> bool:
     """
     transient_keywords = {
         "rate",
-        "limit",
+        "ratelimit",
         "timeout",
         "connection",
         "connect",
@@ -53,9 +53,14 @@ def _is_transient_error(error: Exception) -> bool:
         name = type(current).__name__.lower()
         if any(kw in name for kw in transient_keywords):
             return True
-        # Some HTTP client exceptions expose the status code; 429 (rate limit)
+        # Some HTTP client exceptions expose the status code directly
+        # (e.g. openai.APIStatusError.status_code) or on ``error.response``
+        # (e.g. httpx.HTTPStatusError.response.status_code); 429 (rate limit)
         # and 5xx (server errors) are conventionally retryable.
         status = getattr(current, "status_code", None)
+        if not isinstance(status, int):
+            response = getattr(current, "response", None)
+            status = getattr(response, "status_code", None)
         if isinstance(status, int) and (status == 429 or 500 <= status < 600):
             return True
         current = current.__cause__ or current.__context__
@@ -79,8 +84,10 @@ def _classify_data_analysis_error(error: Exception) -> tuple[str, str]:
         )
 
     if _is_transient_error(error):
+        detail = str(error).strip()
+        detail_suffix = f" ({detail})" if detail else ""
         return "[RETRYABLE]", (
-            "A transient error occurred while running the analysis. "
+            f"A transient error occurred while running the analysis{detail_suffix}. "
             "You may retry once; if it still fails, report the issue to the user."
         )
 

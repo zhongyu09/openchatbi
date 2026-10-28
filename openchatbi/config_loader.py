@@ -8,7 +8,11 @@ from langchain_core.language_models import BaseChatModel
 from pydantic import BaseModel
 
 from openchatbi.catalog.factory import create_catalog_store
-from openchatbi.constants import EXTRACTION_MAX_TOOL_ROUNDS, SQL_RESULT_LIMIT
+from openchatbi.constants import (
+    DEFAULT_ANALYSIS_RECURSION_LIMIT,
+    EXTRACTION_MAX_TOOL_ROUNDS,
+    SQL_RESULT_LIMIT,
+)
 from openchatbi.utils import log
 
 
@@ -75,6 +79,9 @@ class Config(BaseModel):
     # Multiple LLM providers (optional)
     llm_provider: str | None = None
     llm_providers: dict[str, LLMProviderConfig] = {}
+
+    # Data Analysis Sub-agent Configuration
+    analysis_recursion_limit: int = DEFAULT_ANALYSIS_RECURSION_LIMIT
 
     # BI Configuration
     bi_config: dict[str, Any] = {}

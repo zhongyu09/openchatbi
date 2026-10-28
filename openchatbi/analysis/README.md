@@ -85,12 +85,26 @@ config (`_build_sub_agent_config`):
   and never clobbers the main agent's checkpoint thread;
 - inherited `checkpoint_ns` / `checkpoint_id` are cleared so the sub-agent starts
   from a clean namespace;
-- other config (callbacks, tags, metadata) is propagated unchanged.
+- ``callbacks`` and ``tags`` are propagated unchanged;
+- ``recursion_limit`` and ``metadata`` are intentionally *not* propagated, and
+  ``recursion_limit`` is set explicitly from OpenChatBI configuration so the
+  sub-agent does not inherit the tool-node default of 25.
 
 `GraphInterrupt` raised inside the sub-agent is re-raised (not swallowed) so
 human-in-the-loop interrupts can bubble up to the main graph. Final output is
 normalized to a string via `_extract_final_content`, including the case where
 the model returns multimodal content blocks.
+
+When the sub-agent fails, the error is classified as `[RETRYABLE]`
+(`GraphRecursionError`, transient network/timeout/rate-limit errors — detected
+via the exception class name, its `__cause__`/`__context__` chain, HTTP
+408/429/5xx status codes, and transient status/phrase patterns in the error
+message) or `[PERMANENT]` (everything else), and surfaced in
+the `ToolMessage` with a `[DATA_ANALYSIS_FAILED][tag]` marker and explicit
+inline instructions. Paired with the main agent prompt policy (`agent_prompt.md`),
+this instructs the parent agent to report permanent failures directly (or retry
+at most once with a simplified task on retryable failures) rather than silently
+redoing the analysis with its own tools.
 
 ---
 

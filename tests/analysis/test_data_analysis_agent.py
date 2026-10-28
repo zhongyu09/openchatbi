@@ -6,9 +6,14 @@ from langgraph.graph.state import CompiledStateGraph
 
 from openchatbi.analysis import agent as analysis_agent
 from openchatbi.analysis.agent import (
+    DATA_ANALYSIS_ERROR_PREFIX,
+    DATA_ANALYSIS_FAILED_MARKER,
     DataAnalysisInput,
     _build_sub_agent_config,
+    _classify_data_analysis_error,
     _extract_final_content,
+    _format_data_analysis_error,
+    _is_transient_error,
     _load_data_analysis_prompt,
     build_data_analysis_agent,
     get_data_analysis_tool,
@@ -163,15 +168,17 @@ async def test_async_tool_propagates_graph_interrupt(mock_build_agent, mock_sql_
 
 
 @patch("openchatbi.analysis.agent.build_data_analysis_agent")
-def test_sync_tool_returns_error_string_on_generic_exception(mock_build_agent, mock_sql_graph):
-    """Non-interrupt exceptions are caught and returned as an error string."""
+def test_sync_tool_returns_structured_error_string_on_generic_exception(mock_build_agent, mock_sql_graph):
+    """Non-interrupt exceptions are caught and returned as a structured, parent-parsable error string."""
     mock_agent = MagicMock()
     mock_agent.invoke.side_effect = RuntimeError("boom")
     mock_build_agent.return_value = mock_agent
 
     tool = get_data_analysis_tool(sql_graph=mock_sql_graph, sync_mode=True)
     result = tool.invoke({"reasoning": "test", "task": "analyze this"})
-    assert "Error occurred during data analysis" in result
+    assert result.startswith(DATA_ANALYSIS_FAILED_MARKER)
+    assert "[PERMANENT]" in result
+    assert DATA_ANALYSIS_ERROR_PREFIX in result
     assert "boom" in result
 
 
@@ -201,6 +208,172 @@ def test_build_sub_agent_config_handles_none():
     """No parent config should still yield a valid (empty) configurable."""
     sub = _build_sub_agent_config(None)
     assert sub["configurable"] == {}
+
+
+def test_build_sub_agent_config_drops_recursion_limit_and_metadata():
+    """Parent/tool-node ``recursion_limit`` and ``metadata`` must not leak into
+    the sub-agent; an explicit OpenChatBI recursion limit is applied instead."""
+    from openchatbi.constants import DEFAULT_ANALYSIS_RECURSION_LIMIT
+
+    parent = {
+        "configurable": {"thread_id": "abc"},
+        "recursion_limit": 25,
+        "metadata": {"langfuse_trace_name": "parent"},
+        "tags": ["x"],
+    }
+    sub = _build_sub_agent_config(parent)
+
+    # The dangerous parent defaults are dropped.
+    assert "metadata" not in sub
+    assert sub["recursion_limit"] != 25
+    # callbacks/tags still flow through.
+    assert sub["tags"] == ["x"]
+    # Defaults to the OpenChatBI package default when no custom config is loaded.
+    assert sub["recursion_limit"] == DEFAULT_ANALYSIS_RECURSION_LIMIT
+
+
+def test_build_sub_agent_config_uses_openchatbi_recursion_limit():
+    """A custom ``analysis_recursion_limit`` in OpenChatBI config is honored."""
+    from unittest.mock import MagicMock
+
+    from openchatbi.config_loader import ConfigLoader
+
+    ConfigLoader().set(
+        {
+            "default_llm": MagicMock(),
+            "data_warehouse_config": {
+                "uri": "sqlite:///:memory:",
+                "include_tables": None,
+                "database_name": "test_db",
+            },
+            "analysis_recursion_limit": 1234,
+        }
+    )
+
+    sub = _build_sub_agent_config({"configurable": {"thread_id": "abc"}})
+    assert sub["recursion_limit"] == 1234
+
+
+def test_classify_data_analysis_error_marks_graph_recursion_as_retryable():
+    """GraphRecursionError is retryable because simplifying the task often helps."""
+    from langgraph.errors import GraphRecursionError
+
+    tag, message = _classify_data_analysis_error(GraphRecursionError("limit hit"))
+    assert tag == "[RETRYABLE]"
+    assert "more steps than allowed" in message
+    assert "at most once" in message
+    assert "text2sql" in message
+
+
+def test_classify_data_analysis_error_marks_transient_errors_as_retryable():
+    """Network/timeout/rate-limit style errors are retryable and preserve error details."""
+
+    class FakeAPITimeoutError(Exception):
+        pass
+
+    tag, message = _classify_data_analysis_error(FakeAPITimeoutError("too slow"))
+    assert tag == "[RETRYABLE]"
+    assert "transient error" in message
+    assert "too slow" in message
+    assert "at most once" in message
+    assert "text2sql" in message
+
+
+def test_is_transient_error_walks_exception_chain():
+    """A transient error wrapped in a generic carrier is detected via __cause__."""
+
+    class CarrierError(Exception):
+        pass
+
+    class ReadTimeout(Exception):
+        pass
+
+    carrier = CarrierError("api call failed")
+    carrier.__cause__ = ReadTimeout("read timed out")
+    assert _is_transient_error(carrier) is True
+
+
+def test_is_transient_error_detects_retryable_status_codes():
+    """HTTP 408 / 429 / 5xx status codes on the exception or error.response are treated as transient."""
+
+    class HTTPStatusError(Exception):
+        def __init__(self, message: str, status_code: int) -> None:
+            super().__init__(message)
+            self.status_code = status_code
+
+    class ResponseWrappedHTTPError(Exception):
+        def __init__(self, message: str, status_code: int) -> None:
+            super().__init__(message)
+            self.response = MagicMock(status_code=status_code)
+
+    assert _is_transient_error(HTTPStatusError("timeout", 408)) is True
+    assert _is_transient_error(HTTPStatusError("rate", 429)) is True
+    assert _is_transient_error(HTTPStatusError("server", 503)) is True
+    assert _is_transient_error(HTTPStatusError("client", 404)) is False
+    assert _is_transient_error(ResponseWrappedHTTPError("timeout", 408)) is True
+    assert _is_transient_error(ResponseWrappedHTTPError("rate", 429)) is True
+    assert _is_transient_error(ResponseWrappedHTTPError("server", 502)) is True
+    assert _is_transient_error(ResponseWrappedHTTPError("client", 400)) is False
+
+
+def test_is_transient_error_detects_message_text_fallback():
+    """Generic carrier exceptions with 408/429/5xx or transient phrases in message text are detected."""
+    assert _is_transient_error(RuntimeError("503 Service Unavailable")) is True
+    assert _is_transient_error(RuntimeError("HTTP 429 Too Many Requests")) is True
+    assert _is_transient_error(RuntimeError("Request failed with status code 502")) is True
+    assert _is_transient_error(RuntimeError("408 Request Timeout")) is True
+    assert _is_transient_error(RuntimeError(" upstream connection reset by peer")) is True
+
+
+def test_is_transient_error_generic_returns_false():
+    """Unrelated exceptions (including class names containing 'rate' like GenerateError/MigrateError
+    or bare numbers like '500 rows') must not be misclassified as transient."""
+
+    class TokenLimitError(Exception):
+        pass
+
+    class GenerateError(Exception):
+        pass
+
+    class MigrateError(Exception):
+        pass
+
+    assert _is_transient_error(ValueError("bad arg")) is False
+    assert _is_transient_error(KeyError("missing")) is False
+    assert _is_transient_error(TokenLimitError("context too long")) is False
+    assert _is_transient_error(GenerateError("failed to generate SQL")) is False
+    assert _is_transient_error(MigrateError("schema migration failed")) is False
+    assert _is_transient_error(RuntimeError("expected 500 rows but got 429 rows")) is False
+
+
+def test_classify_data_analysis_error_marks_generic_errors_as_permanent():
+    """Generic runtime errors are permanent (do not silently retry forever)."""
+    tag, message = _classify_data_analysis_error(RuntimeError("boom"))
+    assert tag == "[PERMANENT]"
+    assert "boom" in message
+    assert "Do not retry" in message
+    assert "text2sql" in message
+
+
+def test_format_data_analysis_error_includes_marker_and_tag():
+    """The formatted error includes the structured marker, tag, and inline guidance."""
+    formatted = _format_data_analysis_error(RuntimeError("boom"))
+    assert formatted.startswith(f"{DATA_ANALYSIS_FAILED_MARKER}[PERMANENT]")
+    assert DATA_ANALYSIS_ERROR_PREFIX in formatted
+    assert "boom" in formatted
+    assert "Do not retry" in formatted
+
+
+def test_agent_prompt_includes_data_analysis_failure_policy():
+    """The main agent prompt must instruct the model to surface data_analysis failures."""
+    from openchatbi.prompts.system_prompt import get_agent_prompt_template, reset_cache
+
+    reset_cache()
+    prompt = get_agent_prompt_template()
+    assert DATA_ANALYSIS_FAILED_MARKER in prompt
+    assert "[PERMANENT]" in prompt
+    assert "[RETRYABLE]" in prompt
+    assert "Never silently redo the analysis" in prompt
 
 
 def test_extract_final_content_string_and_blocks():

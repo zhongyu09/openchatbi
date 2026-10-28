@@ -18,4 +18,8 @@ SQL_RESULT_LIMIT = 10000
 # Default tool rounds (search_knowledge or AskHuman) information extraction may take for one question
 EXTRACTION_MAX_TOOL_ROUNDS = 10
 
+# Default recursion limit for the data analysis sub-agent.
+# Must be large enough to accommodate multi-step analysis workflows.
+DEFAULT_ANALYSIS_RECURSION_LIMIT = 9_999
+
 MCP_TOOL_DEFAULT_TIMEOUT_SECONDS = 60

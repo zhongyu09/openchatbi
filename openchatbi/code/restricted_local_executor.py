@@ -2,7 +2,7 @@ import sys
 from io import StringIO
 from typing import Any
 
-from RestrictedPython import compile_restricted, safe_globals, utility_builtins
+from RestrictedPython import compile_restricted, safe_globals, utility_builtins  # type: ignore[attr-defined]
 from RestrictedPython.Guards import safe_builtins, safer_getattr
 
 from openchatbi.code.executor_base import ExecutorBase
@@ -15,10 +15,10 @@ class RestrictedLocalExecutor(ExecutorBase):
             # compile restricted code
             byte_code = compile_restricted(code, "<string>", "exec")
             if byte_code is None:
-                return False, "Failed to compile restricted code"
+                return False, "Failed to compile restricted code"  # type: ignore[unreachable]
 
             restricted_locals: dict[str, Any] = {}
-            restricted_globals = safe_globals.copy()
+            restricted_globals: dict[str, Any] = dict(safe_globals)
 
             # Set up restricted environment with necessary functions
             restricted_globals.update(safe_builtins)

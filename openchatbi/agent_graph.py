@@ -8,7 +8,7 @@ from collections.abc import Callable
 from typing import Any, cast
 
 from langchain_core.language_models import BaseChatModel
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import StructuredTool
 from langchain_openai.chat_models.base import BaseChatOpenAI
@@ -23,10 +23,6 @@ from langgraph.types import Checkpointer, Send, interrupt
 from pydantic import BaseModel, Field
 
 from openchatbi import config
-from openchatbi.analysis.agent import (
-    DATA_ANALYSIS_ERROR_PREFIX,
-    DATA_ANALYSIS_FAILED_MARKER,
-)
 from openchatbi.catalog import CatalogStore
 from openchatbi.constants import SQL_EXECUTE_TIMEOUT, SQL_SECURITY_ERROR, datetime_format
 from openchatbi.context_config import get_context_config
@@ -74,211 +70,6 @@ def ask_human(state: AgentState) -> dict[str, Any]:
         "history_messages": [AIMessage(args["question"]), HumanMessage(user_feedback)],
         "user_input": user_feedback,
     }
-
-
-def reset_turn_state(state: AgentState) -> dict[str, Any]:
-    """Reset per-turn counters at the start of each new user invocation.
-
-    Sits between ``START`` and ``llm_node`` so it runs exactly once per graph
-    invocation (i.e. per new user message). This ensures the
-    ``data_analysis_retries`` budget is per-turn rather than per-conversation:
-    without this, once a retry is consumed in one turn, no later turn could
-    ever get a retry again. Resuming from a ``GraphInterrupt`` does not re-run
-    ``START``, so the counter correctly persists across HITL within the same
-    turn.
-    """
-    return {"data_analysis_retries": 0}
-
-
-def _parse_data_analysis_failure(content: Any) -> tuple[str, str] | None:
-    """Parse (tag, body) from a failed data_analysis ToolMessage.
-
-    Returns ``None`` if the content is not a structured failure result.
-    """
-    text = str(content or "")
-    if not text.startswith(DATA_ANALYSIS_FAILED_MARKER):
-        return None
-    rest = text[len(DATA_ANALYSIS_FAILED_MARKER) :]
-
-    tag = ""
-    if rest.startswith("[RETRYABLE]"):
-        tag = "[RETRYABLE]"
-        rest = rest[len("[RETRYABLE]") :].strip()
-    elif rest.startswith("[PERMANENT]"):
-        tag = "[PERMANENT]"
-        rest = rest[len("[PERMANENT]") :].strip()
-
-    if rest.startswith(DATA_ANALYSIS_ERROR_PREFIX):
-        rest = rest[len(DATA_ANALYSIS_ERROR_PREFIX) :].strip()
-
-    return tag, rest
-
-
-def _current_turn_tool_messages(state: AgentState) -> list[ToolMessage]:
-    """Return the ToolMessages produced in the current tool batch.
-
-    Scans backwards from the end of ``messages`` until an ``AIMessage`` is hit
-    (the assistant turn that issued the tool calls). Everything after that
-    AIMessage belongs to the same parallel tool batch.
-    """
-    messages = state.get("messages", [])
-    tool_messages: list[ToolMessage] = []
-    for i in range(len(messages) - 1, -1, -1):
-        msg = messages[i]
-        if isinstance(msg, AIMessage):
-            break
-        if isinstance(msg, ToolMessage):
-            tool_messages.append(msg)
-    return tool_messages
-
-
-def _latest_data_analysis_failure(state: AgentState) -> tuple[ToolMessage, str, str] | None:
-    """Find the most recent failed ``data_analysis`` ToolMessage in the current turn."""
-    for msg in _current_turn_tool_messages(state):
-        if msg.name == "data_analysis":
-            parsed = _parse_data_analysis_failure(msg.content)
-            if parsed:
-                return msg, parsed[0], parsed[1]
-    return None
-
-
-def route_after_tool(state: AgentState) -> str:
-    """Route after the tool node based on whether data_analysis failed.
-
-    - Retryable ``data_analysis`` failures within ``data_analysis_max_retries``
-      always route through ``data_analysis_retry_hint`` (even when a sibling
-      tool in the same parallel batch succeeded) so the retry counter is
-      incremented and the failed ``ToolMessage`` is annotated in-place before
-      returning to ``llm_node``.
-    - Permanent failures (or exhausted retries) route back to ``llm_node`` if
-      any sibling tool in the same parallel batch succeeded (so successful
-      results are not dropped), or to the terminal ``data_analysis_failure_response``
-      node otherwise.
-    """
-    failure = _latest_data_analysis_failure(state)
-    if not failure:
-        return "llm_node"
-
-    _msg, tag, _body = failure
-
-    retries = state.get("data_analysis_retries", 0)
-    try:
-        max_retries = config.get().data_analysis_max_retries
-    except ValueError:
-        max_retries = 1
-
-    if tag == "[RETRYABLE]" and retries < max_retries:
-        return "data_analysis_retry_hint"
-
-    # Don't discard successful parallel tool results when the failure is
-    # non-retryable (permanent or budget exhausted): let the LLM surface both
-    # the successful sibling results and the failure.
-    if any(_tool_succeeded(m) for m in _current_turn_tool_messages(state)):
-        return "llm_node"
-
-    return "data_analysis_failure_response"
-
-
-def _tool_succeeded(msg: ToolMessage) -> bool:
-    """Return True if a ToolMessage represents a successful (non-failure) result."""
-    if getattr(msg, "status", None) == "error":
-        return False
-    if msg.name == "data_analysis":
-        return _parse_data_analysis_failure(msg.content) is None
-    if msg.name == "text2sql":
-        return not str(msg.content or "").strip().startswith("Error occurred when calling Text2SQL tool.")
-    return True
-
-
-def data_analysis_retry_hint(state: AgentState) -> dict:
-    """Give the parent agent one controlled retry chance with a simpler task.
-
-    Updates the failed ``ToolMessage`` in-place (preserving ``id`` and
-    ``tool_call_id`` for LangGraph's ``add_messages`` reducer) rather than
-    appending a trailing ``SystemMessage``, which would violate providers (such
-    as Anthropic) that reject non-consecutive system messages after tool turns.
-    """
-    failure = _latest_data_analysis_failure(state)
-    if failure is None:
-        return {"data_analysis_retries": state.get("data_analysis_retries", 0) + 1}
-    msg, _tag, body = failure
-
-    hint = ToolMessage(
-        content=(
-            f"{msg.content}\n\n"
-            "The previous `data_analysis` attempt failed and is retryable.\n"
-            f"Failure: {body}\n"
-            "You may call `data_analysis` ONE more time with a clearly simpler task "
-            "(e.g., smaller date range, fewer dimensions, single metric). "
-            "Do not retry more than once, and do not fall back to doing the analysis yourself."
-        ),
-        tool_call_id=msg.tool_call_id,
-        name=msg.name,
-        id=msg.id,
-    )
-    return {
-        "messages": [hint],
-        "data_analysis_retries": state.get("data_analysis_retries", 0) + 1,
-    }
-
-
-def make_data_analysis_failure_response(llm: BaseChatModel, sync_mode: bool = True):
-    """Build a node that explains a data_analysis failure to the user without tools.
-
-    The node invokes the raw LLM (no tools bound) so it is structurally
-    impossible for the parent agent to silently redo the analysis. When
-    ``sync_mode`` is False an async node using ``ainvoke`` is returned so the
-    node does not block the event loop in async graphs.
-    """
-
-    def _build_prompt(state: AgentState) -> tuple[str, str]:
-        failure = _latest_data_analysis_failure(state)
-        if failure is None:
-            return "[PERMANENT]", "Unknown error"
-        _msg, tag, body = failure
-        return tag, body
-
-    def _system_prompt(tag: str, body: str) -> str:
-        return (
-            "The specialized data_analysis sub-agent failed to complete the user's request.\n"
-            f"Error type: {tag}\n"
-            f"Details: {body}\n\n"
-            "Explain the failure to the user in a concise, helpful way. "
-            "Do not attempt to redo the analysis with tools. "
-            "Offer concrete next steps, such as simplifying the request or exploring the data with SQL."
-        )
-
-    invoke_config: RunnableConfig = {"metadata": {"streaming_tokens": True}}
-
-    def _build_state_update(response: Any) -> dict[str, Any]:
-        final_answer = get_text_from_content(response.content)
-        return {
-            "messages": [response],
-            "final_answer": final_answer,
-            "history_messages": [AIMessage(response.content)],
-        }
-
-    if sync_mode:
-
-        def _node_sync(state: AgentState) -> dict[str, Any]:
-            tag, body = _build_prompt(state)
-            response = llm.invoke(
-                [SystemMessage(content=_system_prompt(tag, body))] + list(state["messages"]),
-                config=invoke_config,
-            )
-            return _build_state_update(response)
-
-        return _node_sync
-
-    async def _node_async(state: AgentState) -> dict[str, Any]:
-        tag, body = _build_prompt(state)
-        response = await llm.ainvoke(
-            [SystemMessage(content=_system_prompt(tag, body))] + list(state["messages"]),
-            config=invoke_config,
-        )
-        return _build_state_update(response)
-
-    return _node_async
 
 
 class CallSQLGraphInput(BaseModel):
@@ -622,34 +413,14 @@ def _build_graph_core(
 
     # Add nodes to the graph
     agent_tools: list[Any] = [*normal_tools, AskHuman]
-    graph.add_node("reset_turn_state", reset_turn_state)
     graph.add_node("llm_node", agent_llm_call(get_llm(llm_provider), agent_tools, context_manager))
     graph.add_node("ask_human", ask_human)
     graph.add_node("use_tool", tool_node)
 
     # Add edges between nodes
-    graph.add_edge(START, "reset_turn_state")
-    graph.add_edge("reset_turn_state", "llm_node")
+    graph.add_edge(START, "llm_node")
     graph.add_edge("ask_human", "llm_node")
-
-    # Detect data_analysis failures after the tool node and route to either a
-    # controlled retry hint or a failure-response node that has no tools.
-    graph.add_node("data_analysis_retry_hint", data_analysis_retry_hint)
-    graph.add_node(
-        "data_analysis_failure_response",
-        make_data_analysis_failure_response(get_llm(llm_provider), sync_mode=sync_mode),
-    )
-    graph.add_conditional_edges(
-        "use_tool",
-        route_after_tool,
-        {
-            "llm_node": "llm_node",
-            "data_analysis_retry_hint": "data_analysis_retry_hint",
-            "data_analysis_failure_response": "data_analysis_failure_response",
-        },
-    )
-    graph.add_edge("data_analysis_retry_hint", "llm_node")
-    graph.add_edge("data_analysis_failure_response", END)
+    graph.add_edge("use_tool", "llm_node")
 
     # Add conditional routing from llm node
     def route_tools(state: AgentState) -> str | list[Send]:

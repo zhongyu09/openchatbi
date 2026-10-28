@@ -1,8 +1,8 @@
 """Tests for streaming event parsing."""
 
-from langchain_core.messages import AIMessage, AIMessageChunk, ToolMessage
+from langchain_core.messages import AIMessage, ToolMessage
 
-from openchatbi.streaming import AgentStreamProcessor, StreamStep, StreamToken
+from openchatbi.streaming import AgentStreamProcessor, StreamStep
 
 
 class Overwrite:
@@ -77,38 +77,3 @@ def test_empty_visualization_update_emits_no_step() -> None:
     events = processor.process((), "updates", {"generate_visualization": {"visualization_dsl": {}}})
 
     assert events == []
-
-
-def test_data_analysis_failure_response_streams_as_main_final_tokens() -> None:
-    """Tokens from data_analysis_failure_response must stream as main final answer
-    (not sub-agent thinking), and main-graph helper nodes must not emit generic sub-agent steps."""
-    processor = AgentStreamProcessor()
-
-    chunk = AIMessageChunk(content="Analysis failed due to timeout.")
-    events = processor.process(
-        (),
-        "messages",
-        (chunk, {"langgraph_node": "data_analysis_failure_response", "streaming_tokens": True}),
-    )
-
-    assert len(events) == 1
-    assert events[0] == StreamToken(
-        text="Analysis failed due to timeout.",
-        level=0,
-        label="main",
-        is_final=True,
-    )
-    assert processor.final_response == "Analysis failed due to timeout."
-
-    # Updates from main-graph helper nodes must not be misclassified as sub-agent generic steps.
-    hint_msg = ToolMessage(content="hint", tool_call_id="t1", name="data_analysis", id="m1")
-    assert processor.process((), "updates", {"data_analysis_retry_hint": {"messages": [hint_msg]}}) == []
-    assert processor.process((), "updates", {"reset_turn_state": {"data_analysis_retries": 0}}) == []
-    assert (
-        processor.process(
-            (),
-            "updates",
-            {"data_analysis_failure_response": {"messages": [AIMessage(content="Analysis failed.")]}},
-        )
-        == []
-    )

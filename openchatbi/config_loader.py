@@ -82,9 +82,6 @@ class Config(BaseModel):
 
     # Data Analysis Sub-agent Configuration
     analysis_recursion_limit: int = DEFAULT_ANALYSIS_RECURSION_LIMIT
-    # Number of retries allowed for the data analysis sub-agent on retryable failures
-    # (e.g. GraphRecursionError, transient network/timeout errors).
-    data_analysis_max_retries: int = 1
 
     # BI Configuration
     bi_config: dict[str, Any] = {}

@@ -261,6 +261,8 @@ def test_classify_data_analysis_error_marks_graph_recursion_as_retryable():
     tag, message = _classify_data_analysis_error(GraphRecursionError("limit hit"))
     assert tag == "[RETRYABLE]"
     assert "more steps than allowed" in message
+    assert "at most once" in message
+    assert "text2sql" in message
 
 
 def test_classify_data_analysis_error_marks_transient_errors_as_retryable():
@@ -273,6 +275,8 @@ def test_classify_data_analysis_error_marks_transient_errors_as_retryable():
     assert tag == "[RETRYABLE]"
     assert "transient error" in message
     assert "too slow" in message
+    assert "at most once" in message
+    assert "text2sql" in message
 
 
 def test_is_transient_error_walks_exception_chain():
@@ -324,14 +328,17 @@ def test_classify_data_analysis_error_marks_generic_errors_as_permanent():
     tag, message = _classify_data_analysis_error(RuntimeError("boom"))
     assert tag == "[PERMANENT]"
     assert "boom" in message
+    assert "Do not retry" in message
+    assert "text2sql" in message
 
 
 def test_format_data_analysis_error_includes_marker_and_tag():
-    """The formatted error can be parsed by the parent graph routing logic."""
+    """The formatted error includes the structured marker, tag, and inline guidance."""
     formatted = _format_data_analysis_error(RuntimeError("boom"))
     assert formatted.startswith(f"{DATA_ANALYSIS_FAILED_MARKER}[PERMANENT]")
     assert DATA_ANALYSIS_ERROR_PREFIX in formatted
     assert "boom" in formatted
+    assert "Do not retry" in formatted
 
 
 def test_agent_prompt_includes_data_analysis_failure_policy():

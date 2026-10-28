@@ -45,17 +45,7 @@ SQL_SUBGRAPH_NODES = {
 # with a reset checkpoint namespace (see analysis/agent._build_sub_agent_config),
 # the deepagents `model`/`tools`/middleware nodes are flattened onto depth 0
 # instead of appearing as a nested subgraph.
-MAIN_GRAPH_NODES = {
-    "reset_turn_state",
-    "llm_node",
-    "use_tool",
-    "ask_human",
-    "data_analysis_retry_hint",
-    "data_analysis_failure_response",
-}
-
-# Main-graph nodes whose streamed LLM tokens represent the user-facing assistant answer.
-MAIN_ANSWER_NODES = {"llm_node", "data_analysis_failure_response"}
+MAIN_GRAPH_NODES = {"llm_node", "use_tool", "ask_human"}
 
 # Display label used for the (flattened) data analysis sub-agent layer.
 SUBAGENT_LABEL = "data_analysis"
@@ -251,7 +241,7 @@ class AgentStreamProcessor:
         if not token:
             return
 
-        if depth == 0 and node in MAIN_ANSWER_NODES and metadata.get("streaming_tokens", False):
+        if depth == 0 and node == "llm_node" and metadata.get("streaming_tokens", False):
             # Main agent streaming its (intermediate/final) answer.
             self.final_response += token
             yield StreamToken(text=token, level=0, label="main", is_final=True)

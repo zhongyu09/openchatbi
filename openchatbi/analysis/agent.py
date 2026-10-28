@@ -80,7 +80,9 @@ def _classify_data_analysis_error(error: Exception) -> tuple[str, str]:
     if isinstance(error, GraphRecursionError):
         return "[RETRYABLE]", (
             "The analysis required more steps than allowed. "
-            "Try narrowing the time range, reducing dimensions, or splitting into smaller sub-tasks."
+            "You may retry `data_analysis` at most once with a simpler task "
+            "(narrower time range, fewer dimensions, or a single metric), or report the limitation to the user. "
+            "Do not fall back to doing the analysis yourself with `text2sql` or `run_python_code`."
         )
 
     if _is_transient_error(error):
@@ -88,12 +90,17 @@ def _classify_data_analysis_error(error: Exception) -> tuple[str, str]:
         detail_suffix = f" ({detail})" if detail else ""
         return "[RETRYABLE]", (
             f"A transient error occurred while running the analysis{detail_suffix}. "
-            "You may retry once; if it still fails, report the issue to the user."
+            "You may retry `data_analysis` at most once; if it still fails, report the issue to the user "
+            "and do not redo the analysis yourself with `text2sql` or `run_python_code`."
         )
 
     # Everything else is treated as permanent (implementation bug, bad args,
     # auth failure, unrecoverable service error, etc.).
-    return "[PERMANENT]", str(error)
+    return "[PERMANENT]", (
+        f"{error}\n"
+        "Do not retry `data_analysis` or fall back to doing the analysis yourself with `text2sql` or `run_python_code`. "
+        "Report the failure and its details to the user."
+    )
 
 
 def _format_data_analysis_error(error: Exception) -> str:

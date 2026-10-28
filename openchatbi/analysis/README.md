@@ -95,6 +95,27 @@ human-in-the-loop interrupts can bubble up to the main graph. Final output is
 normalized to a string via `_extract_final_content`, including the case where
 the model returns multimodal content blocks.
 
+When the sub-agent fails, the error is classified as `[RETRYABLE]`
+(`GraphRecursionError`, transient network/timeout/rate-limit errors — detected
+via the exception class name *and* its `__cause__`/`__context__` chain, plus
+HTTP 429/5xx status codes) or `[PERMANENT]` (everything else), and surfaced to
+the parent graph with a `[DATA_ANALYSIS_FAILED][tag]` marker. The main graph
+routes the result via `route_after_tool`:
+
+- no failure → `llm_node`;
+- a `data_analysis` failure with a *successful* sibling tool in the same
+  parallel batch → `llm_node` (so the successful result is not dropped; the
+  prompt policy then governs surfacing the failure);
+- a `data_analysis` failure with no successful sibling → one controlled retry
+  (`data_analysis_retry_hint`, within `data_analysis_max_retries`) or a
+  terminal, tool-less `data_analysis_failure_response` node that explains the
+  failure to the user — making a silent redo structurally impossible.
+
+The retry budget is per-turn: `reset_turn_state` runs between `START` and
+`llm_node` and zeroes `data_analysis_retries` on every new user invocation
+(resuming from a `GraphInterrupt` does not re-run `START`, so the budget
+persists across HITL within the same turn).
+
 ---
 
 ## 2. Anomaly Detection (`anomaly_detection.py`)

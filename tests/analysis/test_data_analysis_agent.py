@@ -13,6 +13,7 @@ from openchatbi.analysis.agent import (
     _classify_data_analysis_error,
     _extract_final_content,
     _format_data_analysis_error,
+    _is_transient_error,
     _load_data_analysis_prompt,
     build_data_analysis_agent,
     get_data_analysis_tool,
@@ -271,6 +272,38 @@ def test_classify_data_analysis_error_marks_transient_errors_as_retryable():
     tag, message = _classify_data_analysis_error(FakeAPITimeoutError("too slow"))
     assert tag == "[RETRYABLE]"
     assert "transient error" in message
+
+
+def test_is_transient_error_walks_exception_chain():
+    """A transient error wrapped in a generic carrier is detected via __cause__."""
+
+    class CarrierError(Exception):
+        pass
+
+    class ReadTimeout(Exception):
+        pass
+
+    carrier = CarrierError("api call failed")
+    carrier.__cause__ = ReadTimeout("read timed out")
+    assert _is_transient_error(carrier) is True
+
+
+def test_is_transient_error_detects_retryable_status_codes():
+    """HTTP 429 / 5xx status codes on the exception are treated as transient."""
+
+    class HTTPStatusError(Exception):
+        def __init__(self, message: str, status_code: int) -> None:
+            super().__init__(message)
+            self.status_code = status_code
+
+    assert _is_transient_error(HTTPStatusError("rate", 429)) is True
+    assert _is_transient_error(HTTPStatusError("server", 503)) is True
+    assert _is_transient_error(HTTPStatusError("client", 404)) is False
+
+
+def test_is_transient_error_generic_returns_false():
+    assert _is_transient_error(ValueError("bad arg")) is False
+    assert _is_transient_error(KeyError("missing")) is False
 
 
 def test_classify_data_analysis_error_marks_generic_errors_as_permanent():

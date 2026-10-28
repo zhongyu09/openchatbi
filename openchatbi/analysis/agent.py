@@ -28,8 +28,13 @@ DATA_ANALYSIS_FAILED_MARKER = "[DATA_ANALYSIS_FAILED]"
 
 
 def _is_transient_error(error: Exception) -> bool:
-    """Heuristic: classify network/rate-limit/timeout errors as transient."""
-    name = type(error).__name__.lower()
+    """Heuristic: classify network/rate-limit/timeout errors as transient.
+
+    Walks the exception chain (``__cause__`` / ``__context__``) so that a
+    low-level transient error wrapped in a generic carrier exception (e.g. an
+    ``httpx.HTTPStatusError`` wrapping a ``ReadTimeout``, or an
+    ``openai.APIStatusError`` carrying a 429/503) is still detected.
+    """
     transient_keywords = {
         "rate",
         "limit",
@@ -41,7 +46,20 @@ def _is_transient_error(error: Exception) -> bool:
         "internalserver",
         "temporarily",
     }
-    return any(kw in name for kw in transient_keywords)
+    seen: set[int] = set()
+    current: BaseException | None = error
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        name = type(current).__name__.lower()
+        if any(kw in name for kw in transient_keywords):
+            return True
+        # Some HTTP client exceptions expose the status code; 429 (rate limit)
+        # and 5xx (server errors) are conventionally retryable.
+        status = getattr(current, "status_code", None)
+        if isinstance(status, int) and (status == 429 or 500 <= status < 600):
+            return True
+        current = current.__cause__ or current.__context__
+    return False
 
 
 def _classify_data_analysis_error(error: Exception) -> tuple[str, str]:

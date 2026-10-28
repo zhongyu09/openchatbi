@@ -231,20 +231,17 @@ def make_data_analysis_failure_response(llm: BaseChatModel, sync_mode: bool = Tr
         )
 
     if sync_mode:
+
         def _node_sync(state: AgentState) -> dict:
             tag, body = _build_prompt(state)
-            response = llm.invoke(
-                [SystemMessage(content=_system_prompt(tag, body))] + list(state["messages"])
-            )
+            response = llm.invoke([SystemMessage(content=_system_prompt(tag, body))] + list(state["messages"]))
             return {"messages": [response]}
 
         return _node_sync
 
     async def _node_async(state: AgentState) -> dict:
         tag, body = _build_prompt(state)
-        response = await llm.ainvoke(
-            [SystemMessage(content=_system_prompt(tag, body))] + list(state["messages"])
-        )
+        response = await llm.ainvoke([SystemMessage(content=_system_prompt(tag, body))] + list(state["messages"]))
         return {"messages": [response]}
 
     return _node_async

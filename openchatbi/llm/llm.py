@@ -81,6 +81,48 @@ def _invalid_tool_names(valid_tools, tool_calls) -> str:
     return ",".join(invalid_tools)
 
 
+def has_malformed_tool_calls(response) -> bool:
+    """Return True if the model response contains unparsable or missing tool calls."""
+    if response is None:
+        return False
+    if getattr(response, "invalid_tool_calls", None):
+        return True
+    if not getattr(response, "tool_calls", None):
+        response_metadata = getattr(response, "response_metadata", None) or {}
+        additional_kwargs = getattr(response, "additional_kwargs", None) or {}
+        finish_reason = response_metadata.get("finish_reason") or additional_kwargs.get("finish_reason")
+        if finish_reason == "tool_calls":
+            return True
+    return False
+
+
+def _format_malformed_tool_call_error(response) -> str:
+    """Format a retry prompt describing why the model's tool call could not be parsed."""
+    invalid_calls = getattr(response, "invalid_tool_calls", None) or []
+    errors = []
+    for call in invalid_calls:
+        if isinstance(call, dict):
+            err = call.get("error")
+            name = call.get("name")
+        else:
+            err = getattr(call, "error", None)
+            name = getattr(call, "name", None)
+        if err:
+            errors.append(str(err))
+        elif name:
+            errors.append(f"Function {name} arguments are not valid JSON.")
+    if errors:
+        error_detail = "; ".join(errors)
+        return (
+            f"Your tool call arguments were not valid JSON: {error_detail} "
+            "Please call the tool again with valid JSON."
+        )
+    return (
+        "Your tool call arguments were not valid JSON or could not be parsed. "
+        "Please call the tool again with valid JSON."
+    )
+
+
 def _bound_tool_names(tools) -> list[str]:
     """Get the names of the tools in a model's bound `tools` list.
 
@@ -139,6 +181,7 @@ def call_llm_chat_model_with_retry(
     # retry 3 times
     while retry < 3:
         start_time = time.time()
+        response = None
         try:
             log(f"Call LLM chat model with retry {retry} times.")
             response = chat_model.invoke(new_messages, config={"metadata": {"streaming_tokens": streaming_tokens}})
@@ -174,6 +217,12 @@ def call_llm_chat_model_with_retry(
             log("===== Messages:")
             log(str(messages))
             traceback.print_exc()
+            continue
+
+        if has_malformed_tool_calls(response):
+            retry += 1
+            log(f"Invalid tool call arguments {getattr(response, 'invalid_tool_calls', None)}, retry {retry} times.")
+            new_messages += [{"role": "user", "content": _format_malformed_tool_call_error(response)}]
             continue
 
         if response.tool_calls:

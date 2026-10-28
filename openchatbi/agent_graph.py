@@ -28,7 +28,7 @@ from openchatbi.constants import SQL_EXECUTE_TIMEOUT, SQL_SECURITY_ERROR, dateti
 from openchatbi.context_config import get_context_config
 from openchatbi.context_manager import ContextManager
 from openchatbi.graph_state import AgentState, InputState, OutputState
-from openchatbi.llm.llm import call_llm_chat_model_with_retry, get_llm
+from openchatbi.llm.llm import call_llm_chat_model_with_retry, get_llm, has_malformed_tool_calls
 from openchatbi.prompts.system_prompt import get_agent_prompt_template
 from openchatbi.text2sql.sql_graph import build_sql_graph
 from openchatbi.tool.ask_human import AskHuman
@@ -300,6 +300,19 @@ def agent_llm_call(
             parallel_tool_call=True,
         )
         if isinstance(response, AIMessage):
+            if has_malformed_tool_calls(response):
+                log(f"Model produced an unusable tool call after retries: {response.invalid_tool_calls}")
+                error_message = (
+                    "Sorry, the model produced an unusable tool call after multiple retries. Please try again."
+                )
+                error_response = AIMessage(content=error_message)
+                final_messages.append(error_response)
+                return {
+                    "messages": [error_response],
+                    "final_answer": error_message,
+                    "history_messages": final_messages,
+                    "agent_next_node": END,
+                }
             tool_calls = response.tool_calls
             print("Tool Call:", ", ".join(tool["name"] for tool in tool_calls))
             if tool_calls:

@@ -11,7 +11,7 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from openchatbi import config
 from openchatbi.constants import EXTRACTION_MAX_TOOL_ROUNDS
 from openchatbi.graph_state import SQLGraphState
-from openchatbi.llm.llm import call_llm_chat_model_with_retry
+from openchatbi.llm.llm import call_llm_chat_model_with_retry, has_malformed_tool_calls
 from openchatbi.prompts.system_prompt import get_basic_knowledge, get_extraction_prompt_template
 from openchatbi.utils import extract_json_from_answer, get_text_from_content, log
 
@@ -90,7 +90,7 @@ def information_extraction(llm: BaseChatModel) -> Callable:
             ([SystemMessage(system_prompt)] + messages + [HumanMessage(prompt)]),
             bound_tools=["search_knowledge", "AskHuman"],
         )
-        if response:
+        if response and not has_malformed_tool_calls(response):
             log(response)
             if response.tool_calls:
                 # A new question enters as a HumanMessage; tool results come back as ToolMessages.

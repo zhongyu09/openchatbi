@@ -321,3 +321,24 @@ class TestText2SQLExtraction:
                 assert False, "Expected exception to be raised"
             except Exception as e:
                 assert "LLM error" in str(e)
+
+    def test_information_extraction_malformed_tool_call_exhausted_falls_back_to_empty(self):
+        """When retries are exhausted and response still carries invalid_tool_calls, extraction falls back safely."""
+        bad = AIMessage(
+            content="Let me search knowledge first.",
+            invalid_tool_calls=[
+                {
+                    "name": "search_knowledge",
+                    "args": "{broken",
+                    "id": "call_1",
+                    "error": "Invalid JSON",
+                }
+            ],
+            response_metadata={"finish_reason": "tool_calls"},
+        )
+        with patch("openchatbi.text2sql.extraction.call_llm_chat_model_with_retry", return_value=bad):
+            extraction_func = information_extraction(Mock())
+            result = extraction_func(SQLGraphState(messages=[HumanMessage(content="Show GMV")]))
+
+        assert result == {"messages": [AIMessage(role="system", content="{}")]}
+        assert information_extraction_conditional_edges(result) == "end"

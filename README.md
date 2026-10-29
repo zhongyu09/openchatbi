@@ -388,7 +388,7 @@ memory_config:
 
 ### Evaluation
 
-- **Deterministic replay**: `evals/runledger/` replays recorded LLM cassettes in CI
+- **Deterministic replay**: `evals/runledger/` runs the agent graph with scripted LLM decisions and replayed tool cassettes in CI
   (`.github/workflows/runledger.yml`; runs on PRs to `main` or manual dispatch).
 - **LLM-as-Judge**: collect generated SQL over gold cases, then judge it with the shared rubric evaluator —
   see [`evals/judge/README.md`](evals/judge/README.md) for the two-step flow:
@@ -891,7 +891,14 @@ in replay mode.
 uv run --extra eval runledger run evals/runledger --mode replay --baseline baselines/runledger-openchatbi.json
 ```
 
-Run artifacts are written under `runledger_out/`.
+The `eval` extra pins RunLedger to `0.2.4`. Run artifacts are written under `runledger_out/`.
+To verify that skipping schema discovery is caught even when the final JSON is valid, run:
+
+```bash
+uv run --extra eval python -m evals.runledger.check_regression
+```
+
+The checker runs the real graph with the normal trajectory and a temporary trajectory that skips `search_schema`. It succeeds only when the normal case passes and the skipped-tool case fails the `must_call` assertion. See [the replay guide](evals/runledger/README.md) for the scope and evidence files.
 
 ### Pre-commit Hooks
 

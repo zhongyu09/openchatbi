@@ -2,23 +2,38 @@
 
 This suite is **replay-only** by default. It runs a deterministic CI check using a JSONL adapter that proxies tool calls through RunLedger and replays results from a cassette.
 
+The `eval` extra pins RunLedger to **0.2.4**, and CI installs that same extra. The adapter builds and invokes OpenChatBI's real main agent graph, while model decisions are scripted and tool operations return cassette results. SQL generation, live retrieval, MCP, memory, and the data-analysis sub-agent are replaced or disabled. These checks cover graph routing and protocol contracts, not SQL or answer quality.
+
 ## Run (replay)
 
 ```bash
+python -m pip install -e ".[eval]"
 runledger run evals/runledger --mode replay --baseline baselines/runledger-openchatbi.json
 ```
 
+The schema-discovery case also requires a `search_schema` call, so a valid final JSON response alone cannot satisfy that case.
+
+## Verify a deliberate regression
+
+```bash
+python -m evals.runledger.check_regression
+```
+
+This runs `c21_schema_discovery` twice using temporary suites and the current Python interpreter. The unchanged adapter must pass with exactly one `search_schema` call. A temporary wrapper then changes only that prompt's scripted trajectory to skip the call and invokes the same graph entrypoint. The final output must still match the JSON schema, while RunLedger must exit 1 with a `must_call` failure naming `search_schema`.
+
+The checker itself exits 0 only when both outcomes are verified. It retains each run's standard artifacts and `evidence.json` under `runledger_out/schema-regression-check/`. A startup error, timeout, or unrelated failure does not count as detecting the regression. No committed adapter, case, cassette, or baseline is modified by the check.
+
 ## Record / update cassette (optional)
 
-If you want to re-record the cassette with real tool outputs, run in record mode in a fully configured OpenChatBI environment (valid `openchatbi/config.yaml`, data warehouse/catalog, LLM keys).
+Recording is separate from this replay-only upgrade check. Most handlers in `tools.py` invoke real tools and require a fully configured OpenChatBI environment (valid `openchatbi/config.yaml`, data warehouse/catalog, LLM keys). The `text2sql` handler is an echo stub with empty SQL/data, so recording this suite does not capture real SQL generation. Review and adapt that handler before using newly recorded SQL results as evidence.
 
 ```bash
 runledger run evals/runledger --mode record \
-  --baseline baselines/runledger-openchatbi.json \
-  --tool-module evals.runledger.tools
+  --baseline baselines/runledger-openchatbi.json
 ```
 
 Notes:
+- `suite.yaml` already sets `tool_module: evals.runledger.tools`.
 - Tool args are passed as JSON objects; see `evals/runledger/cassettes/t1.jsonl` for the exact shape.
 - After recording, promote the new baseline:
 
@@ -32,18 +47,17 @@ runledger baseline promote \
 
 ### Case YAML (`cases/*.yaml`)
 - `id`, `description`, `input.prompt`, `cassette` — consumed by RunLedger.
-- RunLedger `0.1.1` rejects unknown fields, so these files intentionally do
+- RunLedger rejects unknown fields, so these files intentionally do
   not contain judge-only metadata such as `category` or `gold`.
 - Judge cases live separately under `evals/judge/example_cases/`.
 
 ### Cassette JSONL (`cassettes/*.jsonl`)
 One line per tool call, in trajectory order. Shape:
 `{"tool": <name>, "args": {...}, "ok": true, "result": <any>}`.
-The `args` must byte-match what the agent emits, because RunLedger replay matches
-recorded calls by tool name + args.
+The `args` must match what the agent emits after JSON canonicalization: object key order and whitespace do not matter. RunLedger 0.2.4 consumes each matching tool-name/argument entry once per case, so repeated identical calls need one entry per call.
 
 ### Protocol note: keying on prompt
-The JSONL protocol carries no case-id. The agent driver (`agent/agent.py:_scripted_llm_call`)
+The JSONL `task_start` message carries a `task_id`, which the adapter uses for the graph thread. The scripted model driver (`agent/agent.py:_scripted_llm_call`)
 keys the scripted trajectory on the **user prompt text** (`_TRAJECTORIES`) and advances by the
 count of `ToolMessage`s already in history. Adding a RunLedger case therefore requires
 (1) a `cases/*.yaml`, (2) a matching `cassettes/*.jsonl`, and (3) a `_TRAJECTORIES[prompt]` entry.

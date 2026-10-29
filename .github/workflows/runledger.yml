@@ -20,6 +20,7 @@ jobs:
         run: |
           runledger run evals/runledger --mode replay --baseline baselines/runledger-openchatbi.json
       - name: Verify schema discovery regression detection
+        if: always()
         run: python -m evals.runledger.check_regression
       - name: Upload artifacts
         if: always()
